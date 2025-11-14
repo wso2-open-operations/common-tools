@@ -20,13 +20,12 @@
 *.rar
 
 # IDE files
-.idea/
-.vscode/
+.idea
+.vscode
 *.iml
 *.ipr
 *.iws
 .DS_Store
-.vscode
 .classpath
 .project
 .settings
