@@ -77,7 +77,8 @@ function dbUpdateSync(any[] sfRecords) returns error? {
 # + logIndex - Sync log index to update (Only applies to `COMPLETED` or `FAILED` status logs)
 # + return - Insert ID as a `int` for start log [`PROCESSING`] entries, or `-1` for end log [`COMPLETED`|`FAILED`] updates
 function dbInsertSyncLog(LogStatus status, string syncObj, int logIndex = -1) returns int|error {
-    time:Utc currentTime = time:utcNow();
+    time:Utc currentTimeUtc = time:utcNow();
+    time:Civil currentTime = time:utcToCivil(currentTimeUtc);
     match status {
         PROCESSING => {
             log:printDebug(string `[dbInsertSyncLog()] Inserting Processing sync log entry for ${syncObj} in the database...`);
@@ -128,7 +129,8 @@ function dbInsertSyncLog(LogStatus status, string syncObj, int logIndex = -1) re
 # + return - Sync processing (active) status as a `boolean`
 function dbCheckProcessing() returns boolean|error {
     log:printDebug("[dbCheckProcessing()] Retrieving sync log processing status from the database...");
-    time:Utc hourAgoTime = [time:utcNow()[0] - (60 * 60)];
+    time:Utc hourAgoUtc = [time:utcNow()[0] - (60 * 60)];
+    time:Civil hourAgoTime = time:utcToCivil(hourAgoUtc);
     sql:ParameterizedQuery query = `
         SELECT
             id
