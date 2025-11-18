@@ -47,7 +47,7 @@ const SkeletonCard = () => {
             <Skeleton variant="circular">
               <Avatar sx={{ width: 70, height: 70 }} />
             </Skeleton>
-            <Stack sx={{ ml: 3, alignItems: "left" }} gap={0.3}>
+            <Stack sx={{ ml: 3, alignItems: "flex-start" }} gap={0.3}>
               <Typography variant="h5" sx={{ fontWeight: 650 }}>
                 <Skeleton variant="text" width={250} />
               </Typography>
