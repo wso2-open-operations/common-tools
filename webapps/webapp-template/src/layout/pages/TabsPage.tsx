@@ -88,7 +88,7 @@ export default function TabsPage({ tabsPage }: TabsPageProps) {
 
 interface TabToggleProps {
   tabs: TabProps[];
-  activeIndex: Number;
+  activeIndex: number;
   handleTabClick: (index: number) => void;
 }
 
