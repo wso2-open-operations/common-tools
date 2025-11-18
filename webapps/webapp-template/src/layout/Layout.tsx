@@ -27,6 +27,7 @@ import ConfirmationModalContextProvider from "@context/DialogContext";
 import { selectRoles } from "@slices/authSlice/auth";
 import { type RootState, useAppSelector } from "@slices/store";
 import PreLoader from "@component/common/PreLoader";
+import { redirectUrl as savedRedirectUrl } from "@config/constant";  
 
 export default function Layout() {
   const { enqueueSnackbar } = useSnackbar();
@@ -38,7 +39,7 @@ export default function Layout() {
   const theme = useTheme();
 
   const showSnackbar = useCallback(() => {
-    if (common.timestamp != null) {
+    if (common.timestamp !== null) {
       enqueueSnackbar(common.message, {
         variant: common.type,
         preventDuplicate: true,
@@ -52,10 +53,10 @@ export default function Layout() {
   }, [showSnackbar]);
 
   useEffect(() => {
-    const redirectUrl = localStorage.getItem("iapd-app-redirect-url");
+    const redirectUrl = localStorage.getItem(savedRedirectUrl);
     if (redirectUrl) {
       navigate(redirectUrl);
-      localStorage.removeItem("iapd-app-redirect-url");
+      localStorage.removeItem(savedRedirectUrl);
     }
   }, [navigate]);
 
