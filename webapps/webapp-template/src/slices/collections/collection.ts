@@ -53,23 +53,19 @@ interface Collections {
 
 export interface Collection {
   id: number;
-  name: String;
-  createdOn: String;
-  createdBy: String;
-  updatedOn: String;
-  updatedBy: String;
+  name: string;
+  createdOn: string;
+  createdBy: string;
+  updatedOn: string;
+  updatedBy: string;
 }
 
 export const fetchCollections = createAsyncThunk(
   "collection/fetchCollections",
   async (_, { dispatch, rejectWithValue }) => {
-    APIService.getCancelToken().cancel();
-    const newCancelTokenSource = APIService.updateCancelToken();
     return new Promise<Collections>((resolve, reject) => {
       APIService.getInstance()
-        .get(AppConfig.serviceUrls.collections, {
-          cancelToken: newCancelTokenSource.token,
-        })
+        .get(AppConfig.serviceUrls.collections)
         .then((response) => {
           resolve(response.data);
         })
@@ -132,7 +128,7 @@ const CollectionSlice = createSlice({
   name: "collection",
   initialState,
   reducers: {
-    resetSubmitSate(state) {
+    resetSubmitState(state) {
       state.submitState = State.idle;
     },
   },
@@ -166,5 +162,5 @@ const CollectionSlice = createSlice({
   },
 });
 
-export const { resetSubmitSate } = CollectionSlice.actions;
+export const { resetSubmitState } = CollectionSlice.actions;
 export default CollectionSlice.reducer;
