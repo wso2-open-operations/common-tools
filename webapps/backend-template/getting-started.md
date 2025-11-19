@@ -96,7 +96,7 @@ You can get a token from the sample Asgardeo app or using the webapp-template it
 
    Since we are not pushing the `Config.toml` file to source control, this will keep track of the new configurations.
 
-3. Set the `/test/Config.toml` and `/test/Config.toml.local` files. This is important when you have updated the configurations.
+   Set the `/tests/Config.toml` and `/tests/Config.toml.local` files. This is important when you have updated the configurations.  
 
 4. Write ballerina test cases for the new changes.
 
