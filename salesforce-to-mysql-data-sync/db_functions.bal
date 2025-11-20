@@ -211,7 +211,7 @@ function dbPrepareInitQuery(any[] records) returns sql:ParameterizedQuery|error 
 # Generate the sync (insert/update) SQL query array for given Salesforce object records.
 #
 # + records - Salesforce object records array
-# + return - Generated batch as a `sql:ParameterizedQuery` array
+# + return - Generated query as a `sql:ParameterizedQuery` array
 function dbInsertQuery(any[] records) returns sql:ParameterizedQuery[]|error {
     if records is SFAccountSyncRecord[] {
         return from var 'record in records
