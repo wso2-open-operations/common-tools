@@ -50,13 +50,9 @@ const initialState: AppConfigState = {
 export const fetchAppConfig = createAsyncThunk(
   "appConfig/fetchAppConfig",
   async (_, { dispatch, rejectWithValue }) => {
-    APIService.getCancelToken().cancel();
-    const newCancelTokenSource = APIService.updateCancelToken();
     return new Promise<AppConfigInfo>((resolve, reject) => {
       APIService.getInstance()
-        .get(AppConfig.serviceUrls.appConfig, {
-          cancelToken: newCancelTokenSource.token,
-        })
+        .get(AppConfig.serviceUrls.appConfig)
         .then((response) => {
           resolve(response.data);
         })

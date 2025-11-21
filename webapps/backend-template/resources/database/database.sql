@@ -30,5 +30,5 @@ CREATE TABLE `sample_collection` (
 );
 
 LOCK TABLES `sample_collection` WRITE;
-INSERT INTO `sample_collection` VALUES (1,_binary 'Collection 1','2024-07-03 10:19:09.236415','user@wso2.com','2024-07-03 10:19:09.236415','user@wso2.com@wso2.com'),(2,_binary 'Collection 2','2024-07-03 10:19:09.238862','user@wso2.com','2024-07-03 10:19:09.238862','user@wso2.com'),(3,_binary 'Collection 3','2024-07-03 10:19:09.239927','user@wso2.com','2024-07-03 10:19:09.239927','user@wso2.com'),(4,_binary 'Collection 4','2024-07-03 10:19:09.241920','user@wso2.com','2024-07-03 10:19:09.241920','user@wso2.com'),(5,_binary 'Collection 5','2024-07-03 10:19:09.243051','user@wso2.com','2024-07-03 10:19:09.243051','user@wso2.com');
+INSERT INTO `sample_collection` VALUES (1,_binary 'Collection 1','2024-07-03 10:19:09.236415','user@wso2.com','2024-07-03 10:19:09.236415','user@wso2.com'),(2,_binary 'Collection 2','2024-07-03 10:19:09.238862','user@wso2.com','2024-07-03 10:19:09.238862','user@wso2.com'),(3,_binary 'Collection 3','2024-07-03 10:19:09.239927','user@wso2.com','2024-07-03 10:19:09.239927','user@wso2.com'),(4,_binary 'Collection 4','2024-07-03 10:19:09.241920','user@wso2.com','2024-07-03 10:19:09.241920','user@wso2.com'),(5,_binary 'Collection 5','2024-07-03 10:19:09.243051','user@wso2.com','2024-07-03 10:19:09.243051','user@wso2.com');
 UNLOCK TABLES;

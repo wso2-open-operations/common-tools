@@ -423,7 +423,7 @@ APIService.callback = callback;
 - A **request interceptor** runs **right before** a request is sent.
 - We set two headers:
   - `Authorization: Bearer <token>` → standard way to send a JWT to the server.
-  - After choreo gateway validate the idToken it will install a new header called `x-jwt-assertion: <token>` and will assign our idToken as its value.
+  - After the choreo gateway validates the idToken, it will install a new header called `x-jwt-assertion: <token>` and will assign our idToken as its value.  
 
 ```tsx
 const endpoint = config.url || "";

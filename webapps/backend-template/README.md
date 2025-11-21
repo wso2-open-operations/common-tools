@@ -8,7 +8,7 @@
 
 ##### Summary:
 
-Retrieve the logged in user's details.
+Retrieve the logged-in user's details.
 
 ##### Parameters
 
@@ -40,7 +40,6 @@ Retrieve the logged in user's details.
   }
   ```
   </td>
-    </tr>
     <tr>
       <td> 500 </td><td> Internal Server Error <br/>
   
@@ -50,7 +49,6 @@ Retrieve the logged in user's details.
   }
   ```
   </td>
-    </tr>
     </tr>
     <tr>
       <td> 400 </td><td> Bad Request <br/>
@@ -127,7 +125,6 @@ Fetch all the collections based on the filter criteria.
   }
   ```
   </td>
-    </tr>
     </tr>
     <tr>
       <td> 400 </td><td> Bad Request <br/>
@@ -226,7 +223,6 @@ Create a new collection in the system.
   }
   ```
   </td>
-    </tr>
     </tr>
     <tr>
       <td> 400 </td><td> Bad Request <br/>

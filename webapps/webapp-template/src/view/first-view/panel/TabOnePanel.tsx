@@ -44,6 +44,8 @@ const TabOnePanel = () => {
     setShowAddCollectionPopUp(false);
   };
 
+  const count = collection.collections?.count ?? 0;
+
   return (
     <>
       {/* Loading component */}
@@ -121,7 +123,7 @@ const TabOnePanel = () => {
           </Fab>
 
           {/* No data component */}
-          {collection.collections?.count === 0 && (
+          {count === 0 && (
             <Fade in={collection.state === State.success}>
               <Stack
                 sx={{
@@ -159,7 +161,7 @@ const TabOnePanel = () => {
           )}
 
           {/* Data component */}
-          {collection.collections!.count! > 0 && (
+          {count > 0 && collection.collections && (
             <Fade in={collection.state === State.success}>
               <Box
                 sx={{
@@ -171,7 +173,7 @@ const TabOnePanel = () => {
                   flexDirection: "column",
                 }}
               >
-                {collection.collections!.collections.map((collection, idx) => (
+                {collection.collections.collections.map((collection, idx) => (
                   <DataCard
                     key={collection.id}
                     collection={collection}

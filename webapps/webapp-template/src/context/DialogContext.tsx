@@ -13,7 +13,6 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 import CloseIcon from "@mui/icons-material/Close";
 import DoneIcon from "@mui/icons-material/Done";
 import SaveAltIcon from "@mui/icons-material/SaveAlt";
@@ -78,7 +77,7 @@ type ConfirmationModalContextProviderProps = {
 
 const ConfirmationModalContext = React.createContext<ConfirmationDialogContextType | null>(null);
 
-const ConfirmationDialogContextProvider: React.FC<ConfirmationModalContextProviderProps> = (
+const ConfirmationModalContextProvider: React.FC<ConfirmationModalContextProviderProps> = (
   props,
 ) => {
   const { setShow, show, onHide } = useDialogShow();
@@ -88,7 +87,7 @@ const ConfirmationDialogContextProvider: React.FC<ConfirmationModalContextProvid
   const [content, setContent] = useState<{
     title: string;
     message: string | React.ReactNode;
-    type: "update" | "send" | "upload" | "accept";
+    type: ConfirmationType
     action: (value?: string) => void;
     okText?: string;
     cancelText?: string;
@@ -96,14 +95,14 @@ const ConfirmationDialogContextProvider: React.FC<ConfirmationModalContextProvid
   }>({
     title: "",
     message: "",
-    type: "send",
+    type: ConfirmationType.send,
     action: () => {},
   });
 
   const handleShow = (
     title: string,
     message: string | React.ReactNode,
-    type: "update" | "send" | "upload" | "accept",
+    type: ConfirmationType,
     action: (value?: string) => void,
     okText?: string,
     cancelText?: string,
@@ -139,7 +138,7 @@ const ConfirmationDialogContextProvider: React.FC<ConfirmationModalContextProvid
     setContent({
       title: "",
       message: "",
-      type: "accept",
+      type: ConfirmationType.accept,
       action: () => {},
       okText: undefined,
       cancelText: undefined,
@@ -261,7 +260,7 @@ const useConfirmationModalContext = (): ConfirmationDialogContextType => {
   const context = useContext(ConfirmationModalContext);
   if (!context) {
     throw new Error(
-      "useConfirmationModalContext must be used within a ConfirmationDialogContextProvider",
+      "useConfirmationModalContext must be used within a ConfirmationModalContextProvider",
     );
   }
   return context;
@@ -269,4 +268,4 @@ const useConfirmationModalContext = (): ConfirmationDialogContextType => {
 
 export { useDialogShow, useConfirmationModalContext };
 
-export default ConfirmationDialogContextProvider;
+export default ConfirmationModalContextProvider;

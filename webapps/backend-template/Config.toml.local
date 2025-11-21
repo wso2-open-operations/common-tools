@@ -5,6 +5,8 @@ headPeopleOperationsRole =
 [sample_app.appConfig]
 sampleAppConfig = 
 
+[sample_app.database]
+connectTimeout = 
 [sample_app.database.databaseConfig]
 database = 
 host = 

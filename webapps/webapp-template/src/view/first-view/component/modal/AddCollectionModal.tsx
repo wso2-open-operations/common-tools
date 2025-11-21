@@ -38,7 +38,7 @@ import * as yup from "yup";
 import React, { useEffect } from "react";
 
 import { useConfirmationModalContext } from "@context/DialogContext";
-import { addCollections, resetSubmitSate } from "@slices/collections/collection";
+import { addCollections, resetSubmitState } from "@slices/collections/collection";
 import { RootState, useAppDispatch, useAppSelector } from "@slices/store";
 import { ConfirmationType, State } from "@utils/types";
 
@@ -54,10 +54,10 @@ const AddCollectionModal: React.FC<{ toggleClose: () => void }> = ({ toggleClose
 
   useEffect(() => {
     if (collection.submitState === State.success) {
-      dispatch(resetSubmitSate()); // Resetting the submit state
+      dispatch(resetSubmitState()); // Resetting the submit state
       toggleClose();
     }
-}, [collection.submitState, dispatch, toggleClose]); // ✅ Complete dependencies
+}, [collection.submitState, dispatch, toggleClose]);
   const formik = useFormik({
     initialValues: {
       collectionName: "",

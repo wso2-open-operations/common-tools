@@ -4,8 +4,8 @@
 
 2. Rename following files
 
-   - `config.toml.local` -> `config.toml`
-   - `/tests/config.toml.local` -> `/tests/config.toml`
+   - `Config.toml.local` -> `Config.toml`
+   - `/tests/Config.toml.local` -> `/tests/Config.toml`
 
 3. Add relevant configurations.
 
@@ -37,19 +37,19 @@
         maxWaitInterval = <Max waiting interval: 20.0>
 
 # Database Configurations.
-[sample_app.database.dbConfig]
+[sample_app.database]
+    connectTimeout = <Connection timeout: 10.0>
+[sample_app.database.databaseConfig]
     host = "<Database host>"
     user = "<Database user name>"
     password = "<Database password>"
     database = "<Schema name>"
     port = <Database port>
-    [sample_app.database.dbConfig.connectionPool]
+    [sample_app.database.databaseConfig.connectionPool]
         maxOpenConnections = <Maximum open connections: 10>
         maxConnectionLifeTime = <Maximum connection lifetime: 100.0>
         minIdleConnections= <Maximum idle connections: 3>
-    [sample_app.database.dbConfig.options]
-        connectTimeout = <Connection timeout in: 10.0>
-    [sample_app.database.dbConfig.options.ssl]
+    [sample_app.database.databaseConfig.options.ssl]
         mode = "PREFERRED"
 
 # Authorization Configurations.
@@ -62,7 +62,7 @@
 
 1. Add the required configurations for
 
-   - config.toml
+   - Config.toml
 
 2. Make sure your local Ballerina version matches with the Ballerina version in the Ballerina.toml. Then you can simply run the service by
 
@@ -72,7 +72,7 @@
 
 ## Test
 
-You can write ballerina tests to test the code. You can find more details about the Ballerina tests [here](https://ballerina.io/learn/test-ballerina-code/test-a-simple-function/).
+You can write ballerina tests to test the code. You can find more details in the [Ballerina testing documentation](https://ballerina.io/learn/test-ballerina-code/test-a-simple-function/).  
 To run the test you need to have an Asgardeo ID token.
 
 You can get a token from the sample Asgardeo app or using the webapp-template itself.
@@ -94,9 +94,9 @@ You can get a token from the sample Asgardeo app or using the webapp-template it
 
 2. Rename it `Config.toml.local` and remove all configs.
 
-   Since we are not pushing the `config.toml` file to source control, this will keep track of the new configurations.
+   Since we are not pushing the `Config.toml` file to source control, this will keep track of the new configurations.
 
-3. Set the `/test/config.toml` and `/test/config.toml.local` files. This is important when you have updated the configurations.
+3. Set the `/tests/Config.toml` and `/tests/Config.toml.local` files. This is important when you have updated the configurations.  
 
 4. Write ballerina test cases for the new changes.
 

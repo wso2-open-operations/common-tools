@@ -92,41 +92,27 @@ service http:InterceptableService / on new http:Listener(9090) {
         }
 
         // Fetch the user information from the entity service.
-        // entity:Employee|error loggedInUser = entity:fetchEmployeesBasicInfo(userInfo.email);
-        // if loggedInUser is error {
-        //     string customError = string `Error occurred while retrieving user data: ${userInfo.email}!`;
-        //     log:printError(customError, loggedInUser);
-        //     return <http:InternalServerError>{
-        //         body: {
-        //             message: customError
-        //         }
-        //     };
-        // }
+        entity:Employee|error loggedInUser = entity:fetchEmployeesBasicInfo(userInfo.email);
+        if loggedInUser is error {
+            string customError = string `Error occurred while retrieving user data: ${userInfo.email}!`;
+            log:printError(customError, loggedInUser);
+            return <http:InternalServerError>{
+                body: {
+                    message: customError
+                }
+            };
+        }
 
-        // // Fetch the user's privileges based on the roles.
-        // int[] privileges = [];
-        // if authorization:checkPermissions([authorization:authorizedRoles.employeeRole], userInfo.groups) {
-        //     privileges.push(authorization:EMPLOYEE_ROLE_PRIVILEGE);
-        // }
-        // if authorization:checkPermissions([authorization:authorizedRoles.headPeopleOperationsRole], userInfo.groups) {
-        //     privileges.push(authorization:HEAD_PEOPLE_OPERATIONS_PRIVILEGE);
-        // }
-
-        entity:Employee employee = {
-            firstName: "Dineth",
-            lastName: "Silva",
-            employeeId: "E001",
-            employeeThumbnail: (),
-            workEmail: "dineths@wso2.com",
-            jobRole: "Intern"
-        };
-
+        // Fetch the user's privileges based on the roles.
         int[] privileges = [];
+        if authorization:checkPermissions([authorization:authorizedRoles.employeeRole], userInfo.groups) {
+            privileges.push(authorization:EMPLOYEE_ROLE_PRIVILEGE);
+        }
+        if authorization:checkPermissions([authorization:authorizedRoles.headPeopleOperationsRole], userInfo.groups) {
+            privileges.push(authorization:HEAD_PEOPLE_OPERATIONS_PRIVILEGE);
+        }
 
-        privileges.push(authorization:EMPLOYEE_ROLE_PRIVILEGE);
-        privileges.push(authorization:HEAD_PEOPLE_OPERATIONS_PRIVILEGE);
-
-        UserInfoResponse userInfoResponse = {...employee, privileges};
+        UserInfoResponse userInfoResponse = {...loggedInUser, privileges};
 
         error? cacheError = cache.put(userInfo.email, userInfoResponse);
         if cacheError is error {

@@ -20,10 +20,10 @@ import Typography from "@mui/material/Typography";
 
 import React from "react";
 
-import BasicBreadcrumbs from "@layout/BreadCrumbs/BreadCrumbs";
 import Wso2Logo from "@assets/images/wso2-logo.svg";
 import { APP_NAME } from "@config/config";
 import { useAppAuthContext } from "@context/AuthContext";
+import BasicBreadcrumbs from "@layout/BreadCrumbs/BreadCrumbs";
 import { RootState, useAppSelector } from "@slices/store";
 
 const Header = () => {
@@ -44,8 +44,7 @@ const Header = () => {
     <Box
       sx={{
         zIndex: 10,
-        backgroundColor: theme.palette.background.nav,
-        borderBottom: `1px solid ${theme.palette.border.light}`,
+        backgroundColor: theme.palette.surface.territory.active,
         boxShadow: theme.shadows[4],
       }}
     >
@@ -81,10 +80,7 @@ const Header = () => {
           <Typography
             variant="h5"
             sx={{
-              ml: 1,
-              fontWeight: 600,
-              width: "fit-content",
-              color: theme.palette.text.primary,
+              color: theme.palette.customText.primary.p1.active,
             }}
           >
             {APP_NAME}
@@ -101,8 +97,7 @@ const Header = () => {
                     onClick={handleOpenUserMenu}
                     sx={{
                       border: 1,
-                      borderColor: "primary.main",
-                      cursor: "pointer",
+                      borderColor: theme.palette.customBorder.territory.active,
                     }}
                     src={user.userInfo?.employeeThumbnail || ""}
                     alt={user.userInfo?.firstName || "Avatar"}
@@ -115,8 +110,7 @@ const Header = () => {
                     noWrap
                     variant="body1"
                     sx={{
-                      fontWeight: 600,
-                      color: theme.palette.text.primary,
+                      color: theme.palette.customText.primary.p2.active,
                     }}
                   >
                     {user.userInfo?.firstName + " " + user.userInfo.lastName}
@@ -125,7 +119,7 @@ const Header = () => {
                     noWrap
                     variant="body2"
                     sx={{
-                      color: theme.palette.textTokens[200],
+                      color: theme.palette.customText.primary.p3.active,
                     }}
                   >
                     {user.userInfo?.jobRole}

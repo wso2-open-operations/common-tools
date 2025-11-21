@@ -15,6 +15,7 @@
 // under the License.
 
 import { Box, Typography } from "@mui/material";
+import MaintenanceGif from "@assets/images/maintenance.gif";
 
 export default function MaintenancePage() {
   return (
@@ -27,7 +28,7 @@ export default function MaintenancePage() {
         minHeight: "100vh",
       }}
     >
-      <img alt="maintenance" src="/maintenance.gif" />
+      <img alt="maintenance" src={MaintenanceGif} />
       <Typography variant="h4" style={{ color: "gray" }}>
         Exciting changes are on the way! Our website is currently undergoing a
         transformation to enhance your experience. Please check back soon to see

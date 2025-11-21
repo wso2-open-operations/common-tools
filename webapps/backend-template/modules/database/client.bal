@@ -20,13 +20,15 @@ import ballerinax/mysql.driver as _;
 # Database Client Configuration.
 configurable DatabaseConfig databaseConfig = ?;
 
+configurable decimal connectTimeout = ?;
+
 DatabaseClientConfig databaseClientConfig = {
     ...databaseConfig,
     options: {
         ssl: {
             mode: mysql:SSL_REQUIRED
         },
-        connectTimeout: 10
+        connectTimeout: connectTimeout
     }
 };
 

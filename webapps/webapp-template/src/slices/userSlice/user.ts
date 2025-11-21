@@ -43,7 +43,7 @@ export const getUserInfo = createAsyncThunk("user/getUserInfo", async () => {
           UserInfo: resp.data,
         });
       })
-      .catch((error: Error) => {
+      .catch((error: AxiosError) => {
         reject(error);
       });
   });

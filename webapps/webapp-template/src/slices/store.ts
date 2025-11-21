@@ -12,17 +12,17 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
-// under the License. 
-
-import { enableMapSet } from "immer";
-import authReducer from "@slices/authSlice/auth";
-import userReducer from "@slices/userSlice/user";
+// under the License.
 import { configureStore } from "@reduxjs/toolkit";
+import { enableMapSet } from "immer";
+import { TypedUseSelectorHook, useDispatch, useSelector } from "react-redux";
+
+import authReducer from "@slices/authSlice/auth";
+import collectionReducer from "@slices/collections/collection";
 import commonReducer from "@slices/commonSlice/common";
 import appConfigReducer from "@slices/configSlice/config";
-import collectionReducer from "@slices/collections/collection";
 import employeeReducer from "@slices/employeeSlice/employee";
-import { TypedUseSelectorHook, useDispatch, useSelector } from "react-redux";
+import userReducer from "@slices/userSlice/user";
 
 enableMapSet();
 
@@ -35,10 +35,7 @@ export const store = configureStore({
     collection: collectionReducer,
     appConfig: appConfigReducer,
   },
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware({
-      thunk: undefined,
-    }),
+  middleware: (getDefaultMiddleware) => getDefaultMiddleware(),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

@@ -54,7 +54,7 @@ export function ShowSnackBarMessage(message: string, type: VariantType) {
       type: "common/enqueueSnackbarMessage",
       payload: {
         message: message,
-        type: "success",
+        type: type,
       },
     });
   };

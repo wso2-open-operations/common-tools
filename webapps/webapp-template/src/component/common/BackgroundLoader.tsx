@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import React from "react";
 import Backdrop from "@mui/material/Backdrop";
 import CircularProgress from "@mui/material/CircularProgress";
 import { Typography } from "@mui/material";

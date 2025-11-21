@@ -36,7 +36,6 @@ interface AuthState {
   status: State;
   mode: "active" | "maintenance";
   statusMessage: string | null;
-  isAuthenticated: boolean;
   userInfo: BasicUserInfo | null;
   decodedIdToken: ExtendedDecodedIDTokenPayload | null;
   roles: Role[];
@@ -68,7 +67,6 @@ const initialState: AuthState = {
   status: State.idle,
   mode: "active",
   statusMessage: null,
-  isAuthenticated: false,
   userInfo: null,
   decodedIdToken: null,
   roles: [],

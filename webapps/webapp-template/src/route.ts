@@ -140,8 +140,8 @@ export const getActiveRouteDetails = (roles: string[]): RouteDetail[] => {
   routes.forEach((routeObj) => {
     if (isIncludedRole(roles, routeObj.allowRoles)) {
       routesObj.push({
-        path: routeObj.path ? routeObj.path : "",
         ...routeObj,
+        path: routeObj.path ?? "",
       });
     }
   });
