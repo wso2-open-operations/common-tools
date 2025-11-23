@@ -13,15 +13,14 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-import { Box, Stack, Tooltip, Typography, useTheme } from "@mui/material";
-import { ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react";
+import { Box, Divider, Stack, Tooltip, Typography, useTheme } from "@mui/material";
+import { ChevronLeft, ChevronRight, DivideCircle, Moon, Sun } from "lucide-react";
 
 import { useMemo, useState } from "react";
 
-import pJson from "@root/package.json";
 import type { NavState } from "@/types/types";
 import SidebarNavItem from "@component/layout/SidebarNavItem";
+import pJson from "@root/package.json";
 import { ColorModeContext } from "@src/App";
 import { getActiveRouteDetails } from "@src/route";
 
@@ -37,8 +36,8 @@ const Sidebar = (props: SidebarProps) => {
 
   // Single state object for nav state
   const [navState, setNavState] = useState<NavState>({
-    hovered: null,
     active: null,
+    hovered: null,
     expanded: null,
   });
 
@@ -46,7 +45,6 @@ const Sidebar = (props: SidebarProps) => {
   const handleClick = (idx: number) => {
     setNavState((prev) => ({
       ...prev,
-      active: idx,
       expanded: prev.expanded === idx ? null : idx,
     }));
   };
@@ -60,19 +58,95 @@ const Sidebar = (props: SidebarProps) => {
   };
   const theme = useTheme();
 
+  const renderControlButton = (
+    icon: React.ReactNode,
+    onClick?: () => void,
+    tooltipTitle?: string,
+  ) => {
+    const button = (
+      <Box
+        component="button"
+        onClick={onClick}
+        disabled={!onClick}
+        aria-label={tooltipTitle}
+        sx={{
+          width: props.open ? "100%" : "fit-content",
+          padding: theme.spacing(1),
+          borderRadius: "8px",
+          cursor: onClick ? "pointer" : "default",
+          border: "none",
+          background: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: props.open ? "flex-center" : "center",
+          gap: theme.spacing(1),
+          color: theme.palette.customNavigation.text,
+          transition: "all 0.2s ease-in-out",
+          ...(onClick && {
+            "&:hover": {
+              backgroundColor: theme.palette.customNavigation.hoverBg,
+              color: theme.palette.customNavigation.hover,
+            },
+            "&:active": {
+              backgroundColor: theme.palette.customNavigation.clickedBg,
+              color: theme.palette.customNavigation.clicked,
+            },
+          }),
+        }}
+      >
+        {icon}
+      </Box>
+    );
+
+    // Only show tooltip when sidebar is collapsed
+    if (tooltipTitle && !props.open) {
+      return (
+        <Tooltip
+          title={tooltipTitle}
+          placement="right"
+          arrow
+          slotProps={{
+            tooltip: {
+              sx: {
+                backgroundColor: theme.palette.neutral[10],
+                color: theme.palette.neutral.white,
+                padding: theme.spacing(0.75, 1),
+                borderRadius: "4px",
+                fontSize: "12px",
+                boxShadow: theme.shadows[8],
+              },
+            },
+            arrow: {
+              sx: {
+                color: theme.palette.neutral[10],
+              },
+            },
+          }}
+        >
+          {button}
+        </Tooltip>
+      );
+    }
+
+    return button;
+  };
+
   return (
     <ColorModeContext.Consumer>
       {(colorMode) => {
+        const currentYear = new Date().getFullYear();
+
         return (
           <Box
             sx={{
               height: "100%",
-              padding: theme.spacing(1),
-              backgroundColor: theme.palette.background.secondary,
+              paddingY: "16px",
+              paddingX: "12px",
+              backgroundColor: theme.palette.surface.secondary.active,
               zIndex: 10,
               display: "flex",
               flexDirection: "column",
-              width: "fit-content",
+              width: props.open ? "200px" : "fit-content",
               overflow: "visible",
             }}
           >
@@ -111,199 +185,56 @@ const Sidebar = (props: SidebarProps) => {
             </Stack>
 
             {/* Spacer */}
-            <Box sx={{ flex: 1 }} />
+            <Box sx={{ flexGrow: 1 }} />
 
-            {/* Footer */}
-            <Box
+            {/* Footer Controls */}
+            <Stack
+              direction="column"
+              gap={1}
               sx={{
-                position: "relative",
-                left: 0,
-                width: "100%",
-                display: "flex",
+                paddingBottom: "20px",
                 alignItems: "center",
-                justifyContent: "space-between",
               }}
             >
-              <Stack gap={1} sx={{ width: "100%" }}>
-                {/* Bottom Navigation Items */}
-                {allRoutes.map(
-                  (route, idx) =>
-                    route.bottomNav && (
-                      <Box
-                        key={idx}
-                        sx={{
-                          width: props.open ? "100%" : "fit-content",
-                        }}
-                      >
-                        <SidebarNavItem
-                          route={route}
-                          open={props.open}
-                          isActive={navState.active === idx}
-                          isHovered={navState.hovered === idx}
-                          isExpanded={navState.expanded === idx}
-                          onClick={() => handleClick(idx)}
-                        />
-                      </Box>
-                    ),
-                )}
+              {/* Theme Toggle */}
+              {renderControlButton(
+                colorMode.mode === "dark" ? <Sun size={18} /> : <Moon size={18} />,
+                colorMode.toggleColorMode,
+                colorMode.mode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode",
+              )}
 
-                {/* Control Buttons */}
-                <Stack direction="column" gap={1} sx={{ pl: "2px", width: "100%" }}>
-                  {/* Theme Toggle Button */}
-                  <Tooltip
-                    title={`Switch to ${colorMode.mode === "dark" ? "light" : "dark"} mode`}
-                    placement="right"
-                    arrow
-                    disableHoverListener={props.open}
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: theme.palette.neutral[10],
-                          color: theme.palette.neutral.white,
-                          padding: theme.spacing(0.75, 1),
-                          borderRadius: "4px",
-                          fontSize: "14px",
-                          boxShadow: theme.shadows[8],
-                        },
-                      },
-                      arrow: {
-                        sx: {
-                          color: theme.palette.neutral[10],
-                        },
-                      },
-                    }}
-                  >
-                    <Box
-                      component="button"
-                      onClick={colorMode.toggleColorMode}
-                      sx={{
-                        width: "fit-content",
-                        padding: theme.spacing(1),
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        border: "none",
-                        background: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: theme.spacing(1),
-                        color: theme.palette.navigation.link,
-                        transition: "all 0.2s",
-                        "&:hover": {
-                          backgroundColor: theme.palette.navigation.hoverBg,
-                          color: theme.palette.navigation.hover,
-                        },
-                      }}
-                    >
-                      {colorMode.mode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-                    </Box>
-                  </Tooltip>
+              {/* Sidebar Toggle */}
+              {renderControlButton(
+                !props.open ? <ChevronRight size={20} /> : <ChevronLeft size={20} />,
+                props.handleDrawer,
+                props.open ? "Collapse Sidebar" : "Expand Sidebar",
+              )}
 
-                  {/* Sidebar Toggle Button */}
-                  <Tooltip
-                    title={props.open ? "Collapse Sidebar" : "Expand Sidebar"}
-                    placement="right"
-                    arrow
-                    disableHoverListener={props.open}
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: theme.palette.neutral[10],
-                          color: theme.palette.neutral.white,
-                          padding: theme.spacing(0.75, 1),
-                          borderRadius: "4px",
-                          fontSize: "14px",
-                          boxShadow: theme.shadows[8],
-                        },
-                      },
-                      arrow: {
-                        sx: {
-                          color: theme.palette.neutral[10],
-                        },
-                      },
-                    }}
-                  >
-                    <Box
-                      component="button"
-                      onClick={props.handleDrawer}
-                      sx={{
-                        width: props.open ? "fit-content" : "fit-content",
-                        padding: theme.spacing(1),
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        border: "none",
-                        background: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: theme.spacing(1),
-                        color: theme.palette.navigation.link,
-                        transition: "all 0.2s",
-                        "&:hover": {
-                          backgroundColor: theme.palette.navigation.hoverBg,
-                          color: theme.palette.navigation.hover,
-                        },
-                      }}
-                    >
-                      {!props.open ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-                    </Box>
-                  </Tooltip>
+              <Divider
+                sx={{
+                  width: "100%",
+                  backgroundColor: theme.palette.customNavigation.clickedBg
+                }}
+              />
 
-                  {/* Version Info Button */}
-                  <Tooltip
-                    title={`v ${pJson.version} | © ${new Date().getFullYear()} WSO2 LLC`}
-                    placement="right"
-                    arrow
-                    disableHoverListener={props.open}
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: theme.palette.neutral[10],
-                          color: theme.palette.neutral.white,
-                          padding: theme.spacing(0.75, 1),
-                          borderRadius: "4px",
-                          fontSize: "14px",
-                          boxShadow: theme.shadows[8],
-                          whiteSpace: "nowrap",
-                        },
-                      },
-                      arrow: {
-                        sx: {
-                          color: theme.palette.neutral[10],
-                        },
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: "100%",
-                        padding: theme.spacing(1),
-                        borderRadius: "8px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        textAlign: "center",
-                        color: theme.palette.navigation.link,
-                        transition: "all 0.2s",
-                        cursor: "pointer",
-                        "&:hover": {
-                          backgroundColor: theme.palette.navigation.hoverBg,
-                          color: theme.palette.navigation.hover,
-                        },
-                      }}
-                    >
-                      {!props.open ? (
-                        <Typography variant="body2">v{pJson.version}</Typography>
-                      ) : (
-                        <Typography variant="body2">
-                          v {pJson.version} | © {new Date().getFullYear()} WSO2 LLC
-                        </Typography>
-                      )}
-                    </Box>
-                  </Tooltip>
-                </Stack>
-              </Stack>
-            </Box>
+              {/* Version Info */}
+              {renderControlButton(
+                <Typography
+                  variant="body2"
+                  sx={{
+                    whiteSpace: "nowrap",
+                    color: "inherit",
+                    width: "100%",
+                  }}
+                >
+                  {props.open
+                    ? `v${pJson.version} | © ${currentYear} WSO2 LLC`
+                    : `v${pJson.version.split(".")[0]}`}
+                </Typography>,
+                undefined,
+                `Version ${pJson.version}`,
+              )}
+            </Stack>
           </Box>
         );
       }}
