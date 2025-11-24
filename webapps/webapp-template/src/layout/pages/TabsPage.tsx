@@ -58,7 +58,7 @@ export default function TabsPage({ tabsPage }: TabsPageProps) {
     <Box
       sx={{
         height: "100%",
-        transition: "colors 200ms",
+        transition: "color 200ms",
       }}
     >
       {/* Tab Navigation */}
@@ -107,7 +107,7 @@ export function Tabs({ tabs, activeIndex, handleTabClick }: TabToggleProps) {
           borderColor: theme.palette.customBorder.territory.active,
           width: "100%",
           position: "relative",
-          transition: "colors 200ms",
+          transition: "color 200ms",
         }}
       >
         {tabs.map((tab, index) => (

@@ -51,11 +51,11 @@ const SubLink = (props: SubLinkProps) => {
             borderRadius: "8px",
             justifyContent: "flex-start",
             textDecoration: "none",
-            color: isActive ? "customNavigation.textClicked" : "customNavigation.text",
+            color: isActive ? theme.palette.customNavigation.textClicked : theme.palette.customNavigation.text,
             "&:hover": {
               ...(!isActive && {
-                backgroundColor: "customNavigation.hoverBg",
-                color: "customNavigation.hover",
+                backgroundColor: theme.palette.customNavigation.hoverBg,
+                color: theme.palette.customNavigation.hover,
               }),
             },
           }}

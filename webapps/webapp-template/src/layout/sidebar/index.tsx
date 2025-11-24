@@ -108,7 +108,7 @@ const Sidebar = (props: SidebarProps) => {
           slotProps={{
             tooltip: {
               sx: {
-                backgroundColor: theme.palette.neutral[10],
+                backgroundColor: theme.palette.neutral[1700],
                 color: theme.palette.neutral.white,
                 padding: theme.spacing(0.75, 1),
                 borderRadius: "4px",
@@ -118,7 +118,7 @@ const Sidebar = (props: SidebarProps) => {
             },
             arrow: {
               sx: {
-                color: theme.palette.neutral[10],
+                color: theme.palette.neutral[1700],
               },
             },
           }}

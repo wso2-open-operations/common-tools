@@ -47,7 +47,7 @@ const LinkItem = (props: ListItemLinkProps) => {
         borderRadius: "8px",
         justifyContent: "space-between",
         transition: "all 0.2s",
-        backgroundColor: isActiveOrExpanded ? "customNavigation.clickedBg" : "transparent",
+        backgroundColor: isActiveOrExpanded ? theme.palette.customNavigation.clickedBg : "transparent",
         "&:hover": {
           ...(!isActiveOrExpanded && {
             backgroundColor: theme.palette.customNavigation.hoverBg,

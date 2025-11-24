@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-export default function NestedPage() {
+export default function Home() {
   return (
     <div>
       <div>Home</div>

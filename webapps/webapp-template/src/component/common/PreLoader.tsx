@@ -16,12 +16,7 @@
 
 import Grid from "@mui/material/Grid";
 import { Box, Container, LinearProgress, Typography } from "@mui/material";
-
-interface PreLoaderProps {
-  message: string | null;
-  hideLogo?: boolean;
-  isLoading?: boolean;
-}
+import type { PreLoaderProps } from "@utils/types";
 
 const PreLoader = (props: PreLoaderProps) => {
   return (
