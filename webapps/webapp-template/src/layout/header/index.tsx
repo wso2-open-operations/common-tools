@@ -52,7 +52,7 @@ const Header = () => {
         sx={{
           paddingY: 0.3,
           display: "flex",
-          gap: .5,
+          gap: 0.5,
           "&.MuiToolbar-root": {
             pl: 0.3,
           },
@@ -72,7 +72,7 @@ const Header = () => {
           sx={{
             display: "flex",
             flexDirection: "row",
-            gap: theme.spacing(.5),
+            gap: theme.spacing(0.5),
             width: "100%",
             alignItems: "center",
             height: "100%",
