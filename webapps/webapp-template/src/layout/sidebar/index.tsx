@@ -66,6 +66,7 @@ const Sidebar = (props: SidebarProps) => {
     const button = (
       <Box
         component="button"
+        type="button"
         onClick={onClick}
         disabled={!onClick}
         aria-label={tooltipTitle}
@@ -78,7 +79,7 @@ const Sidebar = (props: SidebarProps) => {
           background: "none",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: props.open ? "flex-start" : "center",
           gap: theme.spacing(1),
           color: theme.palette.customNavigation.text,
           transition: "all 0.2s ease-in-out",
