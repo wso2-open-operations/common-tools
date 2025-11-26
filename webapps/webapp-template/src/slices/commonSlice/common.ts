@@ -38,7 +38,7 @@ export const CommonSlice = createSlice({
       state,
       action: PayloadAction<{
         message: string;
-        type: "success" | "error" | "warning";
+        type: VariantType
       }>
     ) => {
       state.message = action.payload.message;
