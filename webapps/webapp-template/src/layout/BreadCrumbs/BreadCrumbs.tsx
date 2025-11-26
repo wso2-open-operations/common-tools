@@ -30,12 +30,6 @@ export default function BasicBreadcrumbs() {
     let routeTo = "";
 
     return (
-      <Box
-        sx={{
-          display: "flex",
-          gap: 1,
-        }}
-      >
         <Breadcrumbs
           separator="›"
           aria-label="breadcrumb"
@@ -111,7 +105,6 @@ export default function BasicBreadcrumbs() {
             );
           })}
         </Breadcrumbs>
-      </Box>
     );
   };
 
