@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// Log application initialization
-	logger.Logger.Info("Initializing BigQuery Data Sync Application",
+	logger.Logger.Info("Initializing BigQuery Data Sync",
 		zap.String("user", username),
 		zap.String("timestamp", time.Now().Format(time.RFC3339)),
 	)
