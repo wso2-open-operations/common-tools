@@ -27,10 +27,10 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 
-	"github.com/wso2-enterprise/digiops-finance/bigquery-flash-data-sync/internal/config"
-	"github.com/wso2-enterprise/digiops-finance/bigquery-flash-data-sync/internal/logger"
-	"github.com/wso2-enterprise/digiops-finance/bigquery-flash-data-sync/internal/model"
-	"github.com/wso2-enterprise/digiops-finance/bigquery-flash-data-sync/internal/pipeline"
+	"github.com/wso2-open-operations/common-tools/bigquery-flash-data-sync/internal/config"
+	"github.com/wso2-open-operations/common-tools/bigquery-flash-data-sync/internal/logger"
+	"github.com/wso2-open-operations/common-tools/bigquery-flash-data-sync/internal/model"
+	"github.com/wso2-open-operations/common-tools/bigquery-flash-data-sync/internal/pipeline"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"

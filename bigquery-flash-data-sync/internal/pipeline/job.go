@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wso2-enterprise/digiops-finance/bigquery-flash-data-sync/internal/model"
+	"github.com/wso2-open-operations/common-tools/bigquery-flash-data-sync/internal/model"
 	"golang.org/x/sync/errgroup"
 
 	"cloud.google.com/go/bigquery"

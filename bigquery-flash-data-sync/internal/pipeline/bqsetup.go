@@ -26,7 +26,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wso2-enterprise/digiops-finance/bigquery-flash-data-sync/internal/model"
+	"github.com/wso2-open-operations/common-tools/bigquery-flash-data-sync/internal/model"
 
 	"cloud.google.com/go/bigquery"
 	"go.uber.org/zap"

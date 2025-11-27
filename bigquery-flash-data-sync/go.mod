@@ -2,7 +2,7 @@
 // For simple updates, prefer using 'go get' or 'go mod tidy'.
 // Manual edits should only be for specific overrides (e.g., 'replace', 'exclude').
 
-module github.com/wso2-enterprise/digiops-finance/bigquery-flash-data-sync
+module github.com/wso2-open-operations/common-tools/bigquery-flash-data-sync
 
 go 1.25.4
 
