@@ -1,0 +1,100 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+id: bigquery-flash-data-sync
+displayName: BigQuery Flash Data Sync
+
+# +required Type of the component
+# Use "Service" for long-running processes or "Job" for batch execution
+componentType: Job
+description: |
+  A Go CLI application that synchronizes MySQL and Postgres databases to Google Cloud
+  BigQuery with automatic schema inference and concurrent processing.
+
+build:
+  buildCommand: go build -o bin/datasync cmd/datasync/main.go
+
+runtime:
+  command: ./bin/datasync
+  args: []
+
+# +optional Network visibility
+networkVisibility: Organization
+
+# +optional OpenAPI specification file
+schemaFilePath: openapi.yaml
+
+# +optional Environment variable configurations
+configMaps:
+  - name: app-config
+    data:
+      - key: LOG_ENV
+        value: prod
+      - key: LOG_LEVEL
+        value: info
+      - key: SYNC_TIMEOUT
+        value: 15m
+      - key: DATE_FORMAT
+        value: 2006-01-02
+      - key: DEFAULT_BATCH_SIZE
+        value: "1000"
+      - key: DB_TYPE
+        value: mysql
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_MAX_OPEN_CONNECTIONS
+        value: "15"
+      - key: DB_MAX_IDLE_CONNECTIONS
+        value: "5"
+      - key: DB_CONN_MAX_LIFETIME
+        value: 1m
+      - key: DRY_RUN
+        value: "false"
+      - key: AUTO_CREATE_TABLES
+        value: "true"
+      - key: TRUNCATE_ON_SYNC
+        value: "false"
+      # Databases to sync (comma-separated identifiers)
+      - key: SYNC_DATABASES
+        value: finance,salesforce
+      # Finance database settings
+      - key: FINANCE_ENABLED
+        value: "true"
+      - key: FINANCE_DB_TYPE
+        value: mysql
+      - key: FINANCE_DB_PORT
+        value: "3306"
+      - key: FINANCE_TABLES
+        value: cache_financial_acc_cost_of_sales,cache_financial_acc_expense,cache_financial_acc_income
+      # Salesforce database settings
+      - key: SALESFORCE_ENABLED
+        value: "true"
+      - key: SALESFORCE_DB_TYPE
+        value: mysql
+      - key: SALESFORCE_DB_PORT
+        value: "3306"
+      - key: SALESFORCE_TABLES
+        value: arr_sf_account,arr_sf_opportunity
+
+# +optional Secret references (configure actual values in Choreo UI)
+secrets:
+  - name: gcp-credentials
+    data:
+      - key: GCP_PROJECT_ID
+      - key: BQ_DATASET_ID
+  - name: db-config
+    data:
+      - key: DB_HOST
+  - name: finance-db-credentials
+    data:
+      - key: FINANCE_DB_HOST
+      - key: FINANCE_DB_NAME
+      - key: FINANCE_DB_USER
+      - key: FINANCE_DB_PASSWORD
+  - name: salesforce-db-credentials
+    data:
+      - key: SALESFORCE_DB_HOST
+      - key: SALESFORCE_DB_NAME
+      - key: SALESFORCE_DB_USER
+      - key: SALESFORCE_DB_PASSWORD
+

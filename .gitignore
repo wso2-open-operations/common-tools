@@ -30,6 +30,10 @@
 .project
 .settings
 
+#Go
+.env
+.env*.local
+
 # Ballerina
 target
 Config.toml
