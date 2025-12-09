@@ -26,16 +26,13 @@ interface ListItemLinkProps {
   label: string;
   open: boolean;
   isActive: boolean;
-  isHovered: boolean;
-  isExpanded: boolean;
   hasChildren: boolean;
   route?: RouteDetail;
 }
 
 const LinkItem = (props: ListItemLinkProps) => {
-  const { icon, label, open, isActive, isExpanded, hasChildren } = props;
+  const { icon, label, open, isActive, hasChildren } = props;
   const theme = useTheme();
-  const isActiveOrExpanded = isActive || isExpanded;
 
   return (
     <Box
@@ -47,13 +44,13 @@ const LinkItem = (props: ListItemLinkProps) => {
         borderRadius: "8px",
         justifyContent: "space-between",
         transition: "all 0.2s",
-        backgroundColor: isActiveOrExpanded ? theme.palette.customNavigation.clickedBg : "transparent",
+        backgroundColor: isActive ? theme.palette.customNavigation.clickedBg : "transparent",
         "&:hover": {
-          ...(!isActiveOrExpanded && {
+          ...(!isActive && {
             backgroundColor: theme.palette.customNavigation.hoverBg,
           }),
         },
-        color: isActiveOrExpanded
+        color: isActive
           ? theme.palette.customNavigation.textClicked
           : theme.palette.customNavigation.text 
       }}
@@ -90,7 +87,7 @@ const LinkItem = (props: ListItemLinkProps) => {
           </Typography>
         )}
       </Box>
-      {hasChildren && open && (isExpanded ? <ChevronUpIcon size={18} /> : <ChevronDownIcon size={18} />)}
+      {hasChildren && open && (isActive ? <ChevronUpIcon size={18} /> : <ChevronDownIcon size={18} />)}
     </Box>
   );
 };

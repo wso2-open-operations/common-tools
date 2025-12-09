@@ -25,15 +25,11 @@ import SidebarSubMenu from "./SidebarSubMenu";
 function SidebarNavItem({
   route,
   isActive,
-  isHovered,
-  isExpanded,
   open,
   onClick,
 }: {
   route: RouteDetail;
   isActive: boolean;
-  isHovered: boolean;
-  isExpanded: boolean;
   open: boolean;
   onClick: () => void;
 }) {
@@ -85,8 +81,6 @@ function SidebarNavItem({
               icon={route.icon}
               open={open}
               isActive={isActive}
-              isHovered={isHovered}
-              isExpanded={isExpanded}
               hasChildren={!!(route.children && route.children.length > 0)}
               route={route}
             />
@@ -108,8 +102,6 @@ function SidebarNavItem({
               icon={route.icon}
               open={open}
               isActive={isActive}
-              isHovered={isHovered}
-              isExpanded={isExpanded}
               hasChildren={!!(route.children && route.children.length > 0)}
               route={route}
             />
@@ -118,7 +110,7 @@ function SidebarNavItem({
       </Tooltip>
 
       {/* Render expanded children, outside the Tooltip */}
-      {route && route.children?.length && isExpanded && (
+      {route && route.children?.length && isActive && (
         <Box
           key="nested"
           sx={{
