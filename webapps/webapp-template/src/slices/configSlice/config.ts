@@ -50,28 +50,30 @@ const initialState: AppConfigState = {
 export const fetchAppConfig = createAsyncThunk(
   "appConfig/fetchAppConfig",
   async (_, { dispatch, rejectWithValue }) => {
-    return new Promise<AppConfigInfo>((resolve, reject) => {
-      APIService.getInstance()
-        .get(AppConfig.serviceUrls.appConfig)
-        .then((response) => {
-          resolve(response.data);
-        })
-        .catch((error) => {
-          if (axios.isCancel(error)) {
-            return rejectWithValue("Request canceled");
-          }
-          dispatch(
-            enqueueSnackbarMessage({
-              message:
-                error.response?.status === HttpStatusCode.InternalServerError
-                  ? SnackMessage.error.fetchAppConfigMessage
-                  : "An unknown error occurred.",
-              type: "error",
-            }),
-          );
-          reject(error.response.data.message);
-        });
-    });
+    try {
+      const response = await APIService.getInstance().get(
+        AppConfig.serviceUrls.appConfig,
+      );
+      return response.data as AppConfigInfo;
+    } catch (error) {
+      if (axios.isCancel(error)) {
+        return rejectWithValue("Request canceled");
+      }
+      const message =
+        (error as any).response?.data?.message ||
+        (error as Error).message ||
+        "An unknown error occurred.";
+      dispatch(
+        enqueueSnackbarMessage({
+          message:
+            (error as any).response?.status === HttpStatusCode.InternalServerError
+              ? SnackMessage.error.fetchAppConfigMessage
+              : message,
+          type: "error",
+        }),
+      );
+      return rejectWithValue(message);
+    }
   },
 );
 
@@ -94,9 +96,11 @@ const AppConfigSlice = createSlice({
         state.stateMessage = "Successfully fetched app configurations!";
         state.config = action.payload;
       })
-      .addCase(fetchAppConfig.rejected, (state) => {
+      .addCase(fetchAppConfig.rejected, (state, action) => {
         state.state = State.failed;
         state.stateMessage = "Failed to fetch application configurations.";
+        state.errorMessage =
+          (action.payload as string) ?? action.error?.message ?? null;
       });
   },
 });

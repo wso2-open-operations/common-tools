@@ -19,8 +19,6 @@ import { BasicUserInfo, DecodedIDTokenPayload } from "@asgardeo/auth-spa";
 import { Role } from "@slices/authSlice/auth";
 import { Collection } from "@slices/collections/collection";
 
-export type stateType = "failed" | "success" | "loading" | "idle";
-
 export interface AuthState {
   status: State;
   mode: "active" | "maintenance";
