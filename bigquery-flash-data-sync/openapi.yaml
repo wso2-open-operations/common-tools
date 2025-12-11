@@ -1,0 +1,506 @@
+openapi: 3.1.0
+info:
+  title: BigQuery Flash Data Sync
+  description: |
+    A Go CLI application that synchronizes SQL databases to Google Cloud BigQuery with automatic schema inference and concurrent processing.
+
+    **Architecture**: Command-line batch job
+
+    **Features**:
+    - Automatic schema detection and BigQuery table creation
+    - Concurrent extraction from multiple database tables
+    - Dynamic type mapping (MySQL/PostgreSQL → BigQuery)
+    - Dynamic multi-database configuration via environment variables
+    - Data sanitization (handles NULL, special characters, invalid UTF-8)
+    - BigQuery loading with WRITE_TRUNCATE mode
+    - Configurable connection pooling and timeouts
+    - Structured logging with Zap
+
+    **Authentication**:
+    - MySQL/PostgreSQL: TLS with username/password
+    - BigQuery: Google Cloud Application Default Credentials (ADC)
+
+    **Data Sources**:
+    - Any MySQL database
+    - Any PostgreSQL database
+    - Dynamically configured via SYNC_DATABASES environment variable
+
+    **Target**: BigQuery dataset
+  version: 2.0.0
+  contact:
+    name: WSO2 LLC - Internal Apps Team
+    url: https://www.wso2.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+externalDocs:
+  description: Project README
+  url: https://github.com/wso2-open-operations/common-tools/tree/main/bigquery-flash-data-sync
+
+tags:
+  - name: cli
+    description: Command-line interface operations
+  - name: configuration
+    description: Environment variables and configuration
+
+paths: {}
+
+components:
+  schemas:
+    Configuration:
+      type: object
+      description: Environment variables required to run the application
+      required:
+        - GCP_PROJECT_ID
+        - BQ_DATASET_ID
+        - SYNC_DATABASES
+      properties:
+        GCP_PROJECT_ID:
+          type: string
+          description: Google Cloud Project ID hosting BigQuery
+          example: "my-gcp-project-123"
+        BQ_DATASET_ID:
+          type: string
+          description: BigQuery dataset where tables will be created/updated
+          example: "analytics_data"
+        SYNC_DATABASES:
+          type: string
+          description: Comma-separated list of database identifiers to sync
+          example: "finance,salesforce"
+        DB_HOST:
+          type: string
+          description: Default database server host
+          example: "db.example.com"
+        DB_PORT:
+          type: integer
+          description: Default database server port
+          default: 3306
+          example: 3306
+        DB_TYPE:
+          type: string
+          enum:
+            - mysql
+            - postgres
+          description: Default database type
+          default: "mysql"
+          example: "mysql"
+        DB_MAX_OPEN_CONNECTIONS:
+          type: integer
+          description: Maximum number of concurrent database connections
+          default: 15
+          example: 15
+        DB_MAX_IDLE_CONNECTIONS:
+          type: integer
+          description: Maximum number of idle connections to keep available
+          default: 5
+          example: 5
+        DB_CONN_MAX_LIFETIME:
+          type: string
+          description: Maximum lifetime of a database connection (Go duration format)
+          default: "1m"
+          example: "1m"
+        SYNC_TIMEOUT:
+          type: string
+          description: Maximum duration for a single sync run (Go duration format)
+          default: "10m"
+          example: "5m"
+        DATE_FORMAT:
+          type: string
+          description: Go time layout for formatting date/time values
+          default: "2006-01-02"
+          example: "2006-01-02"
+        DEFAULT_BATCH_SIZE:
+          type: integer
+          description: Number of rows to process per batch
+          default: 1000
+          example: 1000
+        DRY_RUN:
+          type: boolean
+          description: When true, simulates sync without writing to BigQuery
+          default: false
+          example: false
+        AUTO_CREATE_TABLES:
+          type: boolean
+          description: When true, automatically creates BigQuery tables if they don't exist
+          default: true
+          example: true
+        TRUNCATE_ON_SYNC:
+          type: boolean
+          description: When true, deletes all existing data before syncing
+          default: false
+          example: false
+        LOG_ENV:
+          type: string
+          enum:
+            - dev
+            - prod
+          description: Logging environment (dev for human-readable, prod for JSON)
+          default: "dev"
+          example: "dev"
+        LOG_LEVEL:
+          type: string
+          enum:
+            - debug
+            - info
+            - warn
+            - error
+            - dpanic
+            - panic
+            - fatal
+          description: Minimum log level to output
+          default: "info"
+          example: "info"
+
+    DatabaseConfiguration:
+      type: object
+      description: Per-database configuration using pattern {DATABASE_ID}_SETTING
+      properties:
+        "{DB}_ENABLED":
+          type: boolean
+          description: Enable/disable syncing for this database
+          example: true
+        "{DB}_DB_TYPE":
+          type: string
+          enum:
+            - mysql
+            - postgres
+          description: Database type
+          example: "mysql"
+        "{DB}_DB_HOST":
+          type: string
+          description: Database server hostname
+          example: "finance-db.example.com"
+        "{DB}_DB_PORT":
+          type: integer
+          description: Database server port
+          example: 3306
+        "{DB}_DB_NAME":
+          type: string
+          description: Name of the database/schema to connect to
+          example: "finance_prod"
+        "{DB}_DB_USER":
+          type: string
+          description: Database username for authentication
+          example: "finance_reader"
+        "{DB}_DB_PASSWORD":
+          type: string
+          format: password
+          description: Database password for authentication
+          example: "your_secure_password"
+        "{DB}_TABLES":
+          type: string
+          description: Comma-separated list of tables to sync
+          example: "invoices,payments,accounts"
+
+    TableConfiguration:
+      type: object
+      description: Per-table configuration using pattern {DATABASE_ID}_{TABLE_NAME}_SETTING
+      properties:
+        "{DB}_{TABLE}_ENABLED":
+          type: boolean
+          description: Enable/disable syncing for this specific table
+          example: true
+        "{DB}_{TABLE}_TARGET_TABLE":
+          type: string
+          description: BigQuery table name (default is same as source table)
+          example: "finance_invoices"
+        "{DB}_{TABLE}_PRIMARY_KEY":
+          type: string
+          description: Primary key column name
+          example: "invoice_id"
+        "{DB}_{TABLE}_TIMESTAMP_COLUMN":
+          type: string
+          description: Timestamp column for incremental sync
+          example: "updated_at"
+        "{DB}_{TABLE}_COLUMNS":
+          type: string
+          description: Comma-separated list of columns to sync (empty for all)
+          example: "id,name,amount,created_at"
+        "{DB}_{TABLE}_BATCH_SIZE":
+          type: integer
+          description: Custom batch size for this table
+          example: 5000
+
+    SyncedTables:
+      type: object
+      description: Tables synchronized by the application
+      properties:
+        finance:
+          type: array
+          description: Tables from Finance database
+          items:
+            type: string
+          example:
+            - "cache_financial_acc_cost_of_sales"
+            - "cache_financial_acc_expense"
+            - "cache_financial_acc_income"
+        salesforce:
+          type: array
+          description: Tables from Salesforce database
+          items:
+            type: string
+          example:
+            - "arr_sf_account"
+            - "arr_sf_opportunity"
+
+    ExecutionResult:
+      type: object
+      description: Result of a sync execution (from logs)
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: When the sync started
+          example: "2025-11-26T10:45:00Z"
+        status:
+          type: string
+          enum:
+            - success
+            - failed
+          description: Overall execution status
+          example: "success"
+        duration_seconds:
+          type: integer
+          description: Total execution time in seconds
+          example: 87
+        databases_processed:
+          type: integer
+          description: Number of databases processed
+          example: 2
+        tables_processed:
+          type: integer
+          description: Number of tables successfully synced
+          example: 5
+        tables_failed:
+          type: integer
+          description: Number of tables that failed to sync
+          example: 0
+        error:
+          type: string
+          description: Error message if sync failed
+          nullable: true
+          example: null
+
+    TypeMappings:
+      type: object
+      description: Supported database to BigQuery type mappings
+      properties:
+        mysql:
+          type: object
+          description: MySQL to BigQuery type mappings
+          properties:
+            STRING:
+              type: array
+              items:
+                type: string
+              example:
+                [
+                  "VARCHAR",
+                  "CHAR",
+                  "TEXT",
+                  "TINYTEXT",
+                  "MEDIUMTEXT",
+                  "LONGTEXT",
+                  "ENUM",
+                  "SET",
+                ]
+            INTEGER:
+              type: array
+              items:
+                type: string
+              example:
+                ["INT", "TINYINT", "SMALLINT", "MEDIUMINT", "BIGINT", "INTEGER"]
+            FLOAT:
+              type: array
+              items:
+                type: string
+              example: ["FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "REAL"]
+            DATE:
+              type: array
+              items:
+                type: string
+              example: ["DATE"]
+            TIME:
+              type: array
+              items:
+                type: string
+              example: ["TIME"]
+            TIMESTAMP:
+              type: array
+              items:
+                type: string
+              example: ["DATETIME", "TIMESTAMP"]
+            BOOLEAN:
+              type: array
+              items:
+                type: string
+              example: ["BOOLEAN", "BOOL", "BIT"]
+            BYTES:
+              type: array
+              items:
+                type: string
+              example:
+                [
+                  "BLOB",
+                  "TINYBLOB",
+                  "MEDIUMBLOB",
+                  "LONGBLOB",
+                  "BINARY",
+                  "VARBINARY",
+                ]
+            JSON:
+              type: array
+              items:
+                type: string
+              example: ["JSON"]
+        postgres:
+          type: object
+          description: PostgreSQL to BigQuery type mappings
+          properties:
+            STRING:
+              type: array
+              items:
+                type: string
+              example:
+                [
+                  "VARCHAR",
+                  "CHAR",
+                  "TEXT",
+                  "NAME",
+                  "UUID",
+                  "CITEXT",
+                  "INET",
+                  "CIDR",
+                ]
+            INTEGER:
+              type: array
+              items:
+                type: string
+              example:
+                [
+                  "INT",
+                  "INT2",
+                  "INT4",
+                  "INT8",
+                  "INTEGER",
+                  "SMALLINT",
+                  "BIGINT",
+                  "SERIAL",
+                  "BIGSERIAL",
+                ]
+            FLOAT:
+              type: array
+              items:
+                type: string
+              example:
+                [
+                  "FLOAT",
+                  "FLOAT4",
+                  "FLOAT8",
+                  "DOUBLE PRECISION",
+                  "DECIMAL",
+                  "NUMERIC",
+                  "REAL",
+                  "MONEY",
+                ]
+            DATE:
+              type: array
+              items:
+                type: string
+              example: ["DATE"]
+            TIME:
+              type: array
+              items:
+                type: string
+              example: ["TIME", "TIMETZ", "TIME WITH TIME ZONE"]
+            TIMESTAMP:
+              type: array
+              items:
+                type: string
+              example: ["TIMESTAMP", "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE"]
+            BOOLEAN:
+              type: array
+              items:
+                type: string
+              example: ["BOOLEAN", "BOOL"]
+            BYTES:
+              type: array
+              items:
+                type: string
+              example: ["BYTEA"]
+            JSON:
+              type: array
+              items:
+                type: string
+              example: ["JSON", "JSONB"]
+
+x-cli-usage: |
+  # Installation
+  go build -o bin/datasync cmd/datasync/main.go
+
+  # Configuration
+  cp .env.example .env
+  # Edit .env with your credentials
+
+  # Authentication
+  gcloud auth application-default login
+  gcloud config set project YOUR_PROJECT_ID
+
+  # Execution
+  ./bin/datasync
+
+  # Or run directly
+  go run ./cmd/datasync
+
+  # With environment overrides
+  LOG_ENV=dev LOG_LEVEL=debug go run ./cmd/datasync
+
+  # Dry run (test without writing to BigQuery)
+  DRY_RUN=true go run ./cmd/datasync
+
+x-configuration-patterns: |
+  # Database configuration pattern: {DATABASE_ID}_SETTING
+  # Table configuration pattern: {DATABASE_ID}_{TABLE_NAME}_SETTING
+
+  # Example: Add a new database
+  SYNC_DATABASES=finance,salesforce,inventory
+
+  INVENTORY_ENABLED=true
+  INVENTORY_DB_TYPE=postgres
+  INVENTORY_DB_HOST=inventory-db.example.com
+  INVENTORY_DB_PORT=5432
+  INVENTORY_DB_NAME=inventory_prod
+  INVENTORY_DB_USER=reader
+  INVENTORY_DB_PASSWORD=secret
+  INVENTORY_TABLES=products,stock_levels
+
+  # Example: Custom table configuration
+  INVENTORY_PRODUCTS_TARGET_TABLE=inv_products
+  INVENTORY_PRODUCTS_PRIMARY_KEY=product_id
+  INVENTORY_PRODUCTS_BATCH_SIZE=5000
+
+x-troubleshooting:
+  table-not-found: |
+    Error: "Table 'database.table' doesn't exist"
+    Solution: Verify table names in {DB}_TABLES environment variable
+
+  connection-timeout: |
+    Error: "dial tcp: i/o timeout"
+    Solution: Verify DB_HOST and DB_PORT, check firewall rules
+
+  access-denied: |
+    Error: "Access denied for user"
+    Solution: Verify database credentials, check user permissions
+
+  bigquery-permission-denied: |
+    Error: "Permission denied" (BigQuery)
+    Solution: Add bigquery.dataEditor and bigquery.jobUser roles to service account
+
+  invalid-utf8: |
+    Error: "JSON table encountered errors"
+    Solution: Enable debug logging (LOG_LEVEL=debug) to identify problematic rows
+
+  context-deadline-exceeded: |
+    Error: "context deadline exceeded"
+    Solution: Increase SYNC_TIMEOUT value for large datasets
