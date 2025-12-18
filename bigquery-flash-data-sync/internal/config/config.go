@@ -237,41 +237,48 @@ func loadTableConfig(logger *zap.Logger, dbID, tableName string) *model.TableCon
 
 // buildConnectionString creates a database connection string based on type
 func buildConnectionString(dbType, host, port, database, user, password, prefix string) string {
-	connTimeout := getEnv(prefix+"DB_CONN_TIMEOUT", "30s")
-	readTimeout := getEnv(prefix+"DB_READ_TIMEOUT", "60s")
-	writeTimeout := getEnv(prefix+"DB_WRITE_TIMEOUT", "60s")
+    connTimeout := getEnv(prefix+"DB_CONN_TIMEOUT", "30s")
+    readTimeout := getEnv(prefix+"DB_READ_TIMEOUT", "60s")
+    writeTimeout := getEnv(prefix+"DB_WRITE_TIMEOUT", "60s")
+    sslMode := getEnv(prefix+"DB_SSLMODE", getEnv("DB_SSLMODE", "require"))
+    statementTimeout := getEnv(prefix+"DB_STATEMENT_TIMEOUT", readTimeout)
 
-	switch dbType {
-	case "mysql":
-		return fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?tls=true&parseTime=true&timeout=%s&readTimeout=%s&writeTimeout=%s",
-			user, password, host, port, database,
-			connTimeout, readTimeout, writeTimeout,
-		)
-	case "postgres":
-		// Parse connection timeout and fall back to a sensible default (30s) if parsing fails or yields 0
-		connTimeoutDur, err := time.ParseDuration(connTimeout)
-		connTimeoutSec := 30
-		if err == nil && connTimeoutDur.Seconds() > 0 {
-			connTimeoutSec = int(connTimeoutDur.Seconds())
-		}
-		// Parse read timeout for statement_timeout (PostgreSQL uses milliseconds)
-		readTimeoutDur, err := time.ParseDuration(readTimeout)
-		statementTimeoutMs := 60000
-		if err == nil && readTimeoutDur.Milliseconds() > 0 {
-			statementTimeoutMs = int(readTimeoutDur.Milliseconds())
-		}
+    switch dbType {
+    case "mysql":
+        return fmt.Sprintf(
+            "%s:%s@tcp(%s:%s)/%s?tls=true&parseTime=true&timeout=%s&readTimeout=%s&writeTimeout=%s",
+            user, password, host, port, database,
+            connTimeout, readTimeout, writeTimeout,
+        )
 
-		return fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=require connect_timeout=%d statement_timeout=%d",
-			host, port, user, password, database, connTimeoutSec, statementTimeoutMs,
-		)
-	default:
-		return fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?parseTime=true",
-			user, password, host, port, database,
-		)
-	}
+    case "postgres":
+        connTimeoutDur, err := time.ParseDuration(connTimeout)
+        connTimeoutSec := 30
+        if err == nil && connTimeoutDur.Seconds() > 0 {
+            connTimeoutSec = int(connTimeoutDur.Seconds())
+            if connTimeoutSec < 1 {
+                connTimeoutSec = 1
+            }
+        }
+
+        statementTimeoutDur, err := time.ParseDuration(statementTimeout)
+        statementTimeoutMs := 60000
+        if err == nil && statementTimeoutDur.Milliseconds() > 0 {
+            statementTimeoutMs = int(statementTimeoutDur.Milliseconds())
+        }
+
+        // NOTE: statement_timeout is set via options, not as a DSN key.
+        return fmt.Sprintf(
+            "host=%s port=%s user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d options='-c statement_timeout=%d'",
+            host, port, user, password, database, sslMode, connTimeoutSec, statementTimeoutMs,
+        )
+
+    default:
+        return fmt.Sprintf(
+            "%s:%s@tcp(%s:%s)/%s?parseTime=true",
+            user, password, host, port, database,
+        )
+    }
 }
 
 // getEnv retrieves the value of the environment variable for the given key.

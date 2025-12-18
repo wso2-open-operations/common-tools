@@ -58,42 +58,51 @@ func ParseDynamicRow(rows *sql.Rows, logger *zap.Logger, dateFormat string) (*Dy
 // convertValue converts SQL values to appropriate Go types for BigQuery.
 // It sanitizes invalid UTF-8 sequences in byte slices to prevent BigQuery JSON upload failures.
 func convertValue(val any, dateFormat string, logger *zap.Logger) any {
-	if val == nil {
-		return nil
-	}
+    if val == nil {
+        return nil
+    }
 
-	switch v := val.(type) {
-	case []byte:
-		s := string(v)
-		if !utf8.Valid(v) {
-			logger.Debug("Invalid UTF-8 sequence detected, sanitizing",
-				zap.Int("original_length", len(v)))
-			return strings.ToValidUTF8(s, "")
-		}
-		return s
-	case time.Time:
-		if v.IsZero() {
-			return nil
-		}
-		return v.Format(dateFormat)
-	case int64, int32, int16, int8, int:
-		return v
-	case uint64, uint32, uint16, uint8, uint:
-		return v
-	case float64, float32:
-		return v
-	case bool:
-		return v
-	case string:
-		if !utf8.ValidString(v) {
-			logger.Debug("Invalid UTF-8 string detected, sanitizing",
-				zap.Int("original_length", len(v)))
-			return strings.ToValidUTF8(v, "")
-		}
-		return v
-	default:
-		logger.Debug("Converting unknown type to string",
-			zap.String("type", fmt.Sprintf("%T", v)))
-		return fmt.Sprintf("%v", v)
-	}
+    switch v := val.(type) {
+    case []byte:
+        s := string(v)
+        if !utf8.Valid(v) {
+            logger.Debug("Invalid UTF-8 sequence detected, sanitizing",
+                zap.Int("original_length", len(v)))
+            return strings.ToValidUTF8(s, "")
+        }
+        return s
+
+    case time.Time:
+        if v.IsZero() {
+            return nil
+        }
+
+        // Heuristic:
+        // - If it's a "date-only" value (midnight), format using dateFormat (e.g., 2006-01-02)
+        // - Otherwise, return a RFC3339Nano timestamp string (BigQuery-friendly for TIMESTAMP/DATETIME)
+        if v.Hour() == 0 && v.Minute() == 0 && v.Second() == 0 && v.Nanosecond() == 0 && dateFormat != "" {
+            return v.Format(dateFormat)
+        }
+        return v.UTC().Format(time.RFC3339Nano)
+
+    case int64, int32, int16, int8, int:
+        return v
+    case uint64, uint32, uint16, uint8, uint:
+        return v
+    case float64, float32:
+        return v
+    case bool:
+        return v
+    case string:
+        if !utf8.ValidString(v) {
+            logger.Debug("Invalid UTF-8 string detected, sanitizing",
+                zap.Int("original_length", len(v)))
+            return strings.ToValidUTF8(v, "")
+        }
+        return v
+    default:
+        logger.Debug("Converting unknown type to string",
+            zap.String("type", fmt.Sprintf("%T", v)))
+        return fmt.Sprintf("%v", v)
+    }
 }

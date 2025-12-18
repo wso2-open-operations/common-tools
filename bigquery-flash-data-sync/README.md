@@ -7,8 +7,8 @@ A Go-based CLI that streams rows from multiple SQL databases (MySQL / PostgreSQL
 - Dynamic configuration for any number of databases + tables through environment variables
 - Schema inference and type mapping that adapt to MySQL/PostgreSQL sources before loading into BigQuery
 - Concurrent table jobs powered by `errgroup` + BigQuery JSON load jobs with optional table creation/truncation
-- Safety features: dry-run mode, max row parse failure threshold, configurable batching, and database-specific TLS/timeouts
-- Secure TLS/SSL connections with certificate verification for both MySQL and PostgreSQL
+- Safety features: dry-run mode, max row parse failure threshold, configurable batching, and database-specific timeouts
+- Works with both MySQL and PostgreSQL sources
 - UTF-8 data sanitization to prevent BigQuery upload failures
 
 ## 📋 Requirements
@@ -27,11 +27,11 @@ cd bigquery-flash-data-sync
 # 2. Install dependencies
 go mod download
 
-# 3.  Set up authentication
+# 3. Set up authentication
 gcloud auth application-default login
 gcloud config set project YOUR_PROJECT_ID
 
-# 4.  Bootstrap your configuration
+# 4. Bootstrap your configuration
 cp .env.example .env
 # Edit .env with your credentials (see Configuration below)
 
