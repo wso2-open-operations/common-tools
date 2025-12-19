@@ -60,7 +60,6 @@ func LoadConfig(logger *zap.Logger) (*model.Config, error) {
 
 	gcpProjectID := getEnv(GCPProjectID, "")
 	bqDatasetID := getEnv(BQDatasetID, "")
-
 	if gcpProjectID == "" || bqDatasetID == "" {
 		return nil, fmt.Errorf("GCP_PROJECT_ID and BQ_DATASET_ID are required")
 	}
@@ -71,14 +70,7 @@ func LoadConfig(logger *zap.Logger) (*model.Config, error) {
 	}
 
 	databases := make(map[string]*model.DatabaseConfig)
-	dbList := strings.Split(dbNames, ",")
-
-	for _, dbName := range dbList {
-		dbName = strings.TrimSpace(dbName)
-		if dbName == "" {
-			continue
-		}
-
+	for _, dbName := range parseCommaList(dbNames) {
 		dbConfig, err := loadDatabaseConfig(logger, dbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load config for database '%s': %w", dbName, err)
@@ -140,11 +132,12 @@ func LoadConfig(logger *zap.Logger) (*model.Config, error) {
 // Environment variables are prefixed with the database identifier in uppercase.
 // Example: For database "finance", use FINANCE_DB_HOST, FINANCE_DB_NAME, etc.
 func loadDatabaseConfig(logger *zap.Logger, dbID string) (*model.DatabaseConfig, error) {
-	prefix := strings.ToUpper(dbID) + "_"
+	prefix := strings.ToUpper(strings.TrimSpace(dbID)) + "_"
 
-	host := getEnv(prefix+"DB_HOST", getEnv(DefaultDBHost, "localhost"))
-	port := getEnv(prefix+"DB_PORT", getEnv(DefaultDBPort, "3306"))
-	dbType := getEnv(prefix+"DB_TYPE", getEnv(DefaultDBType, "mysql"))
+	host := getEnvWithFallback(prefix, "DB_HOST", DefaultDBHost, "localhost")
+	port := getEnvWithFallback(prefix, "DB_PORT", DefaultDBPort, "3306")
+	dbType := getEnvWithFallback(prefix, "DB_TYPE", DefaultDBType, "mysql")
+
 	database := getEnv(prefix+"DB_NAME", "")
 	user := getEnv(prefix+"DB_USER", "")
 	password := getEnv(prefix+"DB_PASSWORD", "")
@@ -177,28 +170,20 @@ func loadDatabaseConfig(logger *zap.Logger, dbID string) (*model.DatabaseConfig,
 // loadTableConfigs loads table configurations for a specific database.
 // Tables are specified via {PREFIX}_TABLES environment variable.
 func loadTableConfigs(logger *zap.Logger, dbID string) (map[string]*model.TableConfig, error) {
-	prefix := strings.ToUpper(dbID) + "_"
+	prefix := strings.ToUpper(strings.TrimSpace(dbID)) + "_"
 	tablesStr := getEnv(prefix+"TABLES", "")
-
 	if tablesStr == "" {
 		return nil, fmt.Errorf("%sTABLES is required (comma-separated list of table names)", prefix)
 	}
 
-	tables := make(map[string]*model.TableConfig)
-	tableList := strings.Split(tablesStr, ",")
-
-	for _, tableName := range tableList {
-		tableName = strings.TrimSpace(tableName)
-		if tableName == "" {
-			continue
-		}
-
-		tableConfig := loadTableConfig(logger, dbID, tableName)
-		tables[tableName] = tableConfig
+	tableList := parseCommaList(tablesStr)
+	if len(tableList) == 0 {
+		return nil, fmt.Errorf("no valid tables found for database '%s'", dbID)
 	}
 
-	if len(tables) == 0 {
-		return nil, fmt.Errorf("no valid tables found for database '%s'", dbID)
+	tables := make(map[string]*model.TableConfig, len(tableList))
+	for _, tableName := range tableList {
+		tables[tableName] = loadTableConfig(logger, dbID, tableName)
 	}
 
 	return tables, nil
@@ -207,7 +192,7 @@ func loadTableConfigs(logger *zap.Logger, dbID string) (map[string]*model.TableC
 // loadTableConfig loads configuration for a specific table.
 // Environment variables are prefixed with {DB_ID}_{TABLE_NAME}_ in uppercase.
 func loadTableConfig(logger *zap.Logger, dbID, tableName string) *model.TableConfig {
-	prefix := strings.ToUpper(dbID) + "_" + strings.ToUpper(tableName) + "_"
+	prefix := strings.ToUpper(strings.TrimSpace(dbID)) + "_" + strings.ToUpper(strings.TrimSpace(tableName)) + "_"
 
 	targetTable := getEnv(prefix+"TARGET_TABLE", tableName)
 	primaryKey := getEnv(prefix+"PRIMARY_KEY", "id")
@@ -216,22 +201,12 @@ func loadTableConfig(logger *zap.Logger, dbID, tableName string) *model.TableCon
 	batchSize := parseInt(logger, prefix+"BATCH_SIZE", "0", 0)
 	enabled := parseBool(getEnv(prefix+"ENABLED", "true"))
 
-	var columns []string
-	if columnsStr != "" {
-		for _, col := range strings.Split(columnsStr, ",") {
-			col = strings.TrimSpace(col)
-			if col != "" {
-				columns = append(columns, col)
-			}
-		}
-	}
-
 	return &model.TableConfig{
 		Name:            tableName,
 		TargetTable:     targetTable,
 		PrimaryKey:      primaryKey,
 		TimestampColumn: timestampCol,
-		Columns:         columns,
+		Columns:         parseCommaList(columnsStr),
 		BatchSize:       batchSize,
 		Enabled:         enabled,
 	}
@@ -247,9 +222,13 @@ func loadTableConfig(logger *zap.Logger, dbID, tableName string) *model.TableCon
 func buildConnectionString(logger *zap.Logger, dbType, host, port, database, user, password, prefix string) string {
 	dbType = strings.ToLower(strings.TrimSpace(dbType))
 
-	connTimeoutSec := parseInt(logger, prefix+"DB_CONN_TIMEOUT", "30", 30)
-	readTimeoutSec := parseInt(logger, prefix+"DB_READ_TIMEOUT", "60", 60)
-	writeTimeoutSec := parseInt(logger, prefix+"DB_WRITE_TIMEOUT", "60", 60)
+	timeoutSec := func(key string, def int) int {
+		return parseInt(logger, prefix+key, strconv.Itoa(def), def)
+	}
+
+	connTimeoutSec := timeoutSec("DB_CONN_TIMEOUT", 30)
+	readTimeoutSec := timeoutSec("DB_READ_TIMEOUT", 60)
+	writeTimeoutSec := timeoutSec("DB_WRITE_TIMEOUT", 60)
 
 	sslMode := getEnv(prefix+"DB_SSLMODE", getEnv("DB_SSLMODE", "require"))
 
@@ -263,6 +242,7 @@ func buildConnectionString(logger *zap.Logger, dbType, host, port, database, use
 
 	switch dbType {
 	case "mysql":
+		// MySQL driver expects duration strings; we append "s" so env can be plain integers.
 		return fmt.Sprintf(
 			"%s:%s@tcp(%s:%s)/%s?tls=true&parseTime=true&timeout=%ds&readTimeout=%ds&writeTimeout=%ds",
 			user, password, host, port, database,
@@ -275,7 +255,6 @@ func buildConnectionString(logger *zap.Logger, dbType, host, port, database, use
 		}
 
 		statementTimeoutMs := statementTimeoutSec * 1000
-
 		if statementTimeoutMs < 1 {
 			statementTimeoutMs = 60000
 		}
@@ -291,6 +270,23 @@ func buildConnectionString(logger *zap.Logger, dbType, host, port, database, use
 			user, password, host, port, database,
 		)
 	}
+}
+
+// parseCommaList splits a comma-separated string, trims whitespace, and drops empty entries.
+func parseCommaList(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+// getEnvWithFallback tries PREFIX+key first, then globalKey, then fallback.
+func getEnvWithFallback(prefix, key, globalKey, fallback string) string {
+	return getEnv(prefix+key, getEnv(globalKey, fallback))
 }
 
 // getEnv retrieves the value of the environment variable for the given key.
@@ -331,18 +327,13 @@ func parseDuration(logger *zap.Logger, key, defaultValue string, fallback time.D
 			zap.Error(err))
 		return fallback
 	}
-	return fallbackOrNonZero(d, fallback)
-}
-
-func fallbackOrNonZero(d, fallback time.Duration) time.Duration {
 	if d <= 0 {
 		return fallback
 	}
 	return d
 }
 
-// parseBool converts a string into a boolean. It returns true for common
-// truthy values ("true", "1", "yes") and false otherwise.
+// parseBool converts a string into a boolean.
 func parseBool(value string) bool {
 	v := strings.ToLower(strings.TrimSpace(value))
 	return v == "true" || v == "1" || v == "yes"
