@@ -13,7 +13,6 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 import type { NonIndexRouteObject } from "react-router-dom";
 
 export type NavState = {
@@ -27,6 +26,11 @@ export enum State {
   success = "success",
   loading = "loading",
   idle = "idle",
+}
+
+export enum Role {
+  ADMIN = "ADMIN",
+  EMPLOYEE = "EMPLOYEE",
 }
 
 export enum ConfirmationType {
