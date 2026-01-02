@@ -13,8 +13,8 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 import { SecureApp, useAuthContext } from "@asgardeo/auth-react";
+import { setTokens } from "@services/BaseQuery";
 import { useIdleTimer } from "react-idle-timer";
 
 import React, { useContext, useEffect, useState } from "react";
@@ -23,9 +23,9 @@ import PreLoader from "@component/common/PreLoader";
 import SessionWarningDialog from "@component/common/SessionWarningDialog";
 import LoginScreen from "@component/ui/LoginScreen";
 import { redirectUrl } from "@config/constant";
+import { useLazyGetUserInfoQuery } from "@root/src/services/user.api";
 import { loadPrivileges, setAuthError, setUserAuthData } from "@slices/authSlice/auth";
 import { useAppDispatch } from "@slices/store";
-import { getUserInfo } from "@slices/userSlice/user";
 import { APIService } from "@utils/apiService";
 
 type AuthContextType = {
@@ -53,9 +53,18 @@ const AppAuthProvider = (props: { children: React.ReactNode }) => {
 
   const dispatch = useAppDispatch();
 
+  // useLazyGetUserInfoQuery returns a trigger function that can be called manually
+  const [triggerGetUserInfo] = useLazyGetUserInfoQuery();
+
   const onPrompt = () => {
     appState === AppState.Authenticated && setSessionWarningOpen(true);
   };
+
+  useEffect(() => {
+    if (!localStorage.getItem(redirectUrl)) {
+      localStorage.setItem(redirectUrl, window.location.href.replace(window.location.origin, ""));
+    }
+  }, []);
 
   const { activate } = useIdleTimer({
     onPrompt,
@@ -81,12 +90,6 @@ const AppAuthProvider = (props: { children: React.ReactNode }) => {
     state,
   } = useAuthContext();
 
-  useEffect(() => {
-    if (!localStorage.getItem(redirectUrl)) {
-      localStorage.setItem(redirectUrl, window.location.href.replace(window.location.origin, ""));
-    }
-  }, []);
-
   const setupAuthenticatedUser = async () => {
     const [userInfo, idToken, decodedIdToken] = await Promise.all([
       getBasicUserInfo(),
@@ -102,8 +105,9 @@ const AppAuthProvider = (props: { children: React.ReactNode }) => {
     );
 
     new APIService(idToken, refreshToken);
+    setTokens(idToken, refreshToken, appSignOut);
+    await triggerGetUserInfo();
 
-    await dispatch(getUserInfo());
     await dispatch(loadPrivileges());
   };
 
@@ -141,22 +145,22 @@ const AppAuthProvider = (props: { children: React.ReactNode }) => {
     };
   }, [state.isAuthenticated, state.isLoading]);
 
-  const refreshToken = async (): Promise<{ accessToken: string }> => {  
+  const refreshToken = async (): Promise<{ accessToken: string }> => {
     if (state.isAuthenticated) {
       const accessToken = await getIDToken();
-      return {accessToken}
+      return { accessToken };
     }
 
-    try {  
-      await refreshAccessToken();  
-      const accessToken = await getAccessToken();  
-      return { accessToken };  
-    } catch (error) {  
-      console.error("Token refresh failed: ",error)
-      await appSignOut();  
-      throw error;  
-    }  
-  };  
+    try {
+      await refreshAccessToken();
+      const accessToken = await getAccessToken();
+      return { accessToken };
+    } catch (error) {
+      console.error("Token refresh failed: ", error);
+      await appSignOut();
+      throw error;
+    }
+  };
 
   const appSignOut = async () => {
     setAppState(AppState.Loading);
