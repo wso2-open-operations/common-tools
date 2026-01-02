@@ -15,7 +15,7 @@
 // under the License.
 import { Box, useTheme } from "@mui/material";
 import Tooltip from "@mui/material/Tooltip";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { RouteDetail } from "@/types/types";
 
@@ -32,6 +32,14 @@ function SidebarNavItem({
   open: boolean;
 }) {
   const theme = useTheme();
+  const navigate = useNavigate();
+
+  const handleParentClick = () => {
+    if (!route.element && route.children && route.children.length > 0) {
+      const firstChild = route.children[0];
+      navigate(`${route.path}/${firstChild.path}`);
+    }
+  };
 
   return (
     <Box
@@ -82,6 +90,7 @@ function SidebarNavItem({
         ) : (
           <Box
             component="button"
+            onClick={handleParentClick}
             sx={{
               width: "100%",
               cursor: "pointer",
