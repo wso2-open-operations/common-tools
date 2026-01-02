@@ -19,6 +19,7 @@ import { useLocation } from "react-router-dom";
 
 import { useMemo } from "react";
 
+import { RouteDetail } from "@/types/types";
 import SidebarNavItem from "@component/layout/SidebarNavItem";
 import pJson from "@root/package.json";
 import { ColorModeContext } from "@src/App";
@@ -36,6 +37,21 @@ const Sidebar = (props: SidebarProps) => {
   const path = useLocation();
 
   const theme = useTheme();
+
+  // Check if a route is active
+  const checkIsActive = (route: RouteDetail): boolean => {
+    // Exact match
+    if (path.pathname === route.path) {
+      return true;
+    }
+
+    // If route has children, check if any child is active
+    if (route.children && route.children.length > 0) {
+      return path.pathname.startsWith(route.path + "/");
+    }
+
+    return false;
+  };
 
   const renderControlButton = (
     icon: React.ReactNode,
@@ -152,7 +168,7 @@ const Sidebar = (props: SidebarProps) => {
                       <SidebarNavItem
                         route={route}
                         open={props.open}
-                        isActive={path.pathname === route.path}
+                        isActive={checkIsActive(route)}
                       />
                     </Box>
                   )
@@ -185,7 +201,7 @@ const Sidebar = (props: SidebarProps) => {
                       <SidebarNavItem
                         route={route}
                         open={props.open}
-                        isActive={path.pathname === route.path}
+                        isActive={checkIsActive(route)}
                       />
                     </Box>
                   )
