@@ -15,7 +15,6 @@
 // under the License.
 import { HomeIcon } from "lucide-react";
 import { CircleQuestionMark } from "lucide-react";
-import type { RouteObject } from "react-router-dom";
 
 import React from "react";
 
@@ -96,6 +95,8 @@ export const getActiveRoutesV2 = (
   if (!routes) return [];
   const routesObj: RouteObjectWithRole[] = [];
   routes.forEach((routeObj) => {
+    if (!routeObj.element) return;
+
     if (isIncludedRole(roles, routeObj.allowRoles)) {
       routesObj.push({
         ...routeObj,
@@ -104,18 +105,6 @@ export const getActiveRoutesV2 = (
     }
   });
 
-  return routesObj;
-};
-
-export const getActiveRoutes = (roles: string[]): RouteObject[] => {
-  const routesObj: RouteObject[] = [];
-  routes.forEach((routeObj) => {
-    if (isIncludedRole(roles, routeObj.allowRoles)) {
-      routesObj.push({
-        ...routeObj,
-      });
-    }
-  });
   return routesObj;
 };
 
