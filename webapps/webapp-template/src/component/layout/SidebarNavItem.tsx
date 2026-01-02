@@ -26,12 +26,10 @@ function SidebarNavItem({
   route,
   isActive,
   open,
-  onClick,
 }: {
   route: RouteDetail;
   isActive: boolean;
   open: boolean;
-  onClick: () => void;
 }) {
   const theme = useTheme();
 
@@ -71,11 +69,7 @@ function SidebarNavItem({
         }}
       >
         {route.element ? (
-          <Link
-            to={route.path}
-            style={{ width: "100%", display: "block", textDecoration: "none" }}
-            onClick={onClick}
-          >
+          <Link to={route.path} style={{ width: "100%", display: "block", textDecoration: "none" }}>
             <LinkItem
               label={route.text}
               icon={route.icon}
@@ -95,7 +89,6 @@ function SidebarNavItem({
               background: "none",
               padding: 0,
             }}
-            onClick={onClick}
           >
             <LinkItem
               label={route.text}
