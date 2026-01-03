@@ -13,177 +13,91 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 import AddIcon from "@mui/icons-material/Add";
-import { Box, Fab, Fade, Stack, Typography } from "@mui/material";
+import { Box, Fab } from "@mui/material";
 import { green } from "@mui/material/colors";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import ErrorSvg from "@assets/images/error.svg";
-import NoDataSvg from "@assets/images/no-data.svg";
-import SkeletonCard from "@component/ui/common-card/SkeletonCard";
-import { fetchCollections } from "@slices/collections/collection";
-import { useAppDispatch, useAppSelector } from "@slices/store";
-import { State } from "@utils/types";
+import ErrorHandler from "@component/common/ErrorHandler";
+import PreLoader from "@component/common/PreLoader";
+import { useGetCollectionsQuery } from "@services/collections.api";
 import PanelOneToolBar from "@view/first-view/tool-bar/PanelOneToolbar";
 
 import DataCard from "../component/card/CommonCard";
 import AddCollectionModal from "../component/modal/AddCollectionModal";
 
 const TabOnePanel = () => {
-  const dispatch = useAppDispatch();
-  const collection = useAppSelector((state) => state.collection);
   const [showAddCollectionPopUp, setShowAddCollectionPopUp] = useState(false);
 
-  useEffect(() => {
-    dispatch(fetchCollections());
-  }, [dispatch]);
+  const { data, error, isLoading } = useGetCollectionsQuery();
 
   const toggleClose = () => {
     setShowAddCollectionPopUp(false);
   };
 
-  const count = collection.collections?.count ?? 0;
+  const count = data?.count ?? 0;
+
+  if (isLoading) {
+    return <PreLoader />;
+  }
+
+  if (error) {
+    return <ErrorHandler message={"Error while retrieving collections"} />;
+  }
+
+  if (!data || count === 0) {
+    return <ErrorHandler message={"No data"} />;
+  }
 
   return (
     <>
-      {/* Loading component */}
-      {collection.state === State.loading && (
-        <>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </>
+      {/* Add new section */}
+      <Fab
+        size="small"
+        color="primary"
+        aria-label="add"
+        variant="extended"
+        sx={{
+          position: "absolute",
+          bottom: "8%",
+          right: "2%",
+          color: "common.white",
+          bgcolor: green[500],
+          "&:hover": {
+            bgcolor: green[600],
+          },
+        }}
+        onClick={() => {
+          setShowAddCollectionPopUp(true);
+        }}
+      >
+        <AddIcon />
+      </Fab>
+
+      {/* Data component */}
+      {count > 0 && data.collections && (
+        <Box
+          sx={{
+            height: "100%",
+            overflowY: "auto",
+            display: "flex",
+            paddingX: 1,
+            gap: 2,
+            flexDirection: "column",
+          }}
+        >
+          {data.collections.map((collection, idx) => (
+            <DataCard
+              key={collection.id}
+              collection={collection}
+              actions={<PanelOneToolBar />}
+              dataCardIndex={idx}
+            />
+          ))}
+        </Box>
       )}
 
-      {/* Failed component */}
-      {collection.state === State.failed && (
-        <Fade in={collection.state === State.failed}>
-          <Stack
-            sx={{
-              p: 2,
-              width: "100%",
-              height: "100%",
-              borderRadius: 3,
-              border: 1,
-              borderColor: "divider",
-            }}
-            flexDirection={"column"}
-            justifyContent={"center"}
-            alignItems={"center"}
-            gap={2}
-          >
-            <Box>
-              <img src={ErrorSvg} height={"120px"} />
-            </Box>
-            <Box sx={{ mt: 1 }}>
-              <Typography
-                align="center"
-                variant="h3"
-                color={"secondary.dark"}
-              >{`Oops! Internal Server Error`}</Typography>
-              <Typography
-                align="center"
-                fontWeight={500}
-                sx={{ mt: 2 }}
-                variant="body1"
-              >{`we are trying to fix the problem`}</Typography>
-            </Box>
-          </Stack>
-        </Fade>
-      )}
-
-      {/* Success component */}
-      {collection.state === State.success && (
-        <>
-          {/* Add new section */}
-          <Fab
-            size="small"
-            color="primary"
-            aria-label="add"
-            variant="extended"
-            sx={{
-              position: "absolute",
-              bottom: "8%",
-              right: "2%",
-              color: "common.white",
-              bgcolor: green[500],
-              "&:hover": {
-                bgcolor: green[600],
-              },
-            }}
-            onClick={() => {
-              setShowAddCollectionPopUp(true);
-            }}
-          >
-            <AddIcon />
-          </Fab>
-
-          {/* No data component */}
-          {count === 0 && (
-            <Fade in={collection.state === State.success}>
-              <Stack
-                sx={{
-                  p: 2,
-                  width: "100%",
-                  height: "100%",
-                  borderRadius: 3,
-                  border: 1,
-                  borderColor: "divider",
-                }}
-                flexDirection={"column"}
-                justifyContent={"center"}
-                alignItems={"center"}
-                gap={2}
-              >
-                <Box>
-                  <img src={NoDataSvg} height={"120px"} />
-                </Box>
-                <Box>
-                  <Typography
-                    align="center"
-                    variant="h4"
-                    color={"secondary.dark"}
-                  >{`No data available`}</Typography>
-                  <Typography
-                    align="center"
-                    fontWeight={500}
-                    sx={{ mt: 2 }}
-                    variant="body2"
-                  >{`There are no collections to display`}</Typography>
-                </Box>
-              </Stack>
-            </Fade>
-          )}
-
-          {/* Data component */}
-          {count > 0 && collection.collections && (
-            <Fade in={collection.state === State.success}>
-              <Box
-                sx={{
-                  height: "100%",
-                  overflowY: "auto",
-                  display: "flex",
-                  paddingX: 1,
-                  gap: 2,
-                  flexDirection: "column",
-                }}
-              >
-                {collection.collections.collections.map((collection, idx) => (
-                  <DataCard
-                    key={collection.id}
-                    collection={collection}
-                    actions={<PanelOneToolBar />}
-                    dataCardIndex={idx}
-                  />
-                ))}
-              </Box>
-            </Fade>
-          )}
-        </>
-      )}
       {/* Add new collection popup */}
       {showAddCollectionPopUp && <AddCollectionModal toggleClose={toggleClose} />}
     </>
