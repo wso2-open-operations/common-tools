@@ -85,15 +85,12 @@ export const baseQueryWithRetry = retry(
   async (args: string | FetchArgs, api, extraOptions) => {
     const result = await baseQueryWithReauth(args, api, extraOptions);
 
-    if (result.error) {
-      if (result.error.status !== 401) {
-        retry.fail(result.error, result.meta);
-      }
+    // Bail out for 401 because reauth handles it (and will logout if needed)
+    if (result.error?.status === 401) {
+      retry.fail(result.error, result.meta);
     }
 
     return result;
   },
-  {
-    maxRetries: 3,
-  },
+  { maxRetries: 3 },
 );
