@@ -52,30 +52,7 @@ function SidebarNavItem({
         width: "100%",
       }}
     >
-      <Tooltip
-        title={!open ? route.text : ""}
-        placement="right"
-        arrow
-        disableHoverListener={open}
-        slotProps={{
-          popper: { className: "z-[9999]" },
-          tooltip: {
-            sx: {
-              backgroundColor: theme.palette.neutral[1700],
-              color: theme.palette.neutral.white,
-              padding: theme.spacing(0.75, 1.5),
-              borderRadius: "4px",
-              fontSize: "12px",
-              boxShadow: theme.shadows[8],
-            },
-          },
-          arrow: {
-            sx: {
-              color: theme.palette.neutral[1700],
-            },
-          },
-        }}
-      >
+      <Tooltip title={!open ? route.text : ""}>
         {route.element ? (
           <Link to={route.path} style={{ width: "100%", display: "block", textDecoration: "none" }}>
             <LinkItem

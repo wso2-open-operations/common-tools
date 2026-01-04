@@ -96,32 +96,7 @@ const Sidebar = (props: SidebarProps) => {
 
     // Only show tooltip when sidebar is collapsed
     if (tooltipTitle && !props.open) {
-      return (
-        <Tooltip
-          title={tooltipTitle}
-          placement="right"
-          arrow
-          slotProps={{
-            tooltip: {
-              sx: {
-                backgroundColor: theme.palette.neutral[1700],
-                color: theme.palette.neutral.white,
-                padding: theme.spacing(0.75, 1),
-                borderRadius: "4px",
-                fontSize: "12px",
-                boxShadow: theme.shadows[8],
-              },
-            },
-            arrow: {
-              sx: {
-                color: theme.palette.neutral[1700],
-              },
-            },
-          }}
-        >
-          {button}
-        </Tooltip>
-      );
+      return <Tooltip title={tooltipTitle}>{button}</Tooltip>;
     }
 
     return button;
