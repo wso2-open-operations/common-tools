@@ -115,10 +115,12 @@ export function Tabs({ tabs, activeIndex, handleTabClick }: TabToggleProps) {
         aria-orientation="horizontal"
       >
         {tabs.map((tab, index) => (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center" }}>
+          <Box
+            key={index}
+            sx={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center" }}
+          >
             <Button
               component={motion.button}
-              key={index}
               onClick={() => handleTabClick(index)}
               disableRipple
               role="tab"
