@@ -13,7 +13,6 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 import CloseIcon from "@mui/icons-material/Close";
 import LoadingButton from "@mui/lab/LoadingButton";
 import {
@@ -26,7 +25,6 @@ import {
   DialogTitle,
   FormControl,
   FormHelperText,
-  Grid,
   IconButton,
   Stack,
   TextField,
@@ -38,14 +36,12 @@ import * as yup from "yup";
 import React, { useEffect } from "react";
 
 import { useConfirmationModalContext } from "@context/DialogContext";
-import { addCollections, resetSubmitState } from "@slices/collections/collection";
-import { RootState, useAppDispatch, useAppSelector } from "@slices/store";
-import { ConfirmationType, State } from "@utils/types";
+import { useAddCollectionMutation } from "@services/collections.api";
+import { ConfirmationType } from "@utils/types";
 
 const AddCollectionModal: React.FC<{ toggleClose: () => void }> = ({ toggleClose }) => {
-  const dispatch = useAppDispatch();
   const dialogContext = useConfirmationModalContext();
-  const collection = useAppSelector((state: RootState) => state.collection);
+  const [addCollection, { isLoading, isSuccess }] = useAddCollectionMutation();
 
   const validationSchema = yup.object().shape({
     collectionName: yup.string().required("Collection Name is required"),
@@ -53,16 +49,17 @@ const AddCollectionModal: React.FC<{ toggleClose: () => void }> = ({ toggleClose
   });
 
   useEffect(() => {
-    if (collection.submitState === State.success) {
-      dispatch(resetSubmitState()); // Resetting the submit state
+    if (isSuccess) {
       toggleClose();
     }
-}, [collection.submitState, dispatch, toggleClose]);
+  }, [isSuccess, toggleClose]);
+
   const formik = useFormik({
     initialValues: {
       collectionName: "",
       collectionType: "",
     },
+
     validationSchema: validationSchema,
 
     onSubmit: (values: any) => {
@@ -71,7 +68,7 @@ const AddCollectionModal: React.FC<{ toggleClose: () => void }> = ({ toggleClose
         "Please note that once done, this cannot be undone.",
         ConfirmationType.send,
         () => {
-          dispatch(addCollections({ name: values.collectionName }));
+          addCollection({ name: values.collectionName });
         },
       );
     },
@@ -106,7 +103,11 @@ const AddCollectionModal: React.FC<{ toggleClose: () => void }> = ({ toggleClose
         </DialogContentText>
 
         {/* Collection Details */}
-        <Grid item xs={12}>
+        <Box
+          sx={{
+            m: 1,
+          }}
+        >
           <Box
             //updated
             component="span"
@@ -199,7 +200,7 @@ const AddCollectionModal: React.FC<{ toggleClose: () => void }> = ({ toggleClose
                   type="submit"
                   variant="contained"
                   color="primary"
-                  loading={collection.submitState === State.loading}
+                  loading={isLoading}
                 >
                   {" "}
                   Submit{" "}
@@ -207,7 +208,7 @@ const AddCollectionModal: React.FC<{ toggleClose: () => void }> = ({ toggleClose
               </Stack>
             </form>
           </Box>
-        </Grid>
+        </Box>
 
         <IconButton
           aria-label="close"
