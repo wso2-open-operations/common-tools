@@ -1,6 +1,8 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 
 import { AppConfig } from "@config/config";
+import { SnackMessage } from "@config/constant";
+import { enqueueSnackbarMessage } from "@slices/commonSlice/common";
 
 import { baseQueryWithReauth } from "./BaseQuery";
 
@@ -31,13 +33,34 @@ export const collectionApi = createApi({
       query: () => AppConfig.serviceUrls.collections,
       providesTags: ["Collections"],
     }),
-    addCollection: builder.mutation<void, AddCollectionPayload>({
+    addCollection: builder.mutation<Collection, AddCollectionPayload>({
       query: (payload) => ({
         url: AppConfig.serviceUrls.collections,
         method: "POST",
         body: payload,
       }),
       invalidatesTags: ["Collections"],
+      async onQueryStarted(_payload, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(
+            enqueueSnackbarMessage({
+              message: SnackMessage.success.addCollections || "Collection added successfully",
+              type: "success",
+            }),
+          );
+        } catch (error: any) {
+          dispatch(
+            enqueueSnackbarMessage({
+              message:
+                error.error?.data?.message ||
+                SnackMessage.error.addCollections ||
+                "Failed to add collection",
+              type: "error",
+            }),
+          );
+        }
+      },
     }),
   }),
 });
