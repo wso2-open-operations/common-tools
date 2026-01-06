@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations
 // under the License.
 import { SecureApp, useAuthContext } from "@asgardeo/auth-react";
-import { setTokens } from "@services/BaseQuery";
 import { useIdleTimer } from "react-idle-timer";
 
 import React, { useContext, useEffect, useState } from "react";
@@ -24,9 +23,9 @@ import SessionWarningDialog from "@component/common/SessionWarningDialog";
 import LoginScreen from "@component/ui/LoginScreen";
 import { redirectUrl } from "@config/constant";
 import { useLazyGetUserInfoQuery } from "@root/src/services/user.api";
+import { setTokens } from "@services/BaseQuery";
 import { loadPrivileges, setAuthError, setUserAuthData } from "@slices/authSlice/auth";
 import { useAppDispatch } from "@slices/store";
-import { APIService } from "@utils/apiService";
 
 type AuthContextType = {
   appSignIn: () => void;
@@ -104,7 +103,6 @@ const AppAuthProvider = (props: { children: React.ReactNode }) => {
       }),
     );
 
-    new APIService(idToken, refreshToken);
     setTokens(idToken, refreshToken, appSignOut);
     await triggerGetUserInfo();
 
