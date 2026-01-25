@@ -21,6 +21,23 @@ type AggregatedAnalysisResponse struct {
 	Errors    []string                  `json:"errors,omitempty"`
 }
 
+// enableCORS sets the necessary headers to allow cross-origin requests from the frontend.
+func enableCORS(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+		// Handle preflight browser requests gracefully
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 // Main function: Starts HTTP server
 
 func main() {
@@ -38,9 +55,9 @@ func main() {
 
 	// HTTP Routes
 	http.HandleFunc("/", serveHTML)
-	http.HandleFunc("/parse", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/parse", enableCORS(func(w http.ResponseWriter, r *http.Request) {
 		parseHandler(w, r, engine, enricher)
-	})
+	}))
 
 	// Start Server
 	fmt.Println("Server started at http://localhost:8080")
@@ -141,7 +158,6 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 	// Use an Encoder to stream the JSON response directly to the HTTP writer
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode JSON response: %v", err)
-		// Cannot send http.Error here as headers have likely already been written
 	}
 }
 

@@ -87,9 +87,10 @@ func (te *ThreadEnricher) Enrich(threads []parser.Thread) {
 			}
 		}
 
-		// Fallback for threads that don't match any define pool
+		// If the threads don't match any defined threadpool
 		if !matched {
-			t.ThreadPool = "Other / Standalone"
+
+			t.ThreadPool = "Standalone Thread"
 		}
 	}
 }
