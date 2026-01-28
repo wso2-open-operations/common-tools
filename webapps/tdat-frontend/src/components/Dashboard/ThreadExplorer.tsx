@@ -13,7 +13,7 @@ import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
 
 // State Mapping for Graph
-const STATE_LEVELS: Record<string, number> = {
+const State_Level: Record<string, number> = {
     RUNNABLE: 1,
     TIMED_WAITING: 2,
     WAITING: 3,
@@ -22,7 +22,7 @@ const STATE_LEVELS: Record<string, number> = {
 
 // Reverse lookup to print labels on the Y-Axis
 const getStateLabel = (value: number) => {
-    return Object.keys(STATE_LEVELS).find(key => STATE_LEVELS[key] === value) || '';
+    return Object.keys(State_Level).find(key => State_Level[key] === value) || '';
 };
 
 // Stack Trace Viewer
@@ -71,7 +71,7 @@ const ThreadRow: React.FC<{ thread: Thread }> = ({ thread }) => {
     // Map each snapshot's state to its Y-axis numeric level
     const chartData = thread.snapshots.map((s, i) => ({
         x: i + 1,
-        y: STATE_LEVELS[s.state] || 0.5
+        y: State_Level[s.state] || 0.5
     }));
 
     return (
