@@ -1,0 +1,431 @@
+openapi: 3.1.0
+info:
+  title: QR Code Generation Service
+  description: |
+    A Go HTTP service that generates QR codes on-demand from text or URL input with customizable size.
+
+    **Architecture**: HTTP REST API
+
+    **Features**:
+    - Generate QR codes from any text or URL
+    - Customizable QR code size (64px - 2048px)
+    - PNG image output
+    - Request body size limit (1MB default)
+    - Health check endpoint
+    - Structured logging with slog
+    - Graceful shutdown
+    - Configurable timeouts and connection limits
+    - Medium error correction level (15% recovery)
+
+    **Authentication**: None (public service)
+
+    **Input**: Plain text data (URLs, text, vCards, WiFi credentials, SMS, email, phone numbers, etc.)
+
+    **Output**: PNG image (image/png)
+  version: 1.0.0
+  contact:
+    name: WSO2 LLC
+    url: https://www.wso2.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+externalDocs:
+  description: Project README
+  url: https://github.com/wso2-open-operations/common-tools/tree/main/operations/qr-generation
+
+tags:
+  - name: qr
+    description: QR code generation operations
+  - name: health
+    description: Service health monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check endpoint
+      description: Returns the service health status
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /generate:
+    post:
+      tags:
+        - qr
+      summary: Generate QR code
+      description: |
+        Generates a QR code image from the provided text data.
+        Accepts plain text in the request body and returns a PNG image.
+        
+        Supports various formats: URLs, email, phone, SMS, WiFi, vCard, plain text, etc.
+      operationId: generateQR
+      parameters:
+        - name: size
+          in: query
+          description: QR code size in pixels (width and height). Default is 256px.
+          required: false
+          schema:
+            type: integer
+            default: 256
+            minimum: 64
+            maximum: 2048
+          example: 512
+      requestBody:
+        description: Text data to encode in the QR code
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+              maxLength: 1048576
+            examples:
+              url:
+                summary: Website URL
+                value: "https://wso2.com"
+              github:
+                summary: GitHub repository
+                value: "https://github.com/wso2-open-operations"
+              email:
+                summary: Email address
+                value: "mailto:jason.smith@example.com?subject=Meeting Request"
+              phone:
+                summary: Phone number
+                value: "tel:+1-555-0123"
+              sms:
+                summary: SMS with message
+                value: "smsto:+1-555-0123:Hello from QR Code"
+              wifi:
+                summary: WiFi credentials
+                value: "WIFI:T:WPA;S:ExampleNetwork;P:ExamplePass123;;"
+              vcard:
+                summary: Contact information
+                value: |
+                  BEGIN:VCARD
+                  VERSION:3.0
+                  FN:Jason Smith
+                  ORG:Example Corp
+                  TITLE:Software Engineer
+                  TEL:+1-555-0123
+                  EMAIL:jason.smith@example.com
+                  ADR:;;123 Main St;Springfield;IL;62701;USA
+                  END:VCARD
+              text:
+                summary: Plain text
+                value: "Meeting Room: B-305, Time: 3:00 PM"
+      responses:
+        "200":
+          description: Successfully generated QR code
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Bad request - Invalid input parameters
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                emptyBody:
+                  value: "Request body is empty"
+                invalidSize:
+                  value: "Invalid size parameter"
+        "405":
+          description: Method not allowed
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Method not allowed"
+        "413":
+          description: Request body too large (exceeds MAX_BODY_SIZE)
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Request body too large"
+        "500":
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Internal server error"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      description: Health check response
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+          description: Health status of the service
+          example: "ok"
+
+    Configuration:
+      type: object
+      description: Environment variables for configuring the service
+      properties:
+        PORT:
+          type: string
+          description: HTTP server port
+          default: "8080"
+          example: "8080"
+        READ_TIMEOUT:
+          type: string
+          description: Maximum duration for reading the request (Go duration format)
+          default: "5s"
+          example: "5s"
+        WRITE_TIMEOUT:
+          type: string
+          description: Maximum duration for writing the response (Go duration format)
+          default: "10s"
+          example: "10s"
+        SHUTDOWN_TIMEOUT:
+          type: string
+          description: Maximum duration for graceful shutdown (Go duration format)
+          default: "5s"
+          example: "5s"
+        MAX_BODY_SIZE:
+          type: integer
+          description: Maximum request body size in bytes
+          default: 1048576
+          example: 1048576
+
+    QRCodeFormats:
+      type: object
+      description: Common QR code data formats
+      properties:
+        url:
+          type: string
+          description: Website or web page URL
+          example: "https://example.com"
+        email:
+          type: string
+          description: Email address with optional subject and body
+          example: "mailto:jason.smith@example.com?subject=Hello&body=Message"
+        phone:
+          type: string
+          description: Phone number for direct calling
+          example: "tel:+1-555-0123"
+        sms:
+          type: string
+          description: SMS with pre-filled message
+          example: "smsto:+1-555-0123:Hello from QR"
+        wifi:
+          type: string
+          description: WiFi credentials (T=type, S=SSID, P=password, H=hidden)
+          example: "WIFI:T:WPA;S:ExampleNetwork;P:ExamplePass123;H:false;;"
+        vcard:
+          type: string
+          description: Contact information in vCard format
+          example: |
+            BEGIN:VCARD
+            VERSION:3.0
+            FN:Jason Smith
+            TEL:+1-555-0123
+            EMAIL:jason.smith@example.com
+            END:VCARD
+        geolocation:
+          type: string
+          description: Geographic coordinates (latitude, longitude)
+          example: "geo:37.7749,-122.4194"
+        plaintext:
+          type: string
+          description: Any plain text
+          example: "Hello World!"
+
+x-cli-usage: |
+  # Build
+  make build
+  # Or
+  go build -o bin/qr-api cmd/api/main.go
+
+  # Run
+  make run
+  # Or
+  go run cmd/api/main.go
+  # Or
+  ./bin/qr-api
+
+  # Run with custom port
+  PORT=9090 ./bin/qr-api
+
+  # Clean build artifacts
+  make clean
+
+  # Update dependencies
+  make tidy
+  # Or
+  go mod tidy
+
+x-api-usage: |
+  # Health check
+  curl http://localhost:8080/health
+
+  # Generate QR code (default size 256px)
+  curl -X POST "http://localhost:8080/generate" \
+    -d "https://wso2.com" \
+    --output qr-code.png
+
+  # Generate QR code with custom size
+  curl -X POST "http://localhost:8080/generate?size=512" \
+    -d "https://github.com/wso2-open-operations" \
+    --output qr-large.png
+
+  # Generate QR code for plain text
+  curl -X POST "http://localhost:8080/generate?size=256" \
+    -d "Hello WSO2!" \
+    --output qr-text.png
+
+  # Generate WiFi QR code
+  curl -X POST "http://localhost:8080/generate?size=300" \
+    -d "WIFI:T:WPA;S:ExampleNetwork;P:ExamplePass123;;" \
+    --output wifi-qr.png
+
+  # Generate contact vCard QR code
+  curl -X POST "http://localhost:8080/generate?size=400" \
+    -d "BEGIN:VCARD
+  VERSION:3.0
+  FN:Jason Smith
+  ORG:Example Corp
+  TITLE:Software Engineer
+  TEL:+1-555-0123
+  EMAIL:jason.smith@example.com
+  ADR:;;123 Main St;Springfield;IL;62701;USA
+  END:VCARD" \
+    --output contact-qr.png
+
+  # Generate email QR code
+  curl -X POST "http://localhost:8080/generate" \
+    -d "mailto:jason.smith@example.com?subject=Meeting Request" \
+    --output email-qr.png
+
+  # Generate phone number QR code
+  curl -X POST "http://localhost:8080/generate" \
+    -d "tel:+1-555-0123" \
+    --output phone-qr.png
+
+  # Generate SMS QR code
+  curl -X POST "http://localhost:8080/generate" \
+    -d "smsto:+1-555-0123:Hello from QR Code" \
+    --output sms-qr.png
+
+x-qr-specifications: |
+  # QR Code Specifications
+
+  ## Error Correction Level
+  - Uses Medium error correction (15% recovery)
+  - Up to 15% of the QR code can be damaged and still be scannable
+  - Good balance between size and error correction
+
+  ## Size Limits
+  - Minimum: 64x64 pixels
+  - Maximum: 2048x2048 pixels
+  - Default: 256x256 pixels
+
+  ## Data Capacity (approximate for Medium error correction)
+  - Numeric only: ~7,000 characters
+  - Alphanumeric: ~4,200 characters
+  - Binary/Byte: ~2,900 characters
+
+  ## Supported Data Types
+  - URLs (http://, https://)
+  - Email addresses (mailto:)
+  - Phone numbers (tel:)
+  - SMS (smsto:, sms:)
+  - WiFi credentials (WIFI:)
+  - vCard contacts (BEGIN:VCARD...END:VCARD)
+  - Geographic locations (geo:)
+  - Plain text
+  - Any UTF-8 encoded string
+
+x-troubleshooting:
+  port-in-use: |
+    Error: "listen tcp :8080: bind: address already in use"
+    Solution: 
+      1. Kill existing process: lsof -ti:8080 | xargs kill -9
+      2. Or use different port: PORT=8081 ./bin/qr-api
+
+  invalid-qr-size: |
+    Error: "Invalid size parameter"
+    Solution: 
+      - Ensure size parameter is an integer between 64 and 2048
+      - Example: ?size=512
+
+  body-too-large: |
+    Error: "Request body too large"
+    Solution: 
+      - Input data exceeds MAX_BODY_SIZE (1MB default)
+      - Reduce data size or increase MAX_BODY_SIZE environment variable
+      - For large data, consider using URL shorteners or storing data externally
+
+  empty-request: |
+    Error: "Request body is empty"
+    Solution: 
+      - Ensure you're sending data in the request body with -d flag
+      - Example: curl -X POST "http://localhost:8080/generate" -d "your data"
+
+  method-not-allowed: |
+    Error: "Method not allowed"
+    Solution: 
+      - /generate endpoint only accepts POST method
+      - /health endpoint only accepts GET method
+      - Ensure you're using the correct HTTP method
+
+  qr-generation-failed: |
+    Error: "Internal server error"
+    Solution: 
+      - Check server logs for detailed error information
+      - Data may exceed QR code capacity (~2,900 bytes for binary data)
+      - Try reducing data size or using smaller QR code size parameter
+
+  connection-timeout: |
+    Error: Connection timeout or refused
+    Solution: 
+      - Verify the service is running (check with: ps aux | grep qr-api)
+      - Verify correct port (default 8080)
+      - Check firewall rules
+      - Try: curl http://localhost:8080/health
+
+x-security: |
+  # Security Considerations
+
+  ## Request Size Limiting
+  - Default maximum request body: 1MB
+  - Configurable via MAX_BODY_SIZE environment variable
+  - Prevents DoS attacks through large payloads
+
+  ## Timeouts
+  - Read timeout: 5 seconds (configurable)
+  - Read header timeout: 2 seconds (Slowloris protection)
+  - Write timeout: 10 seconds (configurable)
+  - Idle timeout: 60 seconds
+
+  ## Error Handling
+  - Generic error messages returned to clients
+  - Detailed errors logged server-side only
+  - Prevents information leakage
+
+  ## Input Validation
+  - Request body cannot be empty
+  - Size parameter validated (64-2048 range)
+  - Request body size enforced
+
+  ## No Authentication
+  - Service is designed for internal/public use
+  - Add authentication layer if needed (reverse proxy, API gateway)
