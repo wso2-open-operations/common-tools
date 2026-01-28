@@ -5,6 +5,7 @@ import { styled } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { useAnalyzeThreads } from '../hooks/useAnalyzeThreads';
 import { useAnalysisData } from '../context/AnalysisContext';
+import StarIcon from '@mui/icons-material/Star';
 
 // Styled input for hidden file input
 const VisuallyHiddenInput = styled('input')({
@@ -53,7 +54,9 @@ const UploadCard: React.FC<UploadCardProps> = ({
         >
             <Box display="flex" alignItems="center" gap={1} mb={1}>
                 {isPrimary && (
-                    <Box component="span" sx={{ color: 'warning.main', fontSize: '1.2rem', lineHeight: 0 }}>★</Box>
+                    <Box component="span" sx={{ color: '#ff6d00', fontSize: '1.5rem', lineHeight: 0 }}>
+                        <StarIcon fontSize="inherit" />
+                    </Box>
                 )}
                 <Typography variant="h6" fontWeight="600" color="text.primary">
                     {title}
