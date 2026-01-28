@@ -40,6 +40,12 @@ func (s *service) Generate(data []byte, size int) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("data cannot be empty")
 	}
+	if size <= 0 {
+		return nil, fmt.Errorf("invalid size: must be > 0")
+	}
+	if size > 4096 {
+		return nil, fmt.Errorf("invalid size: must be <= 4096")
+	}
 
 	// Generate the QR code
 	// qrcode.Medium is the error recovery level
