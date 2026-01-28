@@ -6,7 +6,7 @@ import {
   CssBaseline,
   Box
 } from '@mui/material';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // <--- ADD THIS
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import Header from './components/Header';
 import Footer from './components/Footer';

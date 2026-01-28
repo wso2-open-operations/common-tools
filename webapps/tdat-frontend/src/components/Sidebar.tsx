@@ -2,35 +2,23 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Drawer, List, ListItem, ListItemButton,
-  ListItemIcon, ListItemText, Divider, Typography,
-  Collapse, Chip, IconButton
+  ListItemIcon, ListItemText, Divider, 
+  IconButton
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
-import ExpandLess from '@mui/icons-material/ExpandLess';
-import ExpandMore from '@mui/icons-material/ExpandMore';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import MenuIcon from '@mui/icons-material/Menu';
-import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 
 // Sidebar width when expanded and collapsed
 const drawerWidth = 240;
 const collapsedWidth = 65;
 
-// Mock Data as placeholders
-const threadPools = [
-  { name: 'http-nio-8080', count: 50, tag: 'HTTP' },
-  { name: 'PassThroughMessageProcessor', count: 30, tag: 'WSO2' },
-  { name: 'async-executor', count: 20, tag: 'Executor' },
-  { name: 'GC task thread', count: 4, tag: 'JVM' },
-];
-
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [openPools, setOpenPools] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // If path is exactly '/dashboard', Dashboard is active
@@ -112,46 +100,6 @@ const Sidebar: React.FC = () => {
           </List>
 
           <Divider sx={{ my: 2 }} />
-
-          {isSidebarOpen && (
-            <>
-              <Typography variant="subtitle2" color="text.secondary" fontWeight="bold" sx={{ px: 2, mb: 1 }}>
-                Thread Groupings
-              </Typography>
-
-              <ListItemButton onClick={() => setOpenPools(!openPools)} sx={{ pl: 1 }}>
-                <ListItemIcon sx={{ minWidth: 35 }}><Box component="span" sx={{ fontSize: 18 }}><LayersOutlinedIcon /></Box></ListItemIcon>
-                <ListItemText primary={`Thread Pools (${threadPools.length})`} />
-                {openPools ? <ExpandLess /> : <ExpandMore />}
-              </ListItemButton>
-
-              <Collapse in={openPools} timeout="auto" unmountOnExit>
-                <List component="div" disablePadding>
-                  {threadPools.map((pool, index) => (
-                    <ListItemButton
-                      key={index}
-                      // Clicking a pool could also go to thread explorer with a filter
-                      onClick={() => navigate('/dashboard/thread-explorer')}
-                      sx={{ pl: 4, mb: 0.5, borderRadius: 1, bgcolor: index === 0 ? '#fff3e0' : 'transparent' }}
-                    >
-                      <ListItemText
-                        primary={pool.name}
-                        secondary={`${pool.count} threads`}
-                        slotProps={{
-                          primary: {
-                            fontSize: '0.9rem',
-                            fontWeight: index === 0 ? 'bold' : 'normal',
-                            noWrap: true,
-                          },
-                        }}
-                      />
-                      <Chip label={pool.tag} size="small" sx={{ height: 20, fontSize: '0.65rem' }} />
-                    </ListItemButton>
-                  ))}
-                </List>
-              </Collapse>
-            </>
-          )}
         </Box>
 
         <Divider />

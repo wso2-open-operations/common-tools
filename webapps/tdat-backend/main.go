@@ -38,7 +38,7 @@ func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Main function: Starts HTTP server
+// Start HTTP server
 
 func main() {
 	// Initialize Rules Engine (Grule) by loading rules from rules.grl
@@ -47,7 +47,7 @@ func main() {
 		log.Fatalf("Failed to load rules engine: %v", err)
 	}
 
-	// Initialize Thread Enricher by loading YAML config and pre-compiles regexes for thread pool categorization.
+	// Initialize Thread Enricher by loading YAML config for thread pool categorization.
 	enricher, err := analyzer.NewThreadEnricher("./config/thread_pools.yaml")
 	if err != nil {
 		log.Fatalf("Failed to initialize thread enricher: %v", err)

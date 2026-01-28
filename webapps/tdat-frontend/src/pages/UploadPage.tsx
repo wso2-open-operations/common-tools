@@ -29,8 +29,8 @@ interface UploadCardProps {
     selectedCount: number;
 }
 
-const UploadCard: React.FC<UploadCardProps> = ({ 
-    title, description, required, fileTypeLabel, onFileSelect, selectedCount 
+const UploadCard: React.FC<UploadCardProps> = ({
+    title, description, required, fileTypeLabel, onFileSelect, selectedCount
 }) => {
     const isPrimary = required;
     const borderColor = isPrimary ? '#ffab91' : '#e0e0e0';
@@ -84,7 +84,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
                 }}
             >
                 <VisuallyHiddenInput type="file" multiple onChange={handleInputChange} />
-                
+
                 {selectedCount > 0 ? (
                     <Box textAlign="center">
                         <CloudUploadIcon sx={{ fontSize: 48, color: 'success.main', mb: 1 }} />
@@ -98,23 +98,27 @@ const UploadCard: React.FC<UploadCardProps> = ({
                 ) : (
                     <>
                         <CloudUploadIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+
                         <Typography variant="body2" color="text.secondary" gutterBottom>
                             Drag and drop {fileTypeLabel} files here
                         </Typography>
+
                         <Typography variant="caption" color="text.disabled" sx={{ mb: 2 }}>
                             or
                         </Typography>
+
                         <Button
                             component="span"
                             variant={isPrimary ? "contained" : "outlined"}
                             color="inherit"
                             sx={{
-                                textTransform: 'none', pointerEvents: 'none',
+                                textTransform: 'none',
+                                pointerEvents: 'none',
                                 backgroundColor: isPrimary ? '#0d1117' : '#0d1100',
-                                color: isPrimary ? 'white' : 'inherit',
+                                color: 'white',
                                 borderColor: 'divider',
                             }}
-                            startIcon={!isPrimary && <CloudUploadIcon />}
+                            startIcon={<CloudUploadIcon />}
                         >
                             Browse Files
                         </Button>
@@ -125,12 +129,11 @@ const UploadCard: React.FC<UploadCardProps> = ({
     );
 };
 
-
-// --- Main Page Component ---
+// Main Page Component
 function UploadPage() {
     const navigate = useNavigate();
     const { setAnalysisData } = useAnalysisData(); // Use Context Hook
-    
+
     // State for files
     const [dumps, setDumps] = useState<File[]>([]);
     const [usages, setUsages] = useState<File[]>([]);
@@ -145,10 +148,10 @@ function UploadPage() {
             { dumps, usages },
             {
                 onSuccess: (data) => {
-                    // 1. Save data to Global Context
+                    // Save data to Global Context
                     setAnalysisData(data);
-                    
-                    // 2. Navigate to the Explorer view directly
+
+                    // Navigate to the Explorer view directly
                     navigate('/dashboard/thread-explorer');
                 }
             }
