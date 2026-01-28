@@ -61,7 +61,9 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 func getEnvInt64(key string, fallback int64) int64 {
 	if value, exists := os.LookupEnv(key); exists {
 		if i, err := strconv.ParseInt(value, 10, 64); err == nil {
-			return i
+			if i > 0 {
+				return i
+			}
 		}
 	}
 	return fallback
