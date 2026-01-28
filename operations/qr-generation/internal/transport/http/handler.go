@@ -41,17 +41,14 @@ func NewHandler(svc qr.Service, logger *slog.Logger, maxBodySize int64) *Handler
 	}
 }
 
-// Generate handles the QR code generation request.
 func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Limit request body size to prevent DoS
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxBodySize)
 
-	// Read body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.logger.Error("failed to read request body", "error", err)
@@ -69,7 +66,6 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse size query param, default to 256
 	const maxSize = 2048
 	size := 256
 	sizeStr := r.URL.Query().Get("size")
@@ -82,7 +78,6 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		size = parsedSize
 	}
 
-	// Generate QR code
 	png, err := h.svc.Generate(body, size)
 	if err != nil {
 		h.logger.Error("failed to generate QR code", "error", err)
@@ -90,7 +85,6 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Write response
 	w.Header().Set("Content-Type", "image/png")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(png); err != nil {
@@ -99,7 +93,6 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HealthCheck is a simple endpoint to verify the service is running.
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

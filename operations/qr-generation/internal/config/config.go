@@ -22,7 +22,6 @@ import (
 	"time"
 )
 
-// Config holds the application configuration.
 type Config struct {
 	Port            string
 	ReadTimeout     time.Duration
@@ -31,14 +30,13 @@ type Config struct {
 	MaxBodySize     int64
 }
 
-// LoadConfig loads configuration from environment variables or usage defaults.
 func LoadConfig() *Config {
 	return &Config{
 		Port:            getEnv("PORT", "8080"),
 		ReadTimeout:     getEnvDuration("READ_TIMEOUT", 5*time.Second),
 		WriteTimeout:    getEnvDuration("WRITE_TIMEOUT", 10*time.Second),
 		ShutdownTimeout: getEnvDuration("SHUTDOWN_TIMEOUT", 5*time.Second),
-		MaxBodySize:     getEnvInt64("MAX_BODY_SIZE", 1024*1024), // Default 1MB
+		MaxBodySize:     getEnvInt64("MAX_BODY_SIZE", 1024*1024),
 	}
 }
 
