@@ -70,12 +70,13 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse size query param, default to 256
+	const maxSize = 2048
 	size := 256
 	sizeStr := r.URL.Query().Get("size")
 	if sizeStr != "" {
 		parsedSize, err := strconv.Atoi(sizeStr)
-		if err != nil || parsedSize <= 0 {
-			http.Error(w, "Invalid size parameter", http.StatusBadRequest)
+		if err != nil || parsedSize <= 0 || parsedSize > maxSize {
+			http.Error(w, "Invalid size parameter: must be between 1 and 2048", http.StatusBadRequest)
 			return
 		}
 		size = parsedSize
