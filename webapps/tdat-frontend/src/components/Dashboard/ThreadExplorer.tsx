@@ -35,7 +35,7 @@ const StackTraceViewer: React.FC<{ snapshot: ThreadSnapshot; index: number }> = 
             <Chip
                 label={snapshot.state}
                 size="small"
-                color={snapshot.state === 'RUNNABLE' ? 'success' : snapshot.state === 'BLOCKED' ? 'error' : 'warning'}
+                color={snapshot.state === 'RUNNABLE' ? 'success' : snapshot.state === 'WAITING' ? 'info' : snapshot.state === 'BLOCKED' ? 'warning' : snapshot.state === 'TIMED_WAITING' ? 'secondary' : 'default'}
                 variant="outlined"
             />
             <Typography variant="caption" color="text.secondary">
@@ -220,7 +220,7 @@ const ThreadExplorer: React.FC = () => {
         if (!selectedPool || !threadsByPool[selectedPool]) return [];
 
         const threadsWithStats = threadsByPool[selectedPool].map(thread => {
-            // Pre-calculate stats for sorting
+            // Stats for sorting
             const snapshots = thread.snapshots;
             const lastSnap = snapshots[snapshots.length - 1];
             const maxCpu = Math.max(...snapshots.map(s => s.cpu_percent || 0));
@@ -276,7 +276,7 @@ const ThreadExplorer: React.FC = () => {
     return (
         <Box sx={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-            {/* Sidebar List */}
+            {/* Thread Sidebar List */}
             <Paper
                 elevation={3}
                 sx={{
