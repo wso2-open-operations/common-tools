@@ -1,7 +1,6 @@
 import type { AnalysisResponse } from "../types/api";
 
-const API_URL = "http://localhost:8080";
-
+const API_URL = import.meta.env.VITE_API_BASE_URL;
 export const uploadThreadDumps = async (
   dumps: File[], 
   usages: File[]
