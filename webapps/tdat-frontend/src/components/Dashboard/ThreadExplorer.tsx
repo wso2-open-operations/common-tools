@@ -71,7 +71,6 @@ interface ThreadRowProps {
 
 const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
     const [open, setOpen] = useState(false);
-    // const lastSnap = thread.snapshots[thread.snapshots.length - 1];
 
     // Prepare Chart Data
     const chartData = thread.snapshots.map((s, i) => ({
@@ -92,7 +91,7 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
             >
                 <Grid container spacing={2} alignItems="center">
                     {/* ID & Expand */}
-                    <Grid size={{ xs: 2.5 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Grid size={{ xs: 2.5 }} sx={{ display: 'flex', alignItems: 'center', gap: 1}}>
                         <IconButton size="small" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
                             {open ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                         </IconButton>
