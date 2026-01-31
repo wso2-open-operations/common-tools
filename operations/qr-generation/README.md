@@ -12,7 +12,7 @@ A simple HTTP service for generating QR codes built with Go.
 
 ## Prerequisites
 
-- Go 1.21 or higher
+- Go 1.25.4 or higher
 
 ## Installation
 

@@ -18,6 +18,7 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,9 +26,17 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 
+	"github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/config"
 	"github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/qr"
 )
+
+// GenerateHandler defines the interface for QR code generation handler.
+type GenerateHandler interface {
+	http.Handler
+	Generate(w http.ResponseWriter, r *http.Request)
+}
 
 type Handler struct {
 	svc         qr.Service
@@ -35,6 +44,7 @@ type Handler struct {
 	maxBodySize int64
 	minSize     int
 	maxSize     int
+	encoderPool sync.Pool
 }
 
 // NewHandler creates a new HTTP handler for QR code generation.
@@ -45,20 +55,17 @@ func NewHandler(svc qr.Service, logger *slog.Logger, maxBodySize int64, minSize,
 		maxBodySize: maxBodySize,
 		minSize:     minSize,
 		maxSize:     maxSize,
+		encoderPool: sync.Pool{
+			New: func() interface{} {
+				return json.NewEncoder(io.Discard)
+			},
+		},
 	}
 }
 
 // Generate handles POST /generate?size={pixels} requests to create QR codes.
 // Accepts raw text/URL in body, returns PNG image.
 func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
-	// Log incoming request with metadata
-	h.logger.Debug("Received QR generation request",
-		"method", r.Method,
-		"remote_addr", r.RemoteAddr,
-		"user_agent", r.UserAgent(),
-		"content_length", r.ContentLength,
-	)
-
 	// Only accept POST requests
 	if r.Method != http.MethodPost {
 		h.logger.Warn("Method not allowed",
@@ -70,12 +77,32 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fast fail for obvious oversized requests
+	if r.ContentLength > h.maxBodySize {
+		h.logger.Warn("Request body too large (ContentLength check)",
+			"content_length", r.ContentLength,
+			"max_allowed", h.maxBodySize,
+			"remote_addr", r.RemoteAddr,
+		)
+		http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+
 	// Enforce maximum request body size to prevent DoS attacks
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxBodySize)
 	h.logger.Debug("Reading request body", "max_size", h.maxBodySize)
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, io.LimitReader(r.Body, h.maxBodySize)); err != nil {
+		body := buf.Bytes()
+		if len(body) > int(h.maxBodySize) {
+			h.logger.Warn("Request body hit size limit",
+				"max_allowed", h.maxBodySize,
+				"remote_addr", r.RemoteAddr,
+			)
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		h.logger.Error("failed to read request body", "error", err, "remote_addr", r.RemoteAddr)
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
@@ -90,6 +117,7 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body := buf.Bytes()
 	h.logger.Debug("Request body read successfully", "body_size", len(body))
 
 	if len(body) == 0 {
@@ -99,7 +127,10 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const defaultSize = 256
-	size := defaultSize
+	size := config.DefaultSize
+	if config.DefaultSize == 0 {
+		size = defaultSize
+	}
 	sizeStr := r.URL.Query().Get("size")
 
 	if sizeStr != "" {
@@ -145,7 +176,13 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Length", strconv.Itoa(len(png)))
 	w.WriteHeader(http.StatusOK)
+
+	if fl, ok := w.(http.Flusher); ok {
+		fl.Flush()
+	}
+
 	if _, err := w.Write(png); err != nil {
 		h.logger.Error("failed to write response",
 			"error", err,
@@ -173,7 +210,12 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+	if fl, ok := w.(http.Flusher); ok {
+		fl.Flush()
+	}
+
+	encoder := json.NewEncoder(w)
+	if err := encoder.Encode(map[string]string{"status": "ok"}); err != nil {
 		h.logger.Error("failed to encode health check response",
 			"error", err,
 			"remote_addr", r.RemoteAddr,

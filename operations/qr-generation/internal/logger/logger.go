@@ -25,12 +25,18 @@ import (
 )
 
 var (
-	Logger   = slog.Default()
 	initOnce sync.Once
+	levelMap = map[string]slog.Level{
+		"debug": slog.LevelDebug,
+		"info":  slog.LevelInfo,
+		"warn":  slog.LevelWarn,
+		"error": slog.LevelError,
+	}
 )
 
-// InitLogger initializes the global logger based on LOG_ENV (dev/prod) and LOG_LEVEL (debug/info/warn/error).
-func InitLogger() {
+// InitLogger initializes and returns a logger based on LOG_ENV (dev/prod) and LOG_LEVEL (debug/info/warn/error).
+func InitLogger() *slog.Logger {
+	var logger *slog.Logger
 	initOnce.Do(func() {
 		logEnv := os.Getenv("LOG_ENV")
 		logLevel := getLogLevelFromEnv()
@@ -49,28 +55,21 @@ func InitLogger() {
 			})
 		}
 
-		Logger = slog.New(handler)
-		Logger.Info(
+		logger = slog.New(handler)
+		logger.Info(
 			"Logger initialized",
 			"LOG_ENV", logEnv,
 			"LOG_LEVEL", logLevel.String(),
 		)
 	})
+	return logger
 }
 
 // getLogLevelFromEnv parses LOG_LEVEL env var (debug/info/warn/error), defaults to info.
 func getLogLevelFromEnv() slog.Level {
 	levelStr := strings.ToLower(os.Getenv("LOG_LEVEL"))
-	switch levelStr {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
+	if level, ok := levelMap[levelStr]; ok {
+		return level
 	}
+	return slog.LevelInfo
 }

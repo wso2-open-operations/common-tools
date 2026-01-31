@@ -20,6 +20,7 @@ package qr
 import (
 	"fmt"
 	"log/slog"
+	"unicode/utf8"
 
 	"github.com/skip2/go-qrcode"
 )
@@ -66,7 +67,7 @@ func (s *service) Generate(data []byte, size int) ([]byte, error) {
 
 	s.logger.Debug("Encoding QR code",
 		"recovery_level", "Medium",
-		"data_preview", truncateString(string(data), 50),
+		"data_length", len(data),
 	)
 
 	png, err := qrcode.Encode(string(data), qrcode.Medium, size)
@@ -87,10 +88,21 @@ func (s *service) Generate(data []byte, size int) ([]byte, error) {
 	return png, nil
 }
 
-// truncateString truncates a string to maxLen for safe logging.
+// truncateString truncates a string to maxLen for safe logging with proper UTF-8 handling.
 func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	if utf8.RuneCountInString(s) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	runes := []rune(s)
+	// Safe slice with bounds check
+	end := min(maxLen, len(runes))
+	return string(runes[:end]) + "..."
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

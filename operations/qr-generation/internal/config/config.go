@@ -21,6 +21,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -33,7 +34,13 @@ type Config struct {
 	MaxBodySize     int64
 	MinSize         int
 	MaxSize         int
+	DefaultSize     int
 }
+
+var (
+	envCache sync.Map
+	intCache sync.Map
+)
 
 // LoadConfig reads configuration from environment variables and returns a Config instance.
 func LoadConfig() *Config {
@@ -42,15 +49,23 @@ func LoadConfig() *Config {
 		ReadTimeout:     getEnvDuration("READ_TIMEOUT", 5*time.Second),
 		WriteTimeout:    getEnvDuration("WRITE_TIMEOUT", 10*time.Second),
 		ShutdownTimeout: getEnvDuration("SHUTDOWN_TIMEOUT", 5*time.Second),
-		MaxBodySize:     getEnvInt64("MAX_BODY_SIZE", 1024*1024),
+		MaxBodySize:     getEnvInt64("MAX_BODY_SIZE", 524288),
 		MinSize:         getEnvInt("MIN_SIZE", 64),
 		MaxSize:         getEnvInt("MAX_SIZE", 2048),
+		DefaultSize:     256,
 	}
 }
 
 // getEnv retrieves a string environment variable or returns fallback if not set.
 func getEnv(key, fallback string) string {
-	if value, exists := os.LookupEnv(key); exists {
+	if cached, ok := envCache.Load(key); ok {
+		if val, ok := cached.(string); ok {
+			return val
+		}
+	}
+
+	if value := os.Getenv(key); value != "" {
+		envCache.Store(key, value)
 		return value
 	}
 	return fallback
@@ -68,11 +83,16 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 
 // getEnvInt retrieves an int environment variable or returns fallback (only accepts positive values).
 func getEnvInt(key string, fallback int) int {
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			if i > 0 {
-				return i
-			}
+	if cached, ok := intCache.Load(key); ok {
+		if val, ok := cached.(int); ok {
+			return val
+		}
+	}
+
+	if value := os.Getenv(key); value != "" {
+		if i, err := strconv.Atoi(value); err == nil && i > 0 {
+			intCache.Store(key, i)
+			return i
 		}
 	}
 	return fallback
