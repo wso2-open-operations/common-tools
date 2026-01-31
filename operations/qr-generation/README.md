@@ -204,12 +204,15 @@ make tidy
 │   │   └── service.go        # QR code generation logic
 │   └── transport/
 │       └── http/
-│           └── handler.go    # HTTP handlers
+│           ├── handler.go    # HTTP handlers
+│           └── middleware.go # Request logging and method checks
+├── .choreo/
+│   └── component.yaml        # Choreo deployment configuration
 ├── bin/                      # Build output (gitignored)
 ├── .env.example              # Example environment configuration
+├── openapi.yaml              # OpenAPI specification
 ├── go.mod                    # Go module definition
 ├── go.sum                    # Go module checksums
-├── Makefile                  # Build automation
 └── README.md                 # This file
 ```
 

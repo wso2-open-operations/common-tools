@@ -10,7 +10,7 @@ info:
     - Generate QR codes from any text or URL
     - Customizable QR code size (64px - 2048px)
     - PNG image output
-    - Request body size limit (1MB default)
+    - Request body size limit (512KB default)
     - Health check endpoint
     - Structured logging with slog
     - Graceful shutdown
@@ -337,7 +337,7 @@ x-qr-specifications: |
   - Good balance between size and error correction
 
   ## Size Limits
-  - Minimum: 1x1 pixel
+  - Minimum: 64x64 pixels
   - Maximum: 2048x2048 pixels
   - Default: 256x256 pixels
   - Recommended: 256-512 pixels for most use cases

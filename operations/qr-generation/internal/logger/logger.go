@@ -26,6 +26,7 @@ import (
 
 var (
 	initOnce sync.Once
+	logger   *slog.Logger
 	levelMap = map[string]slog.Level{
 		"debug": slog.LevelDebug,
 		"info":  slog.LevelInfo,
@@ -36,7 +37,6 @@ var (
 
 // InitLogger initializes and returns a logger based on LOG_ENV (dev/prod) and LOG_LEVEL (debug/info/warn/error).
 func InitLogger() *slog.Logger {
-	var logger *slog.Logger
 	initOnce.Do(func() {
 		logEnv := os.Getenv("LOG_ENV")
 		logLevel := getLogLevelFromEnv()

@@ -75,9 +75,3 @@ resources:
     memory: 64Mi
     cpu: 100m
 
-# +optional Scaling configuration
-autoScaling:
-  minReplicas: 1
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
