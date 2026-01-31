@@ -70,6 +70,9 @@ func (s *service) Generate(data []byte, size int) ([]byte, error) {
 		"data_length", len(data),
 	)
 
+	// Note: The skip2/go-qrcode library requires string input.
+	// Converting []byte to string creates a copy, but this is unavoidable with current library.
+	// Consider checking if newer versions support []byte directly to avoid allocation.
 	png, err := qrcode.Encode(string(data), qrcode.Medium, size)
 	if err != nil {
 		s.logger.Error("Failed to encode QR code",

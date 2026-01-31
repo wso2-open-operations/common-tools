@@ -51,9 +51,15 @@ func main() {
 	h := transport.NewHandler(svc, log, cfg.MaxBodySize, cfg.MinSize, cfg.MaxSize)
 	log.Debug("HTTP handler initialized", "max_body_size", cfg.MaxBodySize)
 
+	// Apply middleware to handlers
+	generateHandler := transport.MethodMiddleware(http.MethodPost)(http.HandlerFunc(h.Generate))
+	generateHandler = transport.RequestLoggingMiddleware(log)(generateHandler)
+
+	healthHandler := transport.RequestLoggingMiddleware(log)(http.HandlerFunc(h.HealthCheck))
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/generate", h.Generate)
-	mux.HandleFunc("/health", h.HealthCheck)
+	mux.Handle("/generate", generateHandler)
+	mux.Handle("/health", healthHandler)
 	log.Debug("HTTP routes registered", "endpoints", []string{"/generate", "/health"})
 
 	// Configure HTTP server with timeouts and security settings

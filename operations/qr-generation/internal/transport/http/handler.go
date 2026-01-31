@@ -65,18 +65,8 @@ func NewHandler(svc qr.Service, logger *slog.Logger, maxBodySize int64, minSize,
 
 // Generate handles POST /generate?size={pixels} requests to create QR codes.
 // Accepts raw text/URL in body, returns PNG image.
+// Note: Method checking should be handled by middleware for cleaner separation.
 func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
-	// Only accept POST requests
-	if r.Method != http.MethodPost {
-		h.logger.Warn("Method not allowed",
-			"method", r.Method,
-			"expected", http.MethodPost,
-			"remote_addr", r.RemoteAddr,
-		)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	// Fast fail for obvious oversized requests
 	if r.ContentLength > h.maxBodySize {
 		h.logger.Warn("Request body too large (ContentLength check)",
