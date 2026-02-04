@@ -91,7 +91,7 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
             >
                 <Grid container spacing={2} alignItems="center">
                     {/* ID & Expand */}
-                    <Grid size={{ xs: 2.5 }} sx={{ display: 'flex', alignItems: 'center', gap: 1}}>
+                    <Grid size={{ xs: 2.5 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <IconButton size="small" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
                             {open ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                         </IconButton>
@@ -244,18 +244,29 @@ const ThreadExplorer: React.FC = () => {
             let valueA: any = a.stats[orderBy];
             let valueB: any = b.stats[orderBy];
 
-            // Case insensitive sort for strings
-            if (typeof valueA === 'string') valueA = valueA.toLowerCase();
-            if (typeof valueB === 'string') valueB = valueB.toLowerCase();
+            // If both are strings then natural sort
+            if (typeof valueA === 'string' && typeof valueB === 'string') {
+                const result = valueA.localeCompare(valueB, undefined, {
+                    numeric: true,
+                    sensitivity: 'base',
+                });
 
-            if (valueB < valueA) {
-                return order === 'desc' ? -1 : 1;
+                return order === 'desc' ? -result : result;
             }
-            if (valueB > valueA) {
-                return order === 'desc' ? 1 : -1;
+
+            // If both numeric then numeric sort
+            if (typeof valueA === 'number' && typeof valueB === 'number') {
+                return order === 'desc'
+                    ? valueB - valueA
+                    : valueA - valueB;
             }
+
+            // Fallback
+            if (valueA < valueB) return order === 'desc' ? 1 : -1;
+            if (valueA > valueB) return order === 'desc' ? -1 : 1;
             return 0;
         });
+
     }, [threadsByPool, selectedPool, order, orderBy]);
 
 

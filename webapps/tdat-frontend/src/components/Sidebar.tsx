@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Drawer, List, ListItem, ListItemButton,
-  ListItemIcon, ListItemText, Divider, 
+  ListItemIcon, ListItemText, Divider,
   IconButton
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -10,6 +10,7 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import MenuIcon from '@mui/icons-material/Menu';
+import { useAnalysisData } from '../context/AnalysisContext';
 
 // Sidebar width when expanded and collapsed
 const drawerWidth = 240;
@@ -18,6 +19,14 @@ const collapsedWidth = 65;
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { clearSession } = useAnalysisData();
+
+  const handleNewSession = () => {
+    if (window.confirm("Are you sure to start a new session? This will clear current analysis data.")) {
+      clearSession();
+      navigate('/'); 
+    }
+  };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -105,7 +114,7 @@ const Sidebar: React.FC = () => {
         <Divider />
         <Box sx={{ p: 2 }}>
           <ListItemButton
-            onClick={() => navigate('/')}
+            onClick={handleNewSession}
             sx={{ border: '1px solid #ccc', borderRadius: 1, justifyContent: isSidebarOpen ? 'initial' : 'center', px: 2.5, py: 0.45 }}
           >
             <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 3 : 'auto', justifyContent: 'center' }}>

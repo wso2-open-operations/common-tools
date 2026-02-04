@@ -9,7 +9,6 @@ import { styled } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { useAnalyzeThreads } from '../hooks/useAnalyzeThreads';
 import { useAnalysisData } from '../context/AnalysisContext';
-import StarIcon from '@mui/icons-material/Star';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 // Styled input for hidden file input
@@ -118,11 +117,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
             }}
         >
             <Box display="flex" alignItems="center" gap={1} mb={1}>
-                {isPrimary && (
-                    <Box component="span" sx={{ color: '#ff6d00', fontSize: '1.5rem', lineHeight: 0 }}>
-                        <StarIcon fontSize="inherit" />
-                    </Box>
-                )}
+
                 <Typography variant="h6" fontWeight="600" color="text.primary">
                     {title}
                 </Typography>
@@ -142,6 +137,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
             {/* File Upload Area */}
             <Box
+
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -187,12 +183,11 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
                         <Typography align='inherit'>
                             <Button
-                                component="span"
-                                variant={isPrimary ? "contained" : "outlined"}
+                                component="label"
+                                variant={"contained"}
                                 color="inherit"
                                 sx={{
                                     textTransform: 'none',
-                                    pointerEvents: 'none',
                                     backgroundColor: isPrimary ? '#0d1117' : '#0d1100',
                                     color: 'white',
                                     borderColor: 'divider',
@@ -200,6 +195,11 @@ const UploadCard: React.FC<UploadCardProps> = ({
                                 startIcon={<CloudUploadIcon />}
                             >
                                 Browse Files
+                                <VisuallyHiddenInput
+                                    type="file"
+                                    accept=".txt,.log"
+                                    multiple onChange={handleInputChange}
+                                />
                             </Button>
                         </Typography>
                     </Box>

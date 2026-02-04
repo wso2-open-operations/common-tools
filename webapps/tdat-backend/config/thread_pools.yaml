@@ -41,13 +41,28 @@ pools:
     patterns:
       - "^DisruptorInboundEventThread-\\d+$"
 
-  # MINA Network Transport Threadpool
-  - name: "MINA Network Transport"
+  # Mina Network Transport Threadpool
+  - name: "Mina Network Transport"
     patterns:
-      - "^MINANetworkTransport\\(Acceptor\\)-\\d+$"
-      - "^MINANetworkTransport\\(Client\\)-\\d+$"
+      - "^MinaNetworkTransport\\(Acceptor\\)-\\d+$"
+      - "^MinaNetworkTransport\\(Client\\)-\\d+$"
 
   # PassThroughMessageProcessor Threadpool
-  - name: "PassThroughMessageProcessor"
+  - name: "PassThroughMessageProcessor Threads"
     patterns:
-      - "^PassThroughMessageProcessor-\\d+-Thread-\\d+$"
+      - "^PassThroughMessageProcessor-\\d+$"
+
+  #SynapseWorker Threadpool
+  - name: "SynapseWorker Threads"
+    patterns:
+      - "^SynapseWorker-\\d+$"
+
+  #DisruptorInboundEvent Threadpool
+  - name: "DisruptorInboundEvent Threads"
+    patterns:
+      - "^DisruptorInboundEventThread-\\d+$"
+
+  #DataBridge Core Threadpool
+  - name: "DataBridge Core Threads"
+    patterns:
+      - "DataBridge-Core-pool-\\d+-thread-\\d+$"
