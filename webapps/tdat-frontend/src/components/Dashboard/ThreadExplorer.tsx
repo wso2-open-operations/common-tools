@@ -235,8 +235,9 @@ const ThreadExplorer: React.FC = () => {
                     state: lastSnap.state,
                     avgCpu,
                     maxCpu,
-                    avgUserTime
-                }
+                    avgUserTime,
+                },
+                sx: { borderRadius: 4 }
             };
         });
 
@@ -331,7 +332,7 @@ const ThreadExplorer: React.FC = () => {
                 </Box>
 
                 {/* Header Row with Sort Labels */}
-                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f1f3f4' }} elevation={0}>
+                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f1f3f4', borderRadius: 4 }} elevation={0}>
                     <Grid container spacing={2}>
                         <Grid size={{ xs: 2.5 }} sx={{ pl: 5 }}>
                             <TableSortLabel
@@ -401,7 +402,7 @@ const ThreadExplorer: React.FC = () => {
                             maxCpu: stats.maxCpu,
                             avgUserTime: stats.avgUserTime
                         }}
-                    />
+                    /> 
                 ))}
             </Box>
         </Box>
