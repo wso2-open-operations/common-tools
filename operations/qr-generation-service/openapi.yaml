@@ -32,7 +32,7 @@ info:
 
 externalDocs:
   description: Project README
-  url: https://github.com/wso2-open-operations/common-tools/tree/main/operations/qr-generation
+  url: https://github.com/wso2-open-operations/common-tools/tree/main/operations/qr-generation-service
 
 # Explicitly declare no authentication required (public service)
 security: []
