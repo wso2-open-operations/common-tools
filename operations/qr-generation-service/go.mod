@@ -1,4 +1,4 @@
-module github.com/wso2-open-operations/common-tools/operations/qr-generation
+module github.com/wso2-open-operations/common-tools/operations/qr-generation-service
 
 go 1.25.6
 
