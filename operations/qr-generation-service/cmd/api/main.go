@@ -27,10 +27,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/config"
-	"github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/logger"
-	"github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/qr"
-	transport "github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/transport/http"
+	"github.com/wso2-open-operations/common-tools/operations/qr-generation-service/internal/config"
+	"github.com/wso2-open-operations/common-tools/operations/qr-generation-service/internal/logger"
+	"github.com/wso2-open-operations/common-tools/operations/qr-generation-service/internal/qr"
+	transport "github.com/wso2-open-operations/common-tools/operations/qr-generation-service/internal/transport/http"
 )
 
 func main() {

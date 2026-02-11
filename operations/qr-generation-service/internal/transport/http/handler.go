@@ -28,8 +28,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/config"
-	"github.com/wso2-open-operations/common-tools/operations/qr-generation/internal/qr"
+	"github.com/wso2-open-operations/common-tools/operations/qr-generation-service/internal/config"
+	"github.com/wso2-open-operations/common-tools/operations/qr-generation-service/internal/qr"
 )
 
 // GenerateHandler defines the interface for QR code generation handler.
