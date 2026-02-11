@@ -1,77 +1,14 @@
 # +required The configuration file schema version
 schemaVersion: 1.2
 
-id: qr-generation-service
-displayName: QR Code Generation Service
-
-# +required Type of the component
-# Use "Service" for long-running HTTP services
-componentType: Service
-description: |
-  A lightweight Go HTTP service for generating QR codes from any text or URL input.
-  Supports configurable QR code sizes with secure request handling and structured logging.
-
-build:
-  buildCommand: go build -o bin/qr-api cmd/api/main.go
-
-runtime:
-  command: ./bin/qr-api
-  args: []
-
-# +optional Network visibility
-# Options: Public, Organization, Project
-networkVisibility: Public
-
-# +optional OpenAPI specification file
-schemaFilePath: openapi.yaml
-
-# +optional Container port exposure
-port: 8080
-
-# +optional Health check configuration
-healthCheck:
-  endpoint: /health
-  intervalSeconds: 30
-  timeoutSeconds: 5
-
-# +optional Environment variable configurations
-configMaps:
-  - name: app-config
-    data:
-      # Server Configuration
-      - key: PORT
-        value: "8080"
-
-      # Timeout Configuration (Go duration format: 5s, 10s, 1m)
-      - key: READ_TIMEOUT
-        value: 5s
-      - key: WRITE_TIMEOUT
-        value: 10s
-      - key: SHUTDOWN_TIMEOUT
-        value: 5s
-
-      # Security Configuration
-      - key: MAX_BODY_SIZE
-        value: "524288"  # 512KB
-
-      # QR Code Configuration
-      - key: MIN_SIZE
-        value: "64"
-      - key: MAX_SIZE
-        value: "2048"
-
-      # Logging Configuration
-      - key: LOG_ENV
-        value: prod  # Use 'prod' for JSON logs, 'dev' for text logs
-      - key: LOG_LEVEL
-        value: info  # Options: debug, info, warn, error
-
-# +optional Resource limits and requests
-resources:
-  limits:
-    memory: 128Mi
-    cpu: 200m
-  requests:
-    memory: 64Mi
-    cpu: 100m
+endpoints:
+  - name: qr-generation-service
+    displayName: QR Code Generation Service
+    service:
+      basePath: /
+      port: 8080
+    type: REST
+    networkVisibilities: 
+      - Public
+    schemaFilePath: openapi.yaml
 

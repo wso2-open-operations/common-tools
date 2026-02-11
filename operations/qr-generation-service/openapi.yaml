@@ -34,6 +34,10 @@ externalDocs:
   description: Project README
   url: https://github.com/wso2-open-operations/common-tools/tree/main/operations/qr-generation-service
 
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
 # Explicitly declare no authentication required (public service)
 security: []
 
