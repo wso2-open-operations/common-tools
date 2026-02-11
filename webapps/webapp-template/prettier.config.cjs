@@ -12,7 +12,7 @@ module.exports = {
   importOrder: [
     "<THIRD_PARTY_MODULES>",
     "^react$",
-    "^@/?(component|components|slices|store|utils|types|context|src|config|assets|view|root|layout)(?:/.*)?$",
+    "^@/?(component|components|slices|store|utils|types|context|src|config|assets|view|root|layout|services)(?:/.*)?$",
     "^[./]",
   ],
   importOrderSeparation: true,

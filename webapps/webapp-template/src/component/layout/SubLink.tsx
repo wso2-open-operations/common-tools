@@ -51,7 +51,9 @@ const SubLink = (props: SubLinkProps) => {
             borderRadius: "8px",
             justifyContent: "flex-start",
             textDecoration: "none",
-            color: isActive ? theme.palette.customNavigation.textClicked : theme.palette.customNavigation.text,
+            color: isActive
+              ? theme.palette.customNavigation.textClicked
+              : theme.palette.customNavigation.text,
             "&:hover": {
               ...(!isActive && {
                 backgroundColor: theme.palette.customNavigation.hoverBg,
@@ -95,28 +97,7 @@ const SubLink = (props: SubLinkProps) => {
           }}
         >
           {icon && React.isValidElement(icon) ? (
-            <Tooltip
-              title={primary}
-              placement="right"
-              arrow
-              slotProps={{
-                tooltip: {
-                  sx: {
-                    backgroundColor: theme.palette.neutral[10],
-                    color: theme.palette.neutral.white,
-                    padding: theme.spacing(0.75, 1.5),
-                    borderRadius: "4px",
-                    fontSize: "14px",
-                    boxShadow: theme.shadows[8],
-                  },
-                },
-                arrow: {
-                  sx: {
-                    color: theme.palette.neutral[10],
-                  },
-                },
-              }}
-            >
+            <Tooltip title={primary}>
               {React.cloneElement(icon as React.ReactElement<any>, {
                 size: 24,
                 style: {

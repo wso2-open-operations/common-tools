@@ -21,6 +21,7 @@ export default defineConfig({
       "@slices": resolve(__dirname, "src/slices"),
       "@view": resolve(__dirname, "src/view"),
       "@utils": resolve(__dirname, "src/utils"),
+      "@services": resolve(__dirname, "src/services"),
       "@/types": resolve(__dirname, "src/types"),
     },
   },
