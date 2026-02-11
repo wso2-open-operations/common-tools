@@ -8,7 +8,6 @@ import {
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useAnalysisData } from '../context/AnalysisContext';
 
@@ -24,15 +23,15 @@ const Sidebar: React.FC = () => {
   const handleNewSession = () => {
     if (window.confirm("Are you sure to start a new session? This will clear current analysis data.")) {
       clearSession();
-      navigate('/'); 
+      navigate('/');
     }
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // If path is exactly '/dashboard', Dashboard is active
+  // Active path for Dashboard
   const isDashboard = location.pathname === '/dashboard';
-  // If path includes 'thread-explorer', that is active
+  // Acitve path for Thread Explorer
   const isThreadExplorer = location.pathname.includes('/dashboard/thread-explorer');
 
   return (
@@ -58,7 +57,7 @@ const Sidebar: React.FC = () => {
 
         <Box sx={{ display: 'flex', justifyContent: isSidebarOpen ? 'flex-end' : 'center', p: 1 }}>
           <IconButton onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-            {isSidebarOpen ? <ChevronLeftIcon /> : <MenuIcon />}
+            <MenuIcon />
           </IconButton>
         </Box>
         <Divider />
@@ -69,7 +68,8 @@ const Sidebar: React.FC = () => {
             <ListItem disablePadding sx={{ display: 'block' }}>
               <ListItemButton
                 selected={isDashboard}
-                onClick={() => navigate('/dashboard')} // Navigate to default
+                // Navigate to default
+                onClick={() => navigate('/dashboard')}
                 sx={{
                   minHeight: 48,
                   justifyContent: isSidebarOpen ? 'initial' : 'center',
@@ -107,10 +107,8 @@ const Sidebar: React.FC = () => {
               </ListItemButton>
             </ListItem>
           </List>
-
           <Divider sx={{ my: 2 }} />
         </Box>
-
         <Divider />
         <Box sx={{ p: 2 }}>
           <ListItemButton

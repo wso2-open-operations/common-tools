@@ -274,7 +274,8 @@ const ThreadExplorer: React.FC = () => {
     if (!data) {
         return (
             <Container sx={{ mt: 4, textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary">No analysis data found.</Typography>
+                <img src="../src/assets/error.svg" alt="No Data" style={{marginTop : 50}}/>
+                <Typography variant="h4" color="textPrimary" style={{marginTop : 50}}>No analysis data found.</Typography>
             </Container>
         );
     }
