@@ -14,7 +14,6 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthContext } from '@asgardeo/auth-react';
 import LockIcon from '@mui/icons-material/Lock';
-
 import Header from './components/Header';
 import Footer from './components/Footer';
 import UploadPage from './pages/UploadPage';
@@ -80,7 +79,7 @@ function App() {
               Thread Dump Analyzer
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-              Internal tool for diagnosing Java performance issues.
+              Internal tool for diagnosing JVM performance issues.
               <br />
               <strong>WSO2 Employees Only</strong>
             </Typography>

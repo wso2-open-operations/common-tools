@@ -24,8 +24,7 @@ type AggregatedAnalysisResponse struct {
 // enableCORS sets the necessary headers to allow cross-origin requests from the frontend.
 func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
-		// w.Header().Set("Access-Control-Allow-Origin", "https://d93f0586-da34-4292-b9dc-c6353f403bad.e1-us-east-azure.choreoapps.dev")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
