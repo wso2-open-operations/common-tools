@@ -1,3 +1,3 @@
 window.configs = {
-    apiUrl: '/choreo-apis/thread-dump-analyzer/tdat-backend/v1',
+    apiUrl: 'http://localhost:8080'
 };
