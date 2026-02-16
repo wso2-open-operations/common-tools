@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/cors"
 )
 
 // Top-level JSON response format for a structured analysis
@@ -21,47 +22,61 @@ type AggregatedAnalysisResponse struct {
 	Errors    []string                  `json:"errors,omitempty"`
 }
 
-// enableCORS sets the necessary headers to allow cross-origin requests from the frontend.
-func enableCORS(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+// // enableCORS sets the necessary headers to allow cross-origin requests from the frontend.
+// func enableCORS(next http.HandlerFunc) http.HandlerFunc {
+// 	return func(w http.ResponseWriter, r *http.Request) {
+// 		w.Header().Set("Access-Control-Allow-Origin", "*")
+// 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+// 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
-		// Handle preflight browser requests gracefully
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
+// 		// Handle preflight browser requests gracefully
+// 		if r.Method == "OPTIONS" {
+// 			w.WriteHeader(http.StatusOK)
+// 			return
+// 		}
 
-		next(w, r)
-	}
-}
+// 		next(w, r)
+// 	}
+// }
 
 // Start HTTP server
 
 func main() {
-	// Initialize Rules Engine (Grule) by loading rules from rules.grl
+	// Initialize Rules Engine
 	engine, err := analyzer.NewEngine("./internal/rules/rules.grl")
 	if err != nil {
 		log.Fatalf("Failed to load rules engine: %v", err)
 	}
 
-	// Initialize Thread Enricher by loading YAML config for thread pool categorization.
+	// Initialize Thread Enricher
 	enricher, err := analyzer.NewThreadEnricher("./config/thread_pools.yaml")
 	if err != nil {
 		log.Fatalf("Failed to initialize thread enricher: %v", err)
 	}
 
-	// HTTP Routes
-	http.HandleFunc("/", serveHTML)
-	http.HandleFunc("/parse", enableCORS(func(w http.ResponseWriter, r *http.Request) {
-		parseHandler(w, r, engine, enricher)
-	}))
+	// Create a new ServeMux
+	mux := http.NewServeMux()
 
-	// Start Server
-	fmt.Println("Server started at http://localhost:8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	// Register your routes on the mux (DO NOT use the manual CORS wrapper)
+	mux.HandleFunc("/", serveHTML)
+	mux.HandleFunc("/parse", func(w http.ResponseWriter, r *http.Request) {
+		parseHandler(w, r, engine, enricher)
+	})
+
+	// Configure robust CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"}, // Allow all origins
+		AllowedMethods: []string{"GET", "POST", "OPTIONS", "PUT", "DELETE"},
+		AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
+		// Debug: true, // Uncomment this if you still have issues to see CORS logs in Choreo
+	})
+
+	// Wrap the ENTIRE router with the CORS middleware
+	handler := c.Handler(mux)
+
+	// Start Server using the wrapped handler
+	fmt.Println("Server started at http://0.0.0.0:8080")
+	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatal(err)
 	}
 }
