@@ -22,23 +22,6 @@ type AggregatedAnalysisResponse struct {
 	Errors    []string                  `json:"errors,omitempty"`
 }
 
-// // enableCORS sets the necessary headers to allow cross-origin requests from the frontend.
-// func enableCORS(next http.HandlerFunc) http.HandlerFunc {
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		w.Header().Set("Access-Control-Allow-Origin", "*")
-// 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-// 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
-// 		// Handle preflight browser requests gracefully
-// 		if r.Method == "OPTIONS" {
-// 			w.WriteHeader(http.StatusOK)
-// 			return
-// 		}
-
-// 		next(w, r)
-// 	}
-// }
-
 // Start HTTP server
 
 func main() {
@@ -68,7 +51,7 @@ func main() {
 		AllowedOrigins: []string{"*"}, // Allow all origins
 		AllowedMethods: []string{"GET", "POST", "OPTIONS", "PUT", "DELETE"},
 		AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
-		// Debug: true, // Uncomment this if you still have issues to see CORS logs in Choreo
+		// Debug: true,
 	})
 
 	// Wrap the ENTIRE router with the CORS middleware
