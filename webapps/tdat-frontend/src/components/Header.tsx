@@ -17,8 +17,8 @@ const Header: React.FC<HeaderProps> = ({ onToggleTheme, onSignOut }) => {
     <AppBar position="sticky" color="default" elevation={1} sx={{ bgcolor: 'background.paper' }}>
       <Toolbar>
         {/* Title */}
-        <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center'}}>
-          <img src="/src/assets/wso2-logo.svg" alt='WSO2 Logo' height="40" />
+        <img src="../src/assets/wso2-logo.svg" alt='WSO2 Logo' height="40" /> 
+        <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 'bold', display: 'flex', alignItems: ' center', ml: 0.25}}>
           Thread Dump Analyzer
         </Typography>
 

@@ -1,8 +1,10 @@
 import type { AnalysisResponse } from "../types/api";
 
 // Read Configurations
-const apiUrl = window?.configs?.apiUrl ? window.configs.apiUrl : "";
-const API_BASE_URL = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;;
+const apiUrl = String(window?.configs?.apiUrl || "");
+const API_BASE_URL = apiUrl.endsWith("/")
+  ? apiUrl.slice(0, -1)
+  : apiUrl;
 
 export const uploadThreadDumps = async (
   dumps: File[],
