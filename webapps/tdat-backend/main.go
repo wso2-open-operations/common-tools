@@ -40,7 +40,7 @@ func main() {
 	// Create a new ServeMux
 	mux := http.NewServeMux()
 
-	// Register your routes on the mux (DO NOT use the manual CORS wrapper)
+	// Register your routes on the mux
 	mux.HandleFunc("/", serveHTML)
 	mux.HandleFunc("/parse", func(w http.ResponseWriter, r *http.Request) {
 		parseHandler(w, r, engine, enricher)
@@ -124,7 +124,8 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 		// Enrichment with Regex Matching - Categorizes threads into pools based on YAML config.
 		enricher.Enrich(threads)
 
-		// Analysis of Rules Engine
+		/* Analysis of Rules Engine */
+
 		// Check if usage data was provided for CPU inference logic
 		usageDataProvided := (usageFile != nil && err == nil)
 		if err := eng.AnalyzeThreads(threads, usageDataProvided); err != nil {
@@ -140,7 +141,7 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 		})
 	}
 
-	// Aggregation - Pivots data from a file-centric view to a thread-centric history view.
+	// Pivots data from a file-centric view to a thread-centric history view.
 	aggregatedThreads := analyzer.AggregateThreads(parsedFiles)
 
 	// Construct Final Response Object
