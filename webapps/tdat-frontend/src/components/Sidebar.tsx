@@ -60,7 +60,7 @@ const Sidebar: React.FC = () => {
             <MenuIcon />
           </IconButton>
         </Box>
-        <Divider />
+        
 
         <Box sx={{ flexGrow: 1, p: 1 }}>
           <List>

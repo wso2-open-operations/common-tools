@@ -173,7 +173,8 @@ const UploadCard: React.FC<UploadCardProps> = ({
                         <CloudUploadIcon sx={{ fontSize: 48, color: isDragActive ? 'primary.main' : 'text.disabled', mb: 1 }} />
 
                         <Typography variant="body2" color="text.secondary" gutterBottom>
-                            <UploadFileIcon sx={{ fontSize: 25, display: isDragActive ? 'block' : 'none' }} />
+                            <UploadFileIcon
+                                sx={{ fontSize: 25, display: isDragActive ? 'inline-block' : 'none', verticalAlign: 'middle', mr: 1 }} />
                             {isDragActive ? "Drop files here" : `Drag and drop ${fileTypeLabel} files here`}
                         </Typography>
 

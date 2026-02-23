@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
+	"sync"
 	"tdat-backend/internal/parser"
 
 	"gopkg.in/yaml.v3"
@@ -68,29 +70,55 @@ func NewThreadEnricher(configPath string) (*ThreadEnricher, error) {
 
 // Enrich iterates through threads and categorizes them in-place.
 func (te *ThreadEnricher) Enrich(threads []parser.Thread) {
-	for i := range threads {
-		// Get pointer to modify thread in-place
-		t := &threads[i]
-		matched := false
+	numWorkers := runtime.NumCPU()
+	if numWorkers > len(threads) {
+		numWorkers = len(threads)
+	}
 
-		// Check against compiled pools
-		for _, pool := range te.compiledPools {
-			for _, re := range pool.RegExps {
-				if re.MatchString(t.Name) {
-					t.ThreadPool = pool.Name
-					matched = true
-					break // Stop regex loop for this pool
+	if numWorkers == 0 {
+		return
+	}
+
+	chunkSize := (len(threads) + numWorkers - 1) / numWorkers
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if start >= len(threads) {
+			break
+		}
+		if end > len(threads) {
+			end = len(threads)
+		}
+
+		wg.Add(1)
+		go func(threadChunk []parser.Thread) {
+			defer wg.Done()
+
+			for j := range threadChunk {
+				t := &threadChunk[j]
+				matched := false
+
+				for _, pool := range te.compiledPools {
+					for _, re := range pool.RegExps {
+						if re.MatchString(t.Name) {
+							t.ThreadPool = pool.Name
+							matched = true
+							break
+						}
+					}
+					if matched {
+						break
+					}
+				}
+
+				if !matched {
+					t.ThreadPool = "Standalone Threads"
 				}
 			}
-			if matched {
-				break // Stop pool loop for this thread found match
-			}
-		}
-
-		// If the threads don't match any defined threadpool
-		if !matched {
-
-			t.ThreadPool = "Standalone Thread"
-		}
+		}(threads[start:end])
 	}
+
+	wg.Wait()
 }

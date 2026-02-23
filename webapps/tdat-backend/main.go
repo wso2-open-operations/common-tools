@@ -6,6 +6,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"sync"
 	"tdat-backend/internal/analyzer"
 	"tdat-backend/internal/parser"
 	"time"
@@ -54,7 +55,7 @@ func main() {
 		// Debug: true,
 	})
 
-	// Wrap the ENTIRE router with the CORS middleware
+	// Wrap the entire router with the CORS middleware
 	handler := c.Handler(mux)
 
 	// Start Server using the wrapped handler
@@ -73,7 +74,7 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 	}
 
 	// Parse Multipart Form (Limit upload size to 50MB)
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
+	if err := r.ParseMultipartForm(100 << 20); err != nil {
 		http.Error(w, "Files too large. Limit is 50MB.", http.StatusBadRequest)
 		return
 	}
@@ -90,56 +91,79 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 	var parsedFiles []analyzer.ParsedFile
 	var errorMessages []string
 
-	// Process each uploaded thread dump file sequentially
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	// Process each uploaded thread dump file concurrently
 	for i, dumpHeader := range dumpHeaders {
-		// Open Thread Dump
-		dumpFile, err := dumpHeader.Open()
-		if err != nil {
-			errorMessages = append(errorMessages, fmt.Sprintf("Failed to open dump %s: %v", dumpHeader.Filename, err))
-			continue
-		}
+		wg.Add(1)
 
-		// Open corresponding Usage File if it exists
-		var usageFile multipart.File
-		if i < len(usageHeaders) {
-			if uFile, err := usageHeaders[i].Open(); err == nil {
-				usageFile = uFile
+		// Launch a new goroutine for each file
+		go func(index int, dHeader *multipart.FileHeader) {
+			defer wg.Done()
+
+			// Open Thread Dump
+			dumpFile, err := dHeader.Open()
+			if err != nil {
+				mu.Lock()
+				errorMessages = append(errorMessages, fmt.Sprintf("Failed to open dump %s: %v", dHeader.Filename, err))
+				mu.Unlock()
+				return
 			}
-		}
 
-		// Parse Raw Data & Correlate with Usage
-		threads, err := parser.ProcessAndCorrelate(dumpFile, usageFile)
+			// Open corresponding Usage File if it exists
+			var usageFile multipart.File
+			if index < len(usageHeaders) {
+				if uFile, err := usageHeaders[index].Open(); err == nil {
+					usageFile = uFile
+				}
+			}
 
-		// Close file handles immediately after reading
-		dumpFile.Close()
-		if usageFile != nil {
-			usageFile.Close()
-		}
+			// Parse Raw Data & Correlate with Usage
+			threads, err := parser.ProcessAndCorrelate(dumpFile, usageFile)
 
-		if err != nil {
-			errorMessages = append(errorMessages, fmt.Sprintf("Failed to parse %s: %v", dumpHeader.Filename, err))
-			continue
-		}
+			// Close file handles immediately after reading
+			dumpFile.Close()
+			if usageFile != nil {
+				usageFile.Close()
+			}
 
-		// Enrichment with Regex Matching - Categorizes threads into pools based on YAML config.
-		enricher.Enrich(threads)
+			if err != nil {
+				mu.Lock()
+				errorMessages = append(errorMessages, fmt.Sprintf("Failed to parse %s: %v", dHeader.Filename, err))
+				mu.Unlock()
+				return
+			}
 
-		/* Analysis of Rules Engine */
+			// Enrichment with Regex Matching - Categorizes threads into pools based on YAML config.
+			enricher.Enrich(threads)
 
-		// Check if usage data was provided for CPU inference logic
-		usageDataProvided := (usageFile != nil && err == nil)
-		if err := eng.AnalyzeThreads(threads, usageDataProvided); err != nil {
-			// Log rule engine errors but continue processing other files.
-			log.Printf("Rule engine error on file %s: %v", dumpHeader.Filename, err)
-			errorMessages = append(errorMessages, fmt.Sprintf("Rule analysis failed for %s: %v", dumpHeader.Filename, err))
-		}
+			/* Analysis of Rules Engine */
 
-		// Collect processed data for later aggregation
-		parsedFiles = append(parsedFiles, analyzer.ParsedFile{
-			FileName: dumpHeader.Filename,
-			Threads:  threads,
-		})
+			// Check if usage data was provided for CPU inference logic
+			usageDataProvided := (usageFile != nil)
+			if err := eng.AnalyzeThreads(threads, usageDataProvided); err != nil {
+				// Log rule engine errors but continue processing other files.
+				log.Printf("Rule engine error on file %s: %v", dHeader.Filename, err)
+
+				mu.Lock()
+				errorMessages = append(errorMessages, fmt.Sprintf("Rule analysis failed for %s: %v", dHeader.Filename, err))
+				mu.Unlock()
+			}
+
+			// Collect processed data for later aggregation
+			mu.Lock()
+			parsedFiles = append(parsedFiles, analyzer.ParsedFile{
+				FileName: dHeader.Filename,
+				Threads:  threads,
+			})
+			mu.Unlock()
+
+		}(i, dumpHeader)
 	}
+
+	// Wait for all goroutines to finish processing before moving to aggregation
+	wg.Wait()
 
 	// Pivots data from a file-centric view to a thread-centric history view.
 	aggregatedThreads := analyzer.AggregateThreads(parsedFiles)

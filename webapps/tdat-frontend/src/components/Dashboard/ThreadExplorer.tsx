@@ -11,6 +11,7 @@ import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
+import noData from '../../assets/error.svg';
 
 // Types for Sorting
 type Order = 'asc' | 'desc';
@@ -35,7 +36,7 @@ const StackTraceViewer: React.FC<{ snapshot: ThreadSnapshot; index: number }> = 
             <Chip
                 label={snapshot.state}
                 size="small"
-                color={snapshot.state === 'RUNNABLE' ? 'success' : snapshot.state === 'WAITING' ? 'info' : snapshot.state === 'BLOCKED' ? 'warning' : snapshot.state === 'TIMED_WAITING' ? 'secondary' : 'default'}
+                color={snapshot.state === 'RUNNABLE' ? 'success' : snapshot.state === 'WAITING' ? 'info' : snapshot.state === 'BLOCKED' ? 'error' : snapshot.state === 'TIMED_WAITING' ? 'secondary' : 'default'}
                 variant="outlined"
             />
             <Typography variant="caption" color="text.secondary">
@@ -114,7 +115,7 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                         <Chip
                             label={stats.lastState}
                             size="small"
-                            color={stats.lastState === 'RUNNABLE' ? 'success' : stats.lastState === 'WAITING' ? 'info' : stats.lastState === 'BLOCKED' ? 'warning' : stats.lastState === 'TIMED_WAITING' ? 'secondary' : 'default'}
+                            color={stats.lastState === 'RUNNABLE' ? 'success' : stats.lastState === 'WAITING' ? 'info' : stats.lastState === 'BLOCKED' ? 'error' : stats.lastState === 'TIMED_WAITING' ? 'secondary' : 'default'}
                         />
                     </Grid>
 
@@ -193,11 +194,20 @@ const ThreadExplorer: React.FC = () => {
     const threadsByPool = useMemo(() => {
         if (!data) return {};
         const groups: Record<string, Thread[]> = {};
+
+        // Create a Set to keep track of already processed threads
+        const seenThreads = new Set<string>();
+
         data.threads.forEach(t => {
+            if (seenThreads.has(t.id)) return;
+            // To ensure duplicates are not included
+            seenThreads.add(t.id);
+
             const pool = t.thread_pool || "Uncategorized";
             if (!groups[pool]) groups[pool] = [];
             groups[pool].push(t);
         });
+
         return groups;
     }, [data]);
 
@@ -274,8 +284,8 @@ const ThreadExplorer: React.FC = () => {
     if (!data) {
         return (
             <Container sx={{ mt: 4, textAlign: 'center' }}>
-                <img src="../src/assets/error.svg" alt="No Data" style={{marginTop : 50}}/>
-                <Typography variant="h4" color="textPrimary" style={{marginTop : 50}}>No analysis data found.</Typography>
+                <img src={noData} alt="No Data" style={{ marginTop: 50 }} />
+                <Typography variant="h4" color="textPrimary" style={{ marginTop: 50 }}>No analysis data found.</Typography>
             </Container>
         );
     }
@@ -403,7 +413,7 @@ const ThreadExplorer: React.FC = () => {
                             maxCpu: stats.maxCpu,
                             avgUserTime: stats.avgUserTime
                         }}
-                    /> 
+                    />
                 ))}
             </Box>
         </Box>

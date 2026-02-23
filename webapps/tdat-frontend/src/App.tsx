@@ -21,6 +21,7 @@ import DashboardLayout from './pages/DashboardLayout';
 import DashboardHome from './components/Dashboard/DashboardHome';
 import ThreadExplorer from './components/Dashboard/ThreadExplorer';
 import { AnalysisProvider } from './context/AnalysisContext';
+import LoginIcon from '@mui/icons-material/Login';
 
 // Create the client outside the component
 const queryClient = new QueryClient();
@@ -89,7 +90,7 @@ function App() {
               onClick={() => signIn()}
               sx={{ bgcolor: '#ff6d00', textTransform: 'none', px: 4, '&:hover': { bgcolor: '#e65100' } }}
             >
-              Login with WSO2 Email
+              <LoginIcon sx={{ mr: 1 }} /> Login with WSO2 Email
             </Button>
           </Paper>
         </Container>
@@ -107,15 +108,15 @@ function App() {
             <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
               {/* Passing signOut to Header for user logout */}
-              <Header 
-                onToggleTheme={colorMode.toggleColorMode} 
-                onSignOut={() => signOut()} 
+              <Header
+                onToggleTheme={colorMode.toggleColorMode}
+                onSignOut={() => signOut()}
               />
 
               <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                 <Routes>
                   <Route path="/" element={<UploadPage />} />
-                  
+
                   <Route path="/dashboard" element={<DashboardLayout />}>
                     <Route index element={<DashboardHome />} />
                     <Route path="thread-explorer" element={<ThreadExplorer />} />

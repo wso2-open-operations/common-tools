@@ -1,6 +1,8 @@
 package analyzer
 
 import (
+	"runtime"
+	"sync"
 	"tdat-backend/internal/parser"
 
 	"github.com/hyperjumptech/grule-rule-engine/ast"
@@ -29,20 +31,13 @@ func NewEngine(ruleFilePath string) (*RuleEngine, error) {
 	}, nil
 }
 
-// AnalyzeThreads applies the rules to a slice of threads
+// AnalyzeThreads applies the rules to a slice of threads concurrently
 func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided bool) error {
-	// Get the KnowledgeBase from the library
-	kb, err := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
-	if err != nil {
-		return err
-	}
 
+	// Preprocessing: CPU Usage Inference
 	if !usageDataProvided {
-		// If no external usage file, infer CPU from header attributes with the formula (CPUTimeMS / ElapsedTimeMS) * 100
 		for i := range threads {
 			t := &threads[i]
-			// Ensure elapsed time is > 0 to avoid division by zeroNaN
-			// ElapsedTime is s, convert to ms.
 			elapsedMs := t.ElapsedTime * 1000.0
 			if elapsedMs > 0 && t.CPUTime > 0 {
 				t.CPUPercentage = (t.CPUTime / elapsedMs) * 100.0
@@ -52,7 +47,7 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		}
 	}
 
-	// Calculate Global Stats
+	// Calculate Global State
 	stats := &parser.GlobalStats{
 		TotalThreads:        len(threads),
 		IsUsageDataProvided: usageDataProvided,
@@ -67,27 +62,56 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		stats.BlockedPercentage = (float64(blockedCount) / float64(len(threads))) * 100.0
 	}
 
-	// Run Engine Per Thread
-	for i := range threads {
-		t := &threads[i]
-
-		// Context contains BOTH the thread and the global stats
-		dataCtx := ast.NewDataContext()
-
-		// "t" and "global" must match the variable names in rules.grl
-		err := dataCtx.Add("t", t)
-		if err != nil {
-			return err
-		}
-		err = dataCtx.Add("global", stats)
-		if err != nil {
-			return err
-		}
-
-		ruleEngine := engine.NewGruleEngine()
-		if err := ruleEngine.Execute(dataCtx, kb); err != nil {
-			return err
-		}
+	// Engine Initialization
+	kb, err := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
+	if err != nil {
+		return err
 	}
+
+	numWorkers := runtime.NumCPU() // Use all available CPU cores
+	if numWorkers > len(threads) {
+		numWorkers = len(threads)
+	}
+	if numWorkers == 0 {
+		return nil
+	}
+
+	chunkSize := (len(threads) + numWorkers - 1) / numWorkers
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if start >= len(threads) {
+			break
+		}
+		if end > len(threads) {
+			end = len(threads)
+		}
+
+		wg.Add(1)
+
+		// Launch a worker for this specific chunk
+		go func(threadChunk []parser.Thread) {
+			defer wg.Done()
+
+			// Give each worker its OWN engine instance to avoid race conditions
+			workerEngine := engine.NewGruleEngine()
+
+			for j := range threadChunk {
+				t := &threadChunk[j]
+				dataCtx := ast.NewDataContext()
+
+				_ = dataCtx.Add("t", t)
+				_ = dataCtx.Add("global", stats)
+
+				_ = workerEngine.Execute(dataCtx, kb)
+			}
+		}(threads[start:end])
+	}
+
+	// Wait for all chunks to finish
+	wg.Wait()
+
 	return nil
 }
