@@ -56,7 +56,7 @@ var (
 	//Captures Thread State
 	stateRE = regexp.MustCompile(`\s*java\.lang\.Thread\.State:\s+(.+)`)
 	//Captures Stack Trace lines
-	stackLineRE = regexp.MustCompile(`^\s+(at\s+|-\s+locked|\+?\s*waiting).*`)
+	stackLineRE = regexp.MustCompile(`^\s+(at\s+|-).*`)
 	//Captures cpu attribute
 	cpuAttributeRE = regexp.MustCompile(`cpu=([\d\.]+)\s*(ms|s|ns)?`)
 	//Captures elapsed attribute
@@ -237,6 +237,16 @@ func parseTime(t string) float64 {
 	}
 	val, _ := strconv.ParseFloat(t, 64)
 	return val
+}
+
+// Helper for Grule to easily check stack traces
+func (t *Thread) HasInStackTrace(keyword string) bool {
+	for _, line := range t.StackTrace {
+		if strings.Contains(line, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 /* Correlation Logic */

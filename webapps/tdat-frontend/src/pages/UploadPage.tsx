@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { DragEvent } from 'react';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import AddIcon from '@mui/icons-material/Add';
+import UndoIcon from '@mui/icons-material/Undo';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import {
     Box, Typography, Button, Chip, Paper, Container,
-    Alert, CircularProgress, Snackbar, Alert as MuiAlert
+    Alert, CircularProgress, Snackbar, Alert as MuiAlert, Tooltip
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { useAnalyzeThreads } from '../hooks/useAnalyzeThreads';
 import { useAnalysisData } from '../context/AnalysisContext';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 // Styled input for hidden file input
 const VisuallyHiddenInput = styled('input')({
@@ -43,19 +47,52 @@ const validateFiles = (files: File[]): { valid: File[], invalid: boolean } => {
     return { valid: validFiles, invalid: hasInvalid };
 };
 
+// File Matching Utilities
+
+const extractFileKey = (filename: string): string => {
+    // Remove file extension
+    let key = filename.replace(/\.[^/.]+$/, '');
+
+    // Strip common prefixes
+    const prefixes = [
+        'threaddump', 'threadusage', 'thread_dump', 'thread_usage',
+        'thread-dump', 'thread-usage', 'dump', 'usage', 'td', 'tu'
+    ];
+
+    const lowerKey = key.toLowerCase();
+    for (const prefix of prefixes) {
+        if (lowerKey.startsWith(prefix)) {
+            key = key.substring(prefix.length);
+            // Remove leading separator (_, -, .)
+            key = key.replace(/^[_\-.]/, '');
+            break;
+        }
+    }
+
+    return key.trim().toLowerCase();
+};
+
+interface PairedFile {
+    dump: File | null;
+    usage: File | null;
+    matched: boolean;
+    warning?: string;
+}
 // UploadCard Component
+
 interface UploadCardProps {
     title: string;
     description: string;
     required: boolean;
     fileTypeLabel: string;
-    onFileSelect: (files: File[]) => void;
-    selectedCount: number;
-    onError: (msg: string) => void; // New prop for error handling
+    files: File[];
+    onAddFiles: (files: File[]) => void;
+    onClearFiles: () => void;
+    onError: (msg: string) => void;
 }
 
 const UploadCard: React.FC<UploadCardProps> = ({
-    title, description, required, fileTypeLabel, onFileSelect, selectedCount, onError
+    title, description, required, fileTypeLabel, files, onAddFiles, onClearFiles, onError
 }) => {
     const [isDragActive, setIsDragActive] = useState(false);
 
@@ -73,7 +110,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
         }
 
         if (valid.length > 0) {
-            onFileSelect(valid);
+            onAddFiles(valid);
         }
     };
 
@@ -81,7 +118,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
         if (event.target.files && event.target.files.length > 0) {
             processFiles(Array.from(event.target.files));
         }
-        event.target.value = ''; // Reset to allow re-selecting same file
+        event.target.value = '';
     };
 
     // Drag Event Handlers
@@ -117,7 +154,6 @@ const UploadCard: React.FC<UploadCardProps> = ({
             }}
         >
             <Box display="flex" alignItems="center" gap={1} mb={1}>
-
                 <Typography variant="h6" fontWeight="600" color="text.primary">
                     {title}
                 </Typography>
@@ -137,7 +173,6 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
             {/* File Upload Area */}
             <Box
-
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -146,30 +181,52 @@ const UploadCard: React.FC<UploadCardProps> = ({
                     borderColor: isDragActive ? '#2196f3' : 'divider',
                     borderRadius: 2,
                     backgroundColor: isDragActive ? '#e3f2fd' : 'white',
-                    p: 6, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                    p: files.length > 0 ? 3 : 6,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.2s ease-in-out',
-                    '&:hover': { backgroundColor: '#fafafa', borderColor: isPrimary ? '#ff6d00' : 'primary.main' },
+                    ...(files.length === 0 && { cursor: 'pointer', '&:hover': { backgroundColor: '#fafafa', borderColor: isPrimary ? '#ff6d00' : 'primary.main' } })
                 }}
             >
-                <VisuallyHiddenInput
-                    type="file"
-                    accept=".txt, .log"
-                    multiple onChange={handleInputChange}
-                />
+                {files.length > 0 ? (
+                    <Box textAlign="center" width="100%">
+                        <CloudUploadIcon sx={{ fontSize: 36, color: 'success.main', mb: 1 }} />
+                        <Typography variant="subtitle1" color="success.main" fontWeight="bold" gutterBottom>
+                            {files.length} file(s) uploaded
+                        </Typography>
 
-                {selectedCount > 0 ? (
-                    <Box textAlign="center">
-                        <CloudUploadIcon sx={{ fontSize: 48, color: 'success.main', mb: 1 }} />
-                        <Typography variant="h6" color="success.main">
-                            {selectedCount} file(s) selected
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            Click or drag to change selection
-                        </Typography>
+                        {/* File Chips */}
+                        <Box display="flex" flexWrap="wrap" gap={1} justifyContent="center" my={2}>
+                            {files.map((file, idx) => (
+                                <Chip key={idx} label={file.name} size="small" variant="outlined" />
+                            ))}
+                        </Box>
+
+                        {/* Action Buttons */}
+                        <Box display="flex" gap={2} justifyContent="center" mt={3}>
+                            <Button
+                                component="label"
+                                variant="outlined"
+                                color="primary"
+                                startIcon={<AddIcon />}
+                                sx={{ textTransform: 'none', borderColor: 'divider', color: 'text.primary' }}
+                            >
+                                Add More Files
+                                <VisuallyHiddenInput type="file" accept=".txt, .log" multiple onChange={handleInputChange} />
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                color="error"
+                                onClick={onClearFiles}
+                                startIcon={<UndoIcon />}
+                                sx={{ textTransform: 'none' }}
+                            >
+                                Undo Selection
+                            </Button>
+                        </Box>
                     </Box>
                 ) : (
-                    <Box textAlign="center">
+                    <Box textAlign="center" component="label" sx={{ width: '100%', cursor: 'pointer' }}>
                         <CloudUploadIcon sx={{ fontSize: 48, color: isDragActive ? 'primary.main' : 'text.disabled', mb: 1 }} />
 
                         <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -178,31 +235,25 @@ const UploadCard: React.FC<UploadCardProps> = ({
                             {isDragActive ? "Drop files here" : `Drag and drop ${fileTypeLabel} files here`}
                         </Typography>
 
-                        <Typography variant="caption" color="text.disabled" sx={{ mb: 2 }} gutterBottom>
+                        <Typography variant="caption" color="text.disabled" sx={{ mb: 2, display: 'block' }} gutterBottom>
                             or
                         </Typography>
 
-                        <Typography align='inherit'>
-                            <Button
-                                component="label"
-                                variant={"contained"}
-                                color="inherit"
-                                sx={{
-                                    textTransform: 'none',
-                                    backgroundColor: isPrimary ? '#0d1117' : '#0d1100',
-                                    color: 'white',
-                                    borderColor: 'divider',
-                                }}
-                                startIcon={<CloudUploadIcon />}
-                            >
-                                Browse Files
-                                <VisuallyHiddenInput
-                                    type="file"
-                                    accept=".txt,.log"
-                                    multiple onChange={handleInputChange}
-                                />
-                            </Button>
-                        </Typography>
+                        <Button
+                            component="span"
+                            variant="contained"
+                            color="inherit"
+                            sx={{
+                                textTransform: 'none',
+                                backgroundColor: isPrimary ? '#0d1117' : '#0d1100',
+                                color: 'white',
+                                pointerEvents: 'none' // Let the label handle the click
+                            }}
+                            startIcon={<CloudUploadIcon />}
+                        >
+                            Browse Files
+                        </Button>
+                        <VisuallyHiddenInput type="file" accept=".txt,.log" multiple onChange={handleInputChange} />
                     </Box>
                 )}
             </Box>
@@ -210,7 +261,8 @@ const UploadCard: React.FC<UploadCardProps> = ({
     );
 };
 
-// Main Page Component
+/* Main Page Component*/
+
 function UploadPage() {
     const navigate = useNavigate();
     const { setAnalysisData } = useAnalysisData();
@@ -220,18 +272,80 @@ function UploadPage() {
     const [usages, setUsages] = useState<File[]>([]);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+    // Sort files alphabetically
+    const sortedDumps = [...dumps].sort((a, b) => a.name.localeCompare(b.name));
+    const sortedUsages = [...usages].sort((a, b) => a.name.localeCompare(b.name));
+
+    // Build paired files with key-based matching
+    const pairedFiles = useMemo<PairedFile[]>(() => {
+        // If no usages uploaded, just list dumps without warnings
+        if (sortedUsages.length === 0) {
+            return sortedDumps.map(dump => ({
+                dump,
+                usage: null,
+                matched: true,
+            }));
+        }
+
+        const pairs: PairedFile[] = [];
+
+        // Index usage files by their extracted key
+        const usageByKey = new Map<string, File>();
+        sortedUsages.forEach(file => {
+            const key = extractFileKey(file.name);
+            usageByKey.set(key, file);
+        });
+
+        // Match each dump to a usage by extracted key
+        const matchedUsageKeys = new Set<string>();
+        sortedDumps.forEach(dump => {
+            const dumpKey = extractFileKey(dump.name);
+            const usage = usageByKey.get(dumpKey) ?? null;
+
+            if (usage) {
+                matchedUsageKeys.add(dumpKey);
+                pairs.push({ dump, usage, matched: true });
+            } else {
+                pairs.push({
+                    dump,
+                    usage: null,
+                    matched: false,
+                    warning: `No matching usage file found (key: "${dumpKey}")`,
+                });
+            }
+        });
+
+        // Add any unmatched usage files
+        sortedUsages.forEach(file => {
+            const usageKey = extractFileKey(file.name);
+            if (!matchedUsageKeys.has(usageKey)) {
+                pairs.push({
+                    dump: null,
+                    usage: file,
+                    matched: false,
+                    warning: `No matching thread dump found (key: "${usageKey}")`,
+                });
+            }
+        });
+
+        return pairs;
+    }, [sortedDumps, sortedUsages]);
+
+    const hasWarnings = pairedFiles.some(p => !p.matched);
+
     // API Hook
     const { mutate, isPending, error } = useAnalyzeThreads();
 
     const handleAnalyzeClick = () => {
         if (dumps.length === 0) return;
 
+        // Send the consistently sorted files to the backend
         mutate(
-            { dumps, usages },
+            { dumps: sortedDumps, usages: sortedUsages },
             {
                 onSuccess: (data) => {
                     setAnalysisData(data);
-                    navigate('/dashboard/thread-explorer');
+                    navigate('/dashboard');
                 }
             }
         );
@@ -256,25 +370,113 @@ function UploadPage() {
                 </Alert>
             )}
 
+            {/* Upload Card for Thread Dump */}
             <UploadCard
                 title="Add Thread Dump Files"
                 description="Upload one or more thread dump files (.txt, .log or similar)"
                 required={true}
                 fileTypeLabel="thread dump"
-                onFileSelect={setDumps}
-                selectedCount={dumps.length}
+                files={dumps}
+                onAddFiles={(newFiles) => setDumps(prev => [...prev, ...newFiles])}
+                onClearFiles={() => setDumps([])}
                 onError={setErrorMsg}
             />
 
+            {/* Upload Card for Thread Usage */}
             <UploadCard
                 title="Add Thread Usage Files"
                 description="Upload CPU usage metrics to enhance analysis"
                 required={false}
                 fileTypeLabel="usage"
-                onFileSelect={setUsages}
-                selectedCount={usages.length}
+                files={usages}
+                onAddFiles={(newFiles) => setUsages(prev => [...prev, ...newFiles])}
+                onClearFiles={() => setUsages([])}
                 onError={setErrorMsg}
             />
+
+            {/* File Matching Overview if files exist */}
+            {(dumps.length > 0 || usages.length > 0) && (
+                <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #e0e0e0', borderRadius: 2, backgroundColor: '#fafafa' }}>
+                    <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                        <Typography variant="subtitle1" fontWeight="bold">
+                            Paired Files
+                        </Typography>
+                        {usages.length > 0 && (
+                            <Chip
+                                icon={hasWarnings ? <WarningAmberIcon /> : <CheckCircleOutlineIcon />}
+                                label={hasWarnings ? 'Mismatched files detected' : 'All files matched'}
+                                size="small"
+                                color={hasWarnings ? 'warning' : 'success'}
+                                variant="outlined"
+                            />
+                        )}
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" mb={2}>
+                        Files are paired by matching identifiers in their filenames. Unmatched files will be highlighted.
+                    </Typography>
+
+                    {hasWarnings && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            Some files could not be matched by filename. Unmatched files will not be paired during analysis.
+                        </Alert>
+                    )}
+
+                    <Box display="flex" flexDirection="column" gap={1}>
+                        {pairedFiles.map((pair, index) => (
+                            <Box
+                                key={index}
+                                display="flex"
+                                alignItems="center"
+                                p={1.5}
+                                sx={{
+                                    backgroundColor: !pair.matched ? '#fff8e1' : 'white',
+                                    border: !pair.matched ? '1px solid #ffe082' : '1px solid #f0f0f0',
+                                    borderRadius: 1,
+                                }}
+                            >
+                                {/* Dump column */}
+                                <Box flex={1} borderRight="1px solid #f0f0f0" pr={2}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                        Thread Dump
+                                    </Typography>
+                                    <Typography
+                                        variant="body2"
+                                        color={pair.dump ? 'text.primary' : 'error.main'}
+                                        fontWeight="500"
+                                    >
+                                        {pair.dump ? pair.dump.name : 'No matching Thread Dump'}
+                                    </Typography>
+                                </Box>
+
+                                {/* Usage column */}
+                                <Box flex={1} pl={2}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                        Thread Usage
+                                    </Typography>
+                                    <Typography
+                                        variant="body2"
+                                        color={pair.usage ? 'text.primary' : 'warning.main'}
+                                        fontWeight="500"
+                                    >
+                                        {pair.usage ? pair.usage.name : 'No Usage File'}
+                                    </Typography>
+                                </Box>
+
+                                {/* Status icon */}
+                                <Box display="flex" alignItems="center" pl={1} sx={{ minWidth: 32 }}>
+                                    {pair.matched ? (
+                                        <CheckCircleOutlineIcon fontSize="small" sx={{ color: 'success.main' }} />
+                                    ) : (
+                                        <Tooltip title={pair.warning || 'Files could not be matched'} arrow>
+                                            <WarningAmberIcon fontSize="small" sx={{ color: '#f9a825' }} />
+                                        </Tooltip>
+                                    )}
+                                </Box>
+                            </Box>
+                        ))}
+                    </Box>
+                </Paper>
+            )}
 
             {/* Analyze Button */}
             <Box display="flex" justifyContent="center" mt={4}>

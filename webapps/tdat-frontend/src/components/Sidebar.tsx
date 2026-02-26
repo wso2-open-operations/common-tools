@@ -1,21 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Drawer, List, ListItem, ListItemButton,
-  ListItemIcon, ListItemText, Divider,
-  IconButton
+  ListItemIcon, ListItemText, Divider
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import MenuIcon from '@mui/icons-material/Menu';
 import { useAnalysisData } from '../context/AnalysisContext';
 
-// Sidebar width when expanded and collapsed
+//Sidebar width when expanded and collapsed
 const drawerWidth = 240;
 const collapsedWidth = 65;
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isSidebarOpen: boolean;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { clearSession } = useAnalysisData();
@@ -27,11 +29,8 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-  // Active path for Dashboard
+  // Active paths for dashboard and thread explorer
   const isDashboard = location.pathname === '/dashboard';
-  // Acitve path for Thread Explorer
   const isThreadExplorer = location.pathname.includes('/dashboard/thread-explorer');
 
   return (
@@ -54,21 +53,11 @@ const Sidebar: React.FC = () => {
       }}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden', overflowY: 'auto' }}>
-
-        <Box sx={{ display: 'flex', justifyContent: isSidebarOpen ? 'flex-end' : 'center', p: 1 }}>
-          <IconButton onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-            <MenuIcon />
-          </IconButton>
-        </Box>
-        
-
-        <Box sx={{ flexGrow: 1, p: 1 }}>
+        <Box sx={{ flexGrow: 1, p: 1, mt: 0.5 }}>
           <List>
-            {/* Dashboard Button */}
             <ListItem disablePadding sx={{ display: 'block' }}>
               <ListItemButton
                 selected={isDashboard}
-                // Navigate to default
                 onClick={() => navigate('/dashboard')}
                 sx={{
                   minHeight: 48,
@@ -86,7 +75,6 @@ const Sidebar: React.FC = () => {
               </ListItemButton>
             </ListItem>
 
-            {/* Thread Explorer Button */}
             <ListItem disablePadding sx={{ display: 'block', mt: 1 }}>
               <ListItemButton
                 selected={isThreadExplorer}

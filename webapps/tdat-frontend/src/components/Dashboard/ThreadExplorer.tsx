@@ -1,13 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Box, Paper, Typography, Chip, IconButton,
     Collapse, List, ListItemButton, ListItemText,
-    Container, Stack, TableSortLabel
+    Container, Stack, TableSortLabel, Pagination,
+    TextField, InputAdornment, Select, MenuItem, type SelectChangeEvent
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
+import SearchIcon from '@mui/icons-material/Search';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
@@ -49,7 +51,7 @@ const StackTraceViewer: React.FC<{ snapshot: ThreadSnapshot; index: number }> = 
                 p: 2,
                 bgcolor: '#0d1117',
                 color: '#c9d1d9',
-                fontFamily: 'Consolas, Monaco, "Andale Mono", monospace',
+                fontFamily: 'Consolas, Monaco, "Andale Mono"',
                 fontSize: '0.8rem',
                 overflowX: 'auto',
                 borderRadius: 2
@@ -92,7 +94,7 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
             >
                 <Grid container spacing={2} alignItems="center">
                     {/* ID & Expand */}
-                    <Grid size={{ xs: 2.5 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Grid size={{ xs: 2.25 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <IconButton size="small" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
                             {open ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                         </IconButton>
@@ -103,14 +105,14 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                         </Box>
                     </Grid>
 
-                    {/* Name */}
-                    <Grid size={{ xs: 3 }}>
+                    {/* Thread Name */}
+                    <Grid size={{ xs: 3.25 }}>
                         <Typography variant="subtitle2" fontWeight="bold" color="primary" noWrap title={thread.name}>
                             {thread.name}
                         </Typography>
                     </Grid>
 
-                    {/* State */}
+                    {/* Last known State */}
                     <Grid size={{ xs: 1.5 }}>
                         <Chip
                             label={stats.lastState}
@@ -186,6 +188,11 @@ const ThreadExplorer: React.FC = () => {
     const { data } = useAnalysisData();
     const [selectedPool, setSelectedPool] = useState<string | null>(null);
 
+    // Filter and Pagination State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [page, setPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState<number>(10);
+
     // Sorting State
     const [order, setOrder] = useState<Order>('asc');
     const [orderBy, setOrderBy] = useState<SortableKeys>('maxCpu');
@@ -194,13 +201,10 @@ const ThreadExplorer: React.FC = () => {
     const threadsByPool = useMemo(() => {
         if (!data) return {};
         const groups: Record<string, Thread[]> = {};
-
-        // Create a Set to keep track of already processed threads
         const seenThreads = new Set<string>();
 
         data.threads.forEach(t => {
             if (seenThreads.has(t.id)) return;
-            // To ensure duplicates are not included
             seenThreads.add(t.id);
 
             const pool = t.thread_pool || "Uncategorized";
@@ -212,11 +216,16 @@ const ThreadExplorer: React.FC = () => {
     }, [data]);
 
     // Auto-select first pool
-    React.useEffect(() => {
+    useEffect(() => {
         if (!selectedPool && Object.keys(threadsByPool).length > 0) {
             setSelectedPool(Object.keys(threadsByPool)[0]);
         }
     }, [threadsByPool, selectedPool]);
+
+    // Reset pagination when pool, search, or rowsPerPage changes
+    useEffect(() => {
+        setPage(1);
+    }, [selectedPool, searchQuery, rowsPerPage]);
 
     // Sorting Logic
     const handleRequestSort = (property: SortableKeys) => {
@@ -225,11 +234,23 @@ const ThreadExplorer: React.FC = () => {
         setOrderBy(property);
     };
 
-    const sortedThreads = useMemo(() => {
+    // Filter and Sort Data
+    const filteredAndSortedThreads = useMemo(() => {
         if (!selectedPool || !threadsByPool[selectedPool]) return [];
 
-        const threadsWithStats = threadsByPool[selectedPool].map(thread => {
-            // Stats for sorting
+        let currentThreads = threadsByPool[selectedPool];
+
+        // Filter by Search Query
+        if (searchQuery) {
+            const lowercasedQuery = searchQuery.toLowerCase();
+            currentThreads = currentThreads.filter(t =>
+                t.name.toLowerCase().includes(lowercasedQuery) ||
+                t.id.toLowerCase().includes(lowercasedQuery)
+            );
+        }
+
+        // Map Stats for Sorting
+        const threadsWithStats = currentThreads.map(thread => {
             const snapshots = thread.snapshots;
             const lastSnap = snapshots[snapshots.length - 1];
             const maxCpu = Math.max(...snapshots.map(s => s.cpu_percent || 0));
@@ -251,34 +272,31 @@ const ThreadExplorer: React.FC = () => {
             };
         });
 
+        // Sort
         return threadsWithStats.sort((a, b) => {
             let valueA: any = a.stats[orderBy];
             let valueB: any = b.stats[orderBy];
 
-            // If both are strings then natural sort
             if (typeof valueA === 'string' && typeof valueB === 'string') {
-                const result = valueA.localeCompare(valueB, undefined, {
-                    numeric: true,
-                    sensitivity: 'base',
-                });
-
+                const result = valueA.localeCompare(valueB, undefined, { numeric: true, sensitivity: 'base' });
                 return order === 'desc' ? -result : result;
             }
-
-            // If both numeric then numeric sort
             if (typeof valueA === 'number' && typeof valueB === 'number') {
-                return order === 'desc'
-                    ? valueB - valueA
-                    : valueA - valueB;
+                return order === 'desc' ? valueB - valueA : valueA - valueB;
             }
-
-            // Fallback
             if (valueA < valueB) return order === 'desc' ? 1 : -1;
             if (valueA > valueB) return order === 'desc' ? -1 : 1;
             return 0;
         });
 
-    }, [threadsByPool, selectedPool, order, orderBy]);
+    }, [threadsByPool, selectedPool, order, orderBy, searchQuery]);
+
+    // Pagination Slicing
+    const totalPages = Math.ceil(filteredAndSortedThreads.length / rowsPerPage);
+    const paginatedThreads = useMemo(() => {
+        const startIndex = (page - 1) * rowsPerPage;
+        return filteredAndSortedThreads.slice(startIndex, startIndex + rowsPerPage);
+    }, [filteredAndSortedThreads, page, rowsPerPage]);
 
 
     if (!data) {
@@ -290,9 +308,13 @@ const ThreadExplorer: React.FC = () => {
         );
     }
 
-    // Helper to create sort handlers
     const createSortHandler = (property: SortableKeys) => () => {
         handleRequestSort(property);
+    };
+
+    const handlePoolChange = (pool: string) => {
+        setSelectedPool(pool);
+        setSearchQuery(''); // Clear search when changing pools
     };
 
     return (
@@ -317,7 +339,7 @@ const ThreadExplorer: React.FC = () => {
                         <ListItemButton
                             key={pool}
                             selected={selectedPool === pool}
-                            onClick={() => setSelectedPool(pool)}
+                            onClick={() => handlePoolChange(pool)}
                             sx={{
                                 mb: 1, mx: 1, borderRadius: 1,
                                 '&.Mui-selected': { bgcolor: '#fff3e0', color: '#e65100', borderLeft: '4px solid #ff9800' }
@@ -335,67 +357,93 @@ const ThreadExplorer: React.FC = () => {
 
             {/* Main Content Area */}
             <Box sx={{ flexGrow: 1, p: 4, overflowY: 'auto', bgcolor: '#f8f9fa' }}>
-                <Box mb={3}>
-                    <Typography variant="h5" fontWeight="bold" gutterBottom>{selectedPool}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Showing {sortedThreads.length} threads in this pool
-                    </Typography>
+
+                {/* Header Section: Title & Search Bar */}
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
+                    <Box>
+                        <Typography variant="h5" fontWeight="bold" gutterBottom>{selectedPool}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Showing {filteredAndSortedThreads.length} thread(s)
+                        </Typography>
+                    </Box>
+
+                    <TextField
+                        size="small"
+                        placeholder="Search by Thread ID or Name..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        slotProps={{
+                            input: {
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon />
+                                    </InputAdornment>
+                                ),
+                            },
+                        }}
+                    sx={{ width: 350, bgcolor: 'white', borderRadius: 1 }}
+                    />
+                </Box>
+
+                {/* Pagination Controls */}
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" color="text.secondary">Threads per page:</Typography>
+                        <Select
+                            size="small"
+                            value={rowsPerPage}
+                            onChange={(e: SelectChangeEvent<number>) => setRowsPerPage(Number(e.target.value))}
+                            sx={{ bgcolor: 'white', height: 32 }}
+                        >
+                            <MenuItem value={10}>10</MenuItem>
+                            <MenuItem value={25}>25</MenuItem>
+                            <MenuItem value={50}>50</MenuItem>
+                        </Select>
+                    </Box>
+
+                    {totalPages > 0 && (
+                        <Pagination
+                            count={totalPages}
+                            page={page}
+                            onChange={(_, val) => setPage(val)}
+                            showFirstButton
+                            showLastButton
+                            shape="rounded"
+                            sx={{ '& .MuiPaginationItem-root.Mui-selected': { bgcolor: '#ff6d00', color: 'white' } }}
+                        />
+                    )}
                 </Box>
 
                 {/* Header Row with Sort Labels */}
-                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f1f3f4', borderRadius: 4 }} elevation={0}>
+                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f1f3f4', borderRadius: 4}} elevation={0}>
                     <Grid container spacing={2}>
                         <Grid size={{ xs: 2.5 }} sx={{ pl: 5 }}>
-                            <TableSortLabel
-                                active={orderBy === 'id'}
-                                direction={orderBy === 'id' ? order : 'asc'}
-                                onClick={createSortHandler('id')}
-                            >
+                            <TableSortLabel active={orderBy === 'id'} direction={orderBy === 'id' ? order : 'asc'} onClick={createSortHandler('id')}>
                                 <Typography variant="caption" fontWeight="bold" color="textPrimary">THREAD ID</Typography>
                             </TableSortLabel>
                         </Grid>
                         <Grid size={{ xs: 3 }}>
-                            <TableSortLabel
-                                active={orderBy === 'name'}
-                                direction={orderBy === 'name' ? order : 'asc'}
-                                onClick={createSortHandler('name')}
-                            >
+                            <TableSortLabel active={orderBy === 'name'} direction={orderBy === 'name' ? order : 'asc'} onClick={createSortHandler('name')}>
                                 <Typography variant="caption" fontWeight="bold" color="textPrimary">THREAD NAME</Typography>
                             </TableSortLabel>
                         </Grid>
                         <Grid size={{ xs: 1.5 }}>
-                            <TableSortLabel
-                                active={orderBy === 'state'}
-                                direction={orderBy === 'state' ? order : 'asc'}
-                                onClick={createSortHandler('state')}
-                            >
+                            <TableSortLabel active={orderBy === 'state'} direction={orderBy === 'state' ? order : 'asc'} onClick={createSortHandler('state')}>
                                 <Typography variant="caption" fontWeight="bold" color="textPrimary">LAST STATE</Typography>
                             </TableSortLabel>
                         </Grid>
                         <Grid size={{ xs: 1.5 }}>
-                            <TableSortLabel
-                                active={orderBy === 'avgCpu'}
-                                direction={orderBy === 'avgCpu' ? order : 'asc'}
-                                onClick={createSortHandler('avgCpu')}
-                            >
+                            <TableSortLabel active={orderBy === 'avgCpu'} direction={orderBy === 'avgCpu' ? order : 'asc'} onClick={createSortHandler('avgCpu')}>
                                 <Typography variant="caption" fontWeight="bold" color="textPrimary">AVG CPU (%)</Typography>
                             </TableSortLabel>
                         </Grid>
                         <Grid size={{ xs: 1.5 }}>
-                            <TableSortLabel
-                                active={orderBy === 'maxCpu'}
-                                direction={orderBy === 'maxCpu' ? order : 'asc'}
-                                onClick={createSortHandler('maxCpu')}
-                            >
+                            <TableSortLabel active={orderBy === 'maxCpu'} direction={orderBy === 'maxCpu' ? order : 'asc'} onClick={createSortHandler('maxCpu')}>
                                 <Typography variant="caption" fontWeight="bold" color="textPrimary">MAX CPU (%)</Typography>
                             </TableSortLabel>
                         </Grid>
                         <Grid size={{ xs: 2 }}>
-                            <TableSortLabel
-                                active={orderBy === 'avgUserTime'}
-                                direction={orderBy === 'avgUserTime' ? order : 'asc'}
-                                onClick={createSortHandler('avgUserTime')}
-                            >
+                            <TableSortLabel active={orderBy === 'avgUserTime'} direction={orderBy === 'avgUserTime' ? order : 'asc'} onClick={createSortHandler('avgUserTime')}>
                                 <Typography variant="caption" fontWeight="bold" color="textPrimary">AVG USER TIME</Typography>
                             </TableSortLabel>
                         </Grid>
@@ -403,18 +451,21 @@ const ThreadExplorer: React.FC = () => {
                 </Paper>
 
                 {/* Rows */}
-                {sortedThreads.map(({ data, stats }) => (
-                    <ThreadRow
-                        key={data.id}
-                        thread={data}
-                        stats={{
-                            lastState: stats.state,
-                            avgCpu: stats.avgCpu,
-                            maxCpu: stats.maxCpu,
-                            avgUserTime: stats.avgUserTime
-                        }}
-                    />
-                ))}
+                {paginatedThreads.length > 0 ? (
+                    paginatedThreads.map(({ data, stats }) => (
+                        <ThreadRow
+                            key={data.id}
+                            thread={data}
+                            stats={{ lastState: stats.state, avgCpu: stats.avgCpu, maxCpu: stats.maxCpu, avgUserTime: stats.avgUserTime }}
+                        />
+                    ))
+                ) : (
+                    <Box textAlign="center" py={5}>
+                        <Typography variant="body1" color="text.secondary">
+                            No threads match your search query.
+                        </Typography>
+                    </Box>
+                )}
             </Box>
         </Box>
     );

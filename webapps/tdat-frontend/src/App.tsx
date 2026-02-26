@@ -29,6 +29,9 @@ const queryClient = new QueryClient();
 function App() {
   const { state, signIn, signOut } = useAuthContext();
   const [mode, setMode] = useState<'light' | 'dark'>('light');
+  
+  // Lifted Sidebar State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const colorMode = useMemo(
     () => ({
@@ -107,17 +110,20 @@ function App() {
           <Router>
             <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
-              {/* Passing signOut to Header for user logout */}
+              {/* Passing state and toggle function to Header */}
               <Header
                 onToggleTheme={colorMode.toggleColorMode}
                 onSignOut={() => signOut()}
+                isSidebarOpen={isSidebarOpen}
+                toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
               />
 
               <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                 <Routes>
                   <Route path="/" element={<UploadPage />} />
 
-                  <Route path="/dashboard" element={<DashboardLayout />}>
+                  {/* Passing state down to the Dashboard Layout */}
+                  <Route path="/dashboard" element={<DashboardLayout isSidebarOpen={isSidebarOpen} />}>
                     <Route index element={<DashboardHome />} />
                     <Route path="thread-explorer" element={<ThreadExplorer />} />
                   </Route>

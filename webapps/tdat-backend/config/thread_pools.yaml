@@ -26,11 +26,6 @@ pools:
     patterns:
       - "^JobPoolThread-\\d+$"
 
-  # Databridge Core pool Threadpool
-  - name: "Databridge Core Threads"
-    patterns:
-      - "^Databridge-Core-pool-\\d+-thread-\\d+$"
-
   # CacheExpiryScheduler Threadpool
   - name: "CacheExpiryScheduler"
     patterns:
@@ -52,17 +47,49 @@ pools:
     patterns:
       - "^PassThroughMessageProcessor-\\d+$"
 
-  #SynapseWorker Threadpool
+  # SynapseWorker Threadpool
   - name: "SynapseWorker Threads"
     patterns:
       - "^SynapseWorker-\\d+$"
 
-  #DisruptorInboundEvent Threadpool
+  # DisruptorInboundEvent Threadpool
   - name: "DisruptorInboundEvent Threads"
     patterns:
       - "^DisruptorInboundEventThread-\\d+$"
 
-  #DataBridge Core Threadpool
+  # DataBridge Threadpools
+
+  # DataBridge Core pool Threadpool
   - name: "DataBridge Core Threads"
     patterns:
-      - "DataBridge-Core-pool-\\d+-thread-\\d+$"
+      - "^DataBridge-Core-pool-\\d+-thread-\\d+$"
+
+  # DataBridge Receiver Binary SSL Threadpool
+  - name: "DataBridge Receiver Binary (SSL Threads)"
+    patterns:
+      - "^DataBridge-Receiver-Binary-SSL-pool-\\d+-thread-\\d+$"
+
+  # DataBridge Receiver Binary TCP Threadpool
+  - name: "DataBridge Receiver Binary (TCP Threads)"
+    patterns:
+      - "^DataBridge-Receiver-Binary-TCP-pool-\\d+-thread-\\d+$"
+
+  # HTTP-Listener I/O Dispatcher Threadpool
+  - name: "HTTP-Listener I/O Dispatcher Threads"
+    patterns:
+      - "^HTTP-Listener I/O dispatcher-\\d+$"
+
+  # HTTPS-Listener I/O Dispatcher Threadpool
+  - name: "HTTPS-Listener I/O Dispatcher Threads"
+    patterns:
+      - "^HTTPS-Listener I/O dispatcher-\\d+$"
+
+  # HTTP-Sender I/O Dispatcher Threadpool
+  - name: "HTTP-Sender I/O Dispatcher Threads"
+    patterns:
+      - "^HTTP-Sender I/O dispatcher-\\d+$"
+
+  # HTTPS-Sender I/O Dispatcher Threadpool
+  - name: "HTTPS-Sender I/O Dispatcher Threads"
+    patterns:
+      - "^HTTPS-Sender I/O dispatcher-\\d+$"

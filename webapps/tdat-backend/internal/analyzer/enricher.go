@@ -114,7 +114,7 @@ func (te *ThreadEnricher) Enrich(threads []parser.Thread) {
 				}
 
 				if !matched {
-					t.ThreadPool = "Standalone Threads"
+					t.ThreadPool = "Standalone/ Ungrouped Threads"
 				}
 			}
 		}(threads[start:end])
