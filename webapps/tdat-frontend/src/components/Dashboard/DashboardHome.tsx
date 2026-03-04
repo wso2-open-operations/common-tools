@@ -11,6 +11,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
+import { useNavigate } from 'react-router-dom';
 
 // Derived Lock Types
 
@@ -71,7 +72,7 @@ function findHeldLocks(stackTrace: string[]): LockRef[] {
   return locks;
 }
 
- // Groups blocked threads by the lock they're waiting on, and finds the owner. 
+// Groups blocked threads by the lock they're waiting on, and finds the owner. 
 function deriveLockContention(threads: Thread[]): DerivedLockEntry[] {
   if (!threads || threads.length === 0) return [];
 
@@ -215,6 +216,14 @@ const ThreadStateChip: React.FC<{ state: string }> = ({ state }) => {
 
 const LockContentionCard: React.FC<{ lock: DerivedLockEntry; defaultExpanded?: boolean }> = ({ lock, defaultExpanded = false }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  // Add navigate hook here
+  const navigate = useNavigate();
+
+  // Create a helper function to handle the redirect
+  const handleThreadClick = (threadName: string) => {
+    // Navigate to Thread Explorer and pass the thread name in the state
+    navigate('/thread-explorer', { state: { searchThread: threadName } });
+  };
 
   return (
     <Box
@@ -289,6 +298,7 @@ const LockContentionCard: React.FC<{ lock: DerivedLockEntry; defaultExpanded?: b
               <Box>
                 <Typography
                   variant="body2"
+                  onClick={() => handleThreadClick(lock.owner!.thread.name)}
                   sx={{
                     fontFamily: 'monospace',
                     fontWeight: 600,
@@ -350,6 +360,7 @@ const LockContentionCard: React.FC<{ lock: DerivedLockEntry; defaultExpanded?: b
                     <Box>
                       <Typography
                         variant="body2"
+                        onClick={() => handleThreadClick(blocked.thread.name)}
                         sx={{
                           fontFamily: 'monospace',
                           fontWeight: 600,
@@ -438,7 +449,7 @@ const DashboardHome: React.FC = () => {
   }, [lockEntries, searchQuery]);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 2000, mx: 'auto' }}>
 
       {/* Top Bar: Search*/}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>

@@ -62,13 +62,8 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		stats.BlockedPercentage = (float64(blockedCount) / float64(len(threads))) * 100.0
 	}
 
-	// Engine Initialization
-	kb, err := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
-	if err != nil {
-		return err
-	}
-
-	numWorkers := runtime.NumCPU() // Use all available CPU cores
+	// Thread level Concurrency Setup
+	numWorkers := runtime.NumCPU()
 	if numWorkers > len(threads) {
 		numWorkers = len(threads)
 	}
@@ -95,16 +90,20 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		go func(threadChunk []parser.Thread) {
 			defer wg.Done()
 
-			// Give each worker its OWN engine instance to avoid race conditions
-			workerEngine := engine.NewGruleEngine()
-
 			for j := range threadChunk {
 				t := &threadChunk[j]
-				dataCtx := ast.NewDataContext()
 
+				// Get a fresh KnowledgeBase clone so Retract() doesn't break other threads
+				kb, _ := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
+
+				// Get a fresh Engine to prevent working memory accumulation
+				workerEngine := engine.NewGruleEngine()
+
+				dataCtx := ast.NewDataContext()
 				_ = dataCtx.Add("t", t)
 				_ = dataCtx.Add("global", stats)
 
+				// Execute rules safely isolated from all other goroutines
 				_ = workerEngine.Execute(dataCtx, kb)
 			}
 		}(threads[start:end])

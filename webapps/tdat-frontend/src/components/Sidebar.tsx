@@ -31,7 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
 
   // Active paths for dashboard and thread explorer
   const isDashboard = location.pathname === '/dashboard';
-  const isThreadExplorer = location.pathname.includes('/dashboard/thread-explorer');
+  const isThreadExplorer = location.pathname === '/thread-explorer';
 
   return (
     <Drawer
@@ -78,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
             <ListItem disablePadding sx={{ display: 'block', mt: 1 }}>
               <ListItemButton
                 selected={isThreadExplorer}
-                onClick={() => navigate('/dashboard/thread-explorer')}
+                onClick={() => navigate('/thread-explorer')}
                 sx={{
                   minHeight: 48,
                   justifyContent: isSidebarOpen ? 'initial' : 'center',

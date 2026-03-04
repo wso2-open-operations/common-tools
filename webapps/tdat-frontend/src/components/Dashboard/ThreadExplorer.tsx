@@ -5,6 +5,7 @@ import {
     Container, Stack, TableSortLabel, Pagination,
     TextField, InputAdornment, Select, MenuItem, type SelectChangeEvent
 } from '@mui/material';
+import { useLocation } from 'react-router-dom';
 import Grid from '@mui/material/Grid';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -14,6 +15,7 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
 import noData from '../../assets/error.svg';
+import notFound from '../../assets/no-search-results.svg';
 
 // Types for Sorting
 type Order = 'asc' | 'desc';
@@ -188,8 +190,11 @@ const ThreadExplorer: React.FC = () => {
     const { data } = useAnalysisData();
     const [selectedPool, setSelectedPool] = useState<string | null>(null);
 
-    // Filter and Pagination State
-    const [searchQuery, setSearchQuery] = useState('');
+    // Grab the location object to read the passed state
+    const location = useLocation();
+
+    // Initialize the search bar with the passed thread name (or empty string if none)
+    const [searchQuery, setSearchQuery] = useState(location.state?.searchThread || '');
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState<number>(10);
 
@@ -215,12 +220,25 @@ const ThreadExplorer: React.FC = () => {
         return groups;
     }, [data]);
 
-    // Auto-select first pool
+    // Auto-select pool logic
     useEffect(() => {
-        if (!selectedPool && Object.keys(threadsByPool).length > 0) {
+        // If redirected from the Dashboard
+        if (location.state?.searchThread && Object.keys(threadsByPool).length > 0 && !selectedPool) {
+            // Find which pool the requested thread belongs to
+            const targetThread = data?.threads.find(t => t.name === location.state.searchThread);
+            if (targetThread) {
+                setSelectedPool(targetThread.thread_pool || "Uncategorized");
+            } else {
+                setSelectedPool(Object.keys(threadsByPool)[0]); 
+            }
+
+            // Clear the router state so refreshing the page doesn't lock them into this search
+            window.history.replaceState({}, document.title);
+        }
+        else if (!selectedPool && Object.keys(threadsByPool).length > 0) {
             setSelectedPool(Object.keys(threadsByPool)[0]);
         }
-    }, [threadsByPool, selectedPool]);
+    }, [threadsByPool, selectedPool, location.state, data]);
 
     // Reset pagination when pool, search, or rowsPerPage changes
     useEffect(() => {
@@ -381,7 +399,7 @@ const ThreadExplorer: React.FC = () => {
                                 ),
                             },
                         }}
-                    sx={{ width: 350, bgcolor: 'white', borderRadius: 1 }}
+                        sx={{ width: 350, bgcolor: 'white', borderRadius: 1 }}
                     />
                 </Box>
 
@@ -415,7 +433,7 @@ const ThreadExplorer: React.FC = () => {
                 </Box>
 
                 {/* Header Row with Sort Labels */}
-                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f1f3f4', borderRadius: 4}} elevation={0}>
+                <Paper sx={{ p: 2, mb: 2, bgcolor: '#f1f3f4', borderRadius: 4 }} elevation={0}>
                     <Grid container spacing={2}>
                         <Grid size={{ xs: 2.5 }} sx={{ pl: 5 }}>
                             <TableSortLabel active={orderBy === 'id'} direction={orderBy === 'id' ? order : 'asc'} onClick={createSortHandler('id')}>
@@ -461,7 +479,8 @@ const ThreadExplorer: React.FC = () => {
                     ))
                 ) : (
                     <Box textAlign="center" py={5}>
-                        <Typography variant="body1" color="text.secondary">
+                        <img src={notFound} alt="No Threads matched" style={{ marginBottom: 30, width: '40%' }} />
+                        <Typography variant="h6" color="text.secondary">
                             No threads match your search query.
                         </Typography>
                     </Box>

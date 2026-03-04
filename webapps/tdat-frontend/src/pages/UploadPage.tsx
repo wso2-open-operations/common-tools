@@ -344,8 +344,26 @@ function UploadPage() {
             { dumps: sortedDumps, usages: sortedUsages },
             {
                 onSuccess: (data) => {
+                    // Check if the backend explicitly returned an array of errors
+                    if (data.errors && data.errors.length > 0) {
+                        // Join the backend errors and display them
+                        setErrorMsg(`Invalid file(s) uploaded: ${data.errors.join(' | ')}. Please ensure you upload proper thread dumps.`);
+                        return; 
+                    }
+
+                    // Fallback check
+                    if (!data.threads || data.threads.length === 0) {
+                        setErrorMsg("Invalid file(s) uploaded: No threads were found in the provided files. Please re-upload proper thread dumps.");
+                        return;
+                    }
+
+                    // If everything is valid, proceed to the dashboard
                     setAnalysisData(data);
                     navigate('/dashboard');
+                },
+                onError: (err) => {
+                    // Catches network failures
+                    setErrorMsg(`Analysis failed: ${err.message}`);
                 }
             }
         );

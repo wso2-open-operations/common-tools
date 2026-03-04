@@ -52,14 +52,14 @@ func main() {
 		AllowedOrigins: []string{"*"}, // Allow all origins
 		AllowedMethods: []string{"GET", "POST", "OPTIONS", "PUT", "DELETE"},
 		AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
-		// Debug: true,
+		Debug:          true,
 	})
 
 	// Wrap the entire router with the CORS middleware
 	handler := c.Handler(mux)
 
 	// Start Server using the wrapped handler
-	fmt.Println("Server started at http://0.0.0.0:8080")
+	fmt.Println("Server started at http://localhost:8080")
 	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatal(err)
 	}
@@ -73,9 +73,9 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 		return
 	}
 
-	// Parse Multipart Form (Limit upload size to 50MB)
+	// Parse Multipart Form (Limit upload size to 100MB)
 	if err := r.ParseMultipartForm(100 << 20); err != nil {
-		http.Error(w, "Files too large. Limit is 50MB.", http.StatusBadRequest)
+		http.Error(w, "Files too large. Limit is 100MB.", http.StatusBadRequest)
 		return
 	}
 
@@ -135,6 +135,14 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 				return
 			}
 
+			// Check if threads exist in uploaded files
+			if len(threads) == 0 {
+				mu.Lock()
+				errorMessages = append(errorMessages, fmt.Sprintf("Invalid Files. No threads found in %s", dHeader.Filename))
+				mu.Unlock()
+				return
+			}
+
 			// Enrichment with Regex Matching - Categorizes threads into pools based on YAML config.
 			enricher.Enrich(threads)
 
@@ -178,7 +186,7 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 
 	// Send JSON Response
 	w.Header().Set("Content-Type", "application/json")
-	// Use an Encoder to stream the JSON response directly to the HTTP writer
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode JSON response: %v", err)
 	}

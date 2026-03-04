@@ -123,9 +123,15 @@ function App() {
                   <Route path="/" element={<UploadPage />} />
 
                   {/* Passing state down to the Dashboard Layout */}
+
+                  {/* Dashboard */}
                   <Route path="/dashboard" element={<DashboardLayout isSidebarOpen={isSidebarOpen} />}>
                     <Route index element={<DashboardHome />} />
-                    <Route path="thread-explorer" element={<ThreadExplorer />} />
+                  </Route>
+
+                  {/* Thread Explorer */}
+                  <Route path="/thread-explorer" element={<DashboardLayout isSidebarOpen={isSidebarOpen} />}>
+                    <Route index element={<ThreadExplorer />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />

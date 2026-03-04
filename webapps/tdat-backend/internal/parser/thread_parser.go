@@ -13,7 +13,7 @@ import (
 type Thread struct {
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
-	ThreadPool    string   `json:"thread_pool,omitempty"` // Omits empty pool names before enrichment
+	ThreadPool    string   `json:"thread_pool,omitempty"`
 	State         string   `json:"state"`
 	NativeID      int64    `json:"native_id"`
 	StackTrace    []string `json:"stack_trace"`
@@ -74,31 +74,38 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 	scanner.Buffer(buf, 1024*1024)
 
 	for scanner.Scan() {
-		line := scanner.Text()
+		// Raw line for Regex matching
+		rawLine := scanner.Text()
+		// Create a trimmed version for safe prefix checking and clean output
+		trimmedLine := strings.TrimSpace(rawLine)
 
-		// Check for thread header
-		if strings.HasPrefix(line, `"`) {
-			if currentThread != nil {
-				threads = append(threads, *currentThread)
-			}
-			match := threadHeaderRE.FindStringSubmatch(line)
+		// Skip empty lines
+		if trimmedLine == "" {
+			continue
+		}
+
+		// Detect standard thread header
+		if strings.HasPrefix(trimmedLine, `"`) {
+			match := threadHeaderRE.FindStringSubmatch(rawLine)
 			if len(match) >= 3 {
+				if currentThread != nil {
+					threads = append(threads, *currentThread)
+				}
+
 				t := &Thread{
 					Name:       match[1],
 					ID:         match[2],
 					StackTrace: []string{},
-					Issues:     []string{}, // Initialize empty
+					Issues:     []string{},
 				}
 
-				// Extract Native ID
-				if nidMatch := nidRE.FindStringSubmatch(line); len(nidMatch) >= 2 {
+				if nidMatch := nidRE.FindStringSubmatch(rawLine); len(nidMatch) >= 2 {
 					if val, err := strconv.ParseInt(nidMatch[1], 16, 64); err == nil {
 						t.NativeID = val
 					}
 				}
 
-				// Extract CPU Time
-				if m := cpuAttributeRE.FindStringSubmatch(line); len(m) >= 2 {
+				if m := cpuAttributeRE.FindStringSubmatch(rawLine); len(m) >= 2 {
 					val, err := strconv.ParseFloat(m[1], 64)
 					if err == nil {
 						unit := ""
@@ -113,8 +120,7 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 					}
 				}
 
-				// Extract Elapsed Time
-				if m := elapsedAttributeRE.FindStringSubmatch(line); len(m) >= 2 {
+				if m := elapsedAttributeRE.FindStringSubmatch(rawLine); len(m) >= 2 {
 					val, err := strconv.ParseFloat(m[1], 64)
 					if err == nil {
 						unit := ""
@@ -137,24 +143,22 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 			continue
 		}
 
-		// Check for State
-		if strings.Contains(line, "java.lang.Thread.State") {
-			match := stateRE.FindStringSubmatch(line)
+		// State Parsing
+		if strings.HasPrefix(trimmedLine, "java.lang.Thread.State") {
+			match := stateRE.FindStringSubmatch(rawLine)
 			if len(match) >= 2 {
 				rawState := strings.TrimSpace(match[1])
-				// Split by space and take the first part to remove things like "(on object monitor)"
 				parts := strings.Split(rawState, " ")
 				if len(parts) > 0 {
-					// Will set State to just "WAITING"
 					currentThread.State = parts[0]
 				}
 			}
 			continue
 		}
 
-		// Check for Stacktrace
-		if stackLineRE.MatchString(line) {
-			currentThread.StackTrace = append(currentThread.StackTrace, strings.TrimSpace(line))
+		// Stacktrace Parsing
+		if stackLineRE.MatchString(rawLine) {
+			currentThread.StackTrace = append(currentThread.StackTrace, trimmedLine)
 		}
 	}
 
