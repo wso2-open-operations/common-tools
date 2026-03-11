@@ -2,8 +2,8 @@
 const authConfig = {
     signInRedirectURL: window.location.origin, //"http://localhost:5173", 
     signOutRedirectURL: window.location.origin, //"http://localhost:5173",
-    clientID: "8fTVImV7Fuv1uwgYQi_qj2fofWca", 
-    baseUrl: "https://api.asgardeo.io/t/newtool",
+    clientID: "DgOk57ldcAHBDzKazv2KJJY17XEa", 
+    baseUrl: "https://api.asgardeo.io/t/wso2",
     scope: [ "openid", "email", "profile" ]
 };
 

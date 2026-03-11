@@ -14,8 +14,10 @@ import (
 /* YAML Configuration Structures */
 
 type poolConfig struct {
-	Name     string   `yaml:"name"`
-	Patterns []string `yaml:"patterns"`
+	Name             string   `yaml:"name"`
+	Patterns         []string `yaml:"patterns"`
+	Description      string   `yaml:"description"`
+	ExpectedBehavior string   `yaml:"expected_behavior"`
 }
 
 type threadPoolsConfig struct {
@@ -24,10 +26,18 @@ type threadPoolsConfig struct {
 
 /* Runtime Structure Logic*/
 
+// PoolInfo holds exported metadata for a thread pool
+type PoolInfo struct {
+	Description      string `json:"description"`
+	ExpectedBehavior string `json:"expected_behavior"`
+}
+
 // Pre-compiled regexes for performance
 type compiledPool struct {
-	Name    string
-	RegExps []*regexp.Regexp
+	Name             string
+	Description      string
+	ExpectedBehavior string
+	RegExps          []*regexp.Regexp
 }
 
 // ThreadEnricher handles loading config and applying matches
@@ -52,7 +62,7 @@ func NewThreadEnricher(configPath string) (*ThreadEnricher, error) {
 	// Compile regexes
 	var compiledPools []compiledPool
 	for _, poolCfg := range config.Pools {
-		cp := compiledPool{Name: poolCfg.Name}
+		cp := compiledPool{Name: poolCfg.Name, Description: poolCfg.Description, ExpectedBehavior: poolCfg.ExpectedBehavior}
 		for _, pattern := range poolCfg.Patterns {
 			re, err := regexp.Compile(pattern)
 			if err != nil {
@@ -121,4 +131,16 @@ func (te *ThreadEnricher) Enrich(threads []parser.Thread) {
 	}
 
 	wg.Wait()
+}
+
+// PoolMetadata returns a map of pool name to its description and expected behavior.
+func (te *ThreadEnricher) PoolMetadata() map[string]PoolInfo {
+	result := make(map[string]PoolInfo, len(te.compiledPools))
+	for _, cp := range te.compiledPools {
+		result[cp.Name] = PoolInfo{
+			Description:      cp.Description,
+			ExpectedBehavior: cp.ExpectedBehavior,
+		}
+	}
+	return result
 }

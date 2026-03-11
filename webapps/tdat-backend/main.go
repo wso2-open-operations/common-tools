@@ -17,10 +17,11 @@ import (
 
 // Top-level JSON response format for a structured analysis
 type AggregatedAnalysisResponse struct {
-	SessionID string                    `json:"session_id"`
-	Timestamp string                    `json:"timestamp"`
-	Threads   []analyzer.AnalyzedThread `json:"threads"`
-	Errors    []string                  `json:"errors,omitempty"`
+	SessionID   string                       `json:"session_id"`
+	Timestamp   string                       `json:"timestamp"`
+	Threads     []analyzer.AnalyzedThread    `json:"threads"`
+	ThreadPools map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
+	Errors      []string                     `json:"errors,omitempty"`
 }
 
 // Start HTTP server
@@ -42,8 +43,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Register your routes on the mux
-	mux.HandleFunc("/", serveHTML)
-	mux.HandleFunc("/parse", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /{$}", serveHTML)
+	mux.HandleFunc("POST /api/v1/analyze", func(w http.ResponseWriter, r *http.Request) {
 		parseHandler(w, r, engine, enricher)
 	})
 
@@ -68,10 +69,12 @@ func main() {
 // Request Handler Logic
 
 func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) {
+	/* //Redunant
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	*/
 
 	// Parse Multipart Form (Limit upload size to 100MB)
 	if err := r.ParseMultipartForm(100 << 20); err != nil {
@@ -178,10 +181,11 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 
 	// Construct Final Response Object
 	response := AggregatedAnalysisResponse{
-		SessionID: uuid.New().String(),
-		Timestamp: time.Now().Format(time.RFC3339),
-		Threads:   aggregatedThreads,
-		Errors:    errorMessages,
+		SessionID:   uuid.New().String(),
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Threads:     aggregatedThreads,
+		ThreadPools: enricher.PoolMetadata(),
+		Errors:      errorMessages,
 	}
 
 	// Send JSON Response
@@ -216,7 +220,7 @@ func serveHTML(w http.ResponseWriter, r *http.Request) {
 	<body>
 		<div class="container">
 			<h2>Thread Dump Analyzer</h2>
-			<form action="/parse" method="post" enctype="multipart/form-data">
+			<form action="/api/v1/analyze" method="post" enctype="multipart/form-data">
 				<div class="form-group">
 					<label for="thread_dumps">1. Thread Dumps (Required)</label>
 					<input type="file" id="thread_dumps" name="thread_dumps" multiple required>

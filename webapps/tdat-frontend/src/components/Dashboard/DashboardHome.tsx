@@ -414,10 +414,13 @@ function computeSummary(threads: Thread[]) {
   ).size;
 
   // Time range from dump names
-  const dumpNames = [...new Set(latestSnapshots.map(s => s.dump_name))].sort();
+  const dumpNames = [...new Set(latestSnapshots.map(s => s.dump_name))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
   const timeRange = dumpNames.length > 1
     ? `${dumpNames[0]} - ${dumpNames[dumpNames.length - 1]}`
     : dumpNames[0] || 'N/A';
+
 
   return { threadCount, criticalIssues, highCpuThreads, blockedThreads, timeRange };
 }
@@ -537,11 +540,11 @@ const DashboardHome: React.FC = () => {
             </Typography>
 
             {filteredLocks.length > 0 ? (
-              filteredLocks.map((lock, idx) => (
+              filteredLocks.map((lock) => (
                 <LockContentionCard
                   key={lock.lockAddress}
                   lock={lock}
-                  defaultExpanded={idx === 0}
+                  defaultExpanded={false}
                 />
               ))
             ) : (

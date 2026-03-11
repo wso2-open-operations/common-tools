@@ -23,7 +23,7 @@ export const uploadThreadDumps = async (
     formData.append("thread_usages", file);
   });
 
-  const response = await fetch(`${API_BASE_URL}/parse`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/analyze`, {
     method: "POST",
     body: formData,
   });

@@ -88,11 +88,12 @@ interface UploadCardProps {
     files: File[];
     onAddFiles: (files: File[]) => void;
     onClearFiles: () => void;
+    onRemoveFile: (file: File) => void;
     onError: (msg: string) => void;
 }
 
 const UploadCard: React.FC<UploadCardProps> = ({
-    title, description, required, fileTypeLabel, files, onAddFiles, onClearFiles, onError
+    title, description, required, fileTypeLabel, files, onAddFiles, onClearFiles, onRemoveFile, onError
 }) => {
     const [isDragActive, setIsDragActive] = useState(false);
 
@@ -197,8 +198,8 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
                         {/* File Chips */}
                         <Box display="flex" flexWrap="wrap" gap={1} justifyContent="center" my={2}>
-                            {files.map((file, idx) => (
-                                <Chip key={idx} label={file.name} size="small" variant="outlined" />
+                            {[...files].sort((a, b) => a.name.localeCompare(b.name)).map((file, idx) => (
+                                <Chip key={idx} label={file.name} size="small" variant="outlined" onDelete={() => onRemoveFile(file)} />
                             ))}
                         </Box>
 
@@ -395,8 +396,17 @@ function UploadPage() {
                 required={true}
                 fileTypeLabel="thread dump"
                 files={dumps}
-                onAddFiles={(newFiles) => setDumps(prev => [...prev, ...newFiles])}
+                onAddFiles={(newFiles) => {
+                    setDumps(prev => {
+                        const existingNames = new Set(prev.map(f => f.name));
+                        const unique = newFiles.filter(f => !existingNames.has(f.name));
+                        const skipped = newFiles.length - unique.length;
+                        if (skipped > 0) setErrorMsg(`${skipped} duplicate file(s) were skipped.`);
+                        return [...prev, ...unique];
+                    });
+                }}
                 onClearFiles={() => setDumps([])}
+                onRemoveFile={(file) => setDumps(prev => prev.filter(f => f !== file))}
                 onError={setErrorMsg}
             />
 
@@ -407,8 +417,17 @@ function UploadPage() {
                 required={false}
                 fileTypeLabel="usage"
                 files={usages}
-                onAddFiles={(newFiles) => setUsages(prev => [...prev, ...newFiles])}
+                onAddFiles={(newFiles) => {
+                    setUsages(prev => {
+                        const existingNames = new Set(prev.map(f => f.name));
+                        const unique = newFiles.filter(f => !existingNames.has(f.name));
+                        const skipped = newFiles.length - unique.length;
+                        if (skipped > 0) setErrorMsg(`${skipped} duplicate file(s) were skipped.`);
+                        return [...prev, ...unique];
+                    });
+                }}
                 onClearFiles={() => setUsages([])}
+                onRemoveFile={(file) => setUsages(prev => prev.filter(f => f !== file))}
                 onError={setErrorMsg}
             />
 

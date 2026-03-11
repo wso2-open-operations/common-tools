@@ -11,6 +11,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 import SearchIcon from '@mui/icons-material/Search';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
@@ -31,42 +32,52 @@ const getStateLabel = (value: number) => {
 };
 
 // Stack Trace Viewer
-const StackTraceViewer: React.FC<{ snapshot: ThreadSnapshot; index: number }> = ({ snapshot, index }) => (
-    <Box sx={{ mt: 2, mb: 3 }}>
-        <Box display="flex" alignItems="center" gap={2} mb={1}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555' }}>
-                Dump {index + 1}
-            </Typography>
-            <Chip
-                label={snapshot.state}
-                size="small"
-                color={snapshot.state === 'RUNNABLE' ? 'success' : snapshot.state === 'WAITING' ? 'info' : snapshot.state === 'BLOCKED' ? 'error' : snapshot.state === 'TIMED_WAITING' ? 'secondary' : 'default'}
+const StackTraceViewer: React.FC<{ snapshot: ThreadSnapshot; index: number }> = ({ snapshot, index }) => {
+    // Fallback for missing state
+    const displayState = snapshot.state || 'N/A';
+    
+    return (
+        <Box sx={{ mt: 2, mb: 3 }}>
+            <Box display="flex" alignItems="center" gap={2} mb={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555' }}>
+                    Dump {index + 1}
+                </Typography>
+                <Chip
+                    label={displayState}
+                    size="small"
+                    color={
+                        displayState === 'RUNNABLE' ? 'success' : 
+                        displayState === 'WAITING' ? 'info' : 
+                        displayState === 'BLOCKED' ? 'error' : 
+                        displayState === 'TIMED_WAITING' ? 'secondary' : 'default'
+                    }
+                    variant="outlined"
+                />
+                <Typography variant="caption" color="text.secondary">
+                    CPU: {snapshot.cpu_percent ? snapshot.cpu_percent.toFixed(2) : 0}% | User Time: {snapshot.cpu_time_ms || 0}ms
+                </Typography>
+            </Box>
+            <Paper
                 variant="outlined"
-            />
-            <Typography variant="caption" color="text.secondary">
-                CPU: {snapshot.cpu_percent ? snapshot.cpu_percent.toFixed(2) : 0}% | User Time: {snapshot.cpu_time_ms}ms
-            </Typography>
+                sx={{
+                    p: 2,
+                    bgcolor: '#0d1117',
+                    color: '#c9d1d9',
+                    fontFamily: 'Consolas, Monaco, "Andale Mono"',
+                    fontSize: '0.8rem',
+                    overflowX: 'auto',
+                    borderRadius: 2
+                }}
+            >
+                <pre style={{ margin: 0 }}>
+                    {snapshot.stack_trace && snapshot.stack_trace.length > 0
+                        ? snapshot.stack_trace.join('\n')
+                        : "No stack trace available."}
+                </pre>
+            </Paper>
         </Box>
-        <Paper
-            variant="outlined"
-            sx={{
-                p: 2,
-                bgcolor: '#0d1117',
-                color: '#c9d1d9',
-                fontFamily: 'Consolas, Monaco, "Andale Mono"',
-                fontSize: '0.8rem',
-                overflowX: 'auto',
-                borderRadius: 2
-            }}
-        >
-            <pre style={{ margin: 0 }}>
-                {snapshot.stack_trace && snapshot.stack_trace.length > 0
-                    ? snapshot.stack_trace.join('\n')
-                    : "No stack trace available."}
-            </pre>
-        </Paper>
-    </Box>
-);
+    );
+};
 
 // Single Thread Row
 interface ThreadRowProps {
@@ -119,7 +130,12 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                         <Chip
                             label={stats.lastState}
                             size="small"
-                            color={stats.lastState === 'RUNNABLE' ? 'success' : stats.lastState === 'WAITING' ? 'info' : stats.lastState === 'BLOCKED' ? 'error' : stats.lastState === 'TIMED_WAITING' ? 'secondary' : 'default'}
+                            color={
+                                stats.lastState === 'RUNNABLE' ? 'success' : 
+                                stats.lastState === 'WAITING' ? 'info' : 
+                                stats.lastState === 'BLOCKED' ? 'error' : 
+                                stats.lastState === 'TIMED_WAITING' ? 'secondary' : 'default'
+                            }
                         />
                     </Grid>
 
@@ -232,7 +248,7 @@ const ThreadExplorer: React.FC = () => {
                 setSelectedPool(Object.keys(threadsByPool)[0]); 
             }
 
-            // Clear the router state so refreshing the page doesn't lock them into this search
+            // Clear the router state
             window.history.replaceState({}, document.title);
         }
         else if (!selectedPool && Object.keys(threadsByPool).length > 0) {
@@ -240,7 +256,7 @@ const ThreadExplorer: React.FC = () => {
         }
     }, [threadsByPool, selectedPool, location.state, data]);
 
-    // Reset pagination when pool, search, or rowsPerPage changes
+    // Reset pagination
     useEffect(() => {
         setPage(1);
     }, [selectedPool, searchQuery, rowsPerPage]);
@@ -274,14 +290,17 @@ const ThreadExplorer: React.FC = () => {
             const maxCpu = Math.max(...snapshots.map(s => s.cpu_percent || 0));
             const totalUserTime = snapshots.reduce((acc, s) => acc + (s.cpu_time_ms || 0), 0);
             const avgUserTime = snapshots.length > 0 ? (totalUserTime / snapshots.length) : 0;
-            const avgCpu = lastSnap.cpu_percent || 0;
+            const avgCpu = lastSnap?.cpu_percent || 0;
+            
+            // Defensively check for state to ensure it never throws an undefined error
+            const displayState = lastSnap?.state || 'N/A';
 
             return {
                 data: thread,
                 stats: {
                     id: thread.id,
                     name: thread.name,
-                    state: lastSnap.state,
+                    state: displayState,
                     avgCpu,
                     maxCpu,
                     avgUserTime,
@@ -332,7 +351,7 @@ const ThreadExplorer: React.FC = () => {
 
     const handlePoolChange = (pool: string) => {
         setSelectedPool(pool);
-        setSearchQuery(''); // Clear search when changing pools
+        setSearchQuery(''); 
     };
 
     return (
@@ -402,6 +421,28 @@ const ThreadExplorer: React.FC = () => {
                         sx={{ width: 350, bgcolor: 'white', borderRadius: 1 }}
                     />
                 </Box>
+
+                {/* Pool Info Box */}
+                {selectedPool && data.thread_pools?.[selectedPool] && (
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            p: 2, mb: 3, bgcolor: '#fff3e0',
+                            borderColor: '#ff9800', borderRadius: 2,
+                            display: 'flex', gap: 2
+                        }}
+                    >
+                        <InfoOutlinedIcon sx={{ color: '#ff6d00', mt: 0.3, flexShrink: 0 }} />
+                        <Box>
+                            <Typography variant="body2" color="text.primary" mb={1}>
+                                <strong>Description:</strong> {data.thread_pools[selectedPool].description}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                <strong>Expected Behavior:</strong> {data.thread_pools[selectedPool].expected_behavior}
+                            </Typography>
+                        </Box>
+                    </Paper>
+                )}
 
                 {/* Pagination Controls */}
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>

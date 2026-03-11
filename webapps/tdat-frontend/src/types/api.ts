@@ -15,9 +15,15 @@ export interface Thread {
   snapshots: ThreadSnapshot[];
 }
 
+export interface ThreadPoolInfo {
+  description: string;
+  expected_behavior: string;
+}
+
 export interface AnalysisResponse {
   session_id: string;
   timestamp: string;
   threads: Thread[];
+  thread_pools?: Record<string, ThreadPoolInfo>;
   errors?: string[];
 }

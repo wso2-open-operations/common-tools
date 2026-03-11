@@ -93,7 +93,7 @@ function App() {
               onClick={() => signIn()}
               sx={{ bgcolor: '#ff6d00', textTransform: 'none', px: 4, '&:hover': { bgcolor: '#e65100' } }}
             >
-              <LoginIcon sx={{ mr: 1 }} /> Login with WSO2 Email
+              <LoginIcon sx={{ mr: 1 }} /> Login
             </Button>
           </Paper>
         </Container>
