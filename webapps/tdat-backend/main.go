@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -69,12 +70,6 @@ func main() {
 // Request Handler Logic
 
 func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) {
-	/* //Redunant
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	*/
 
 	// Parse Multipart Form (Limit upload size to 100MB)
 	if err := r.ParseMultipartForm(100 << 20); err != nil {
@@ -117,7 +112,19 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 			// Open corresponding Usage File if it exists
 			var usageFile multipart.File
 			if index < len(usageHeaders) {
-				if uFile, err := usageHeaders[index].Open(); err == nil {
+				usageHeader := usageHeaders[index]
+				if uFile, err := usageHeader.Open(); err == nil {
+					// Validate that the file contains valid thread usage data
+					usages, _ := parser.ParseThreadUsage(uFile)
+					if len(usages) == 0 {
+						uFile.Close()
+						mu.Lock()
+						errorMessages = append(errorMessages, fmt.Sprintf("Invalid file. No valid thread usage data found in %s", usageHeader.Filename))
+						mu.Unlock()
+						return
+					}
+					// Reset reader to beginning for actual processing
+					uFile.Seek(0, io.SeekStart)
 					usageFile = uFile
 				}
 			}
