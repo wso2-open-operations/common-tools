@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useAnalysisData } from '../context/AnalysisContext';
 
@@ -32,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   // Active paths for dashboard and thread explorer
   const isDashboard = location.pathname === '/dashboard';
   const isThreadExplorer = location.pathname === '/thread-explorer';
+  const isLockContention = location.pathname === '/lock-contention';
 
   return (
     <Drawer
@@ -92,6 +94,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                   <ListAltIcon sx={{ color: isThreadExplorer ? 'white' : 'inherit' }} />
                 </ListItemIcon>
                 <ListItemText primary="Thread Explorer" sx={{ opacity: isSidebarOpen ? 1 : 0 }} />
+              </ListItemButton>
+            </ListItem>
+
+            <ListItem disablePadding sx={{ display: 'block', mt: 1 }}>
+              <ListItemButton
+                selected={isLockContention}
+                onClick={() => navigate('/lock-contention')}
+                sx={{
+                  minHeight: 48,
+                  justifyContent: isSidebarOpen ? 'initial' : 'center',
+                  px: 2.5,
+                  bgcolor: isLockContention ? '#ff6d00 !important' : 'transparent',
+                  color: isLockContention ? 'white' : 'inherit',
+                  borderRadius: 1,
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 3 : 'auto', justifyContent: 'center' }}>
+                  <LockOutlinedIcon sx={{ color: isLockContention ? 'white' : 'inherit' }} />
+                </ListItemIcon>
+                <ListItemText primary="Lock Contention" sx={{ opacity: isSidebarOpen ? 1 : 0 }} />
               </ListItemButton>
             </ListItem>
           </List>

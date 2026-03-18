@@ -1,144 +1,39 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
-  Box, Typography, Paper, Chip, InputBase,
-  Collapse
+  Box, Typography, Paper, Chip
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
 import { useNavigate } from 'react-router-dom';
 
-// Derived Lock Types
-
-interface BlockedThreadInfo {
-  thread: Thread;
-  snapshot: ThreadSnapshot;
-  lockAddress: string;
-  waitTime: string;
-}
-
-interface LockOwnerInfo {
-  thread: Thread;
-  snapshot: ThreadSnapshot;
-}
-
-interface DerivedLockEntry {
-  className: string;
-  lockAddress: string;
-  owner: LockOwnerInfo | null;
-  blockedThreads: BlockedThreadInfo[];
-}
-
-// Stack Trace Parsing Utilities
-
-// Parses thread stack traces to extract lock contention information.
-const LOCK_WAITING_REGEX = /[-\s]waiting to lock\s+<(0x[0-9a-fA-F]+)>\s+\(a\s+([^)]+)\)/;
-const LOCK_HOLDING_REGEX = /[-\s]locked\s+<(0x[0-9a-fA-F]+)>\s+\(a\s+([^)]+)\)/;
-const PARKING_REGEX = /[-\s]parking to wait for\s+<(0x[0-9a-fA-F]+)>\s+\(a\s+([^)]+)\)/;
-const WAITING_ON_REGEX = /[-\s]waiting on\s+<(0x[0-9a-fA-F]+)>\s+\(a\s+([^)]+)\)/;
-
-interface LockRef {
-  address: string;
-  className: string;
-}
-
-function findWaitingLock(stackTrace: string[]): LockRef | null {
-  for (const line of stackTrace) {
-    const waitMatch = line.match(LOCK_WAITING_REGEX);
-    if (waitMatch) return { address: waitMatch[1], className: waitMatch[2] };
-
-    const parkMatch = line.match(PARKING_REGEX);
-    if (parkMatch) return { address: parkMatch[1], className: parkMatch[2] };
-
-    const waitOnMatch = line.match(WAITING_ON_REGEX);
-    if (waitOnMatch) return { address: waitOnMatch[1], className: waitOnMatch[2] };
-  }
-  return null;
-}
-
-function findHeldLocks(stackTrace: string[]): LockRef[] {
-  const locks: LockRef[] = [];
-  for (const line of stackTrace) {
-    const match = line.match(LOCK_HOLDING_REGEX);
-    if (match) {
-      locks.push({ address: match[1], className: match[2] });
-    }
-  }
-  return locks;
-}
-
-// Groups blocked threads by the lock they're waiting on, and finds the owner. 
-function deriveLockContention(threads: Thread[]): DerivedLockEntry[] {
-  if (!threads || threads.length === 0) return [];
-
-  // Use the latest snapshot for each thread
-  const latestSnapshotMap = new Map<Thread, ThreadSnapshot>();
-  threads.forEach(thread => {
-    if (thread.snapshots.length > 0) {
-      const latest = thread.snapshots[thread.snapshots.length - 1];
-      latestSnapshotMap.set(thread, latest);
+function computeSummary(threads: Thread[]) {
+  const latestSnapshots: ThreadSnapshot[] = [];
+  threads.forEach(t => {
+    if (t.snapshots.length > 0) {
+      latestSnapshots.push(t.snapshots[t.snapshots.length - 1]);
     }
   });
 
-  // Collect all threads waiting on locks
-  const waitingByLock = new Map<string, { className: string; threads: BlockedThreadInfo[] }>();
+  const threadCount = latestSnapshots.length;
+  const blockedThreads = latestSnapshots.filter(s => s.state === 'BLOCKED').length;
+  const highCpuThreads = latestSnapshots.filter(s => s.cpu_percent > 0).length;
+  const criticalIssues = latestSnapshots.filter(s => s.state === 'BLOCKED').length;
 
-  // Collect all threads holding locks
-  const holdingByLock = new Map<string, { thread: Thread; snapshot: ThreadSnapshot }>();
+  const dumpNames = [...new Set(latestSnapshots.map(s => s.dump_name))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  latestSnapshotMap.forEach((snapshot, thread) => {
-    // Check if this thread is waiting on a lock
-    const waitingLock = findWaitingLock(snapshot.stack_trace);
-    if (waitingLock && (snapshot.state === 'BLOCKED' || snapshot.state === 'WAITING' || snapshot.state === 'TIMED_WAITING')) {
-      if (!waitingByLock.has(waitingLock.address)) {
-        waitingByLock.set(waitingLock.address, {
-          className: waitingLock.className,
-          threads: [],
-        });
-      }
-      waitingByLock.get(waitingLock.address)!.threads.push({
-        thread,
-        snapshot,
-        lockAddress: waitingLock.address,
-        waitTime: snapshot.elapsed_time_s > 0 ? `${Math.round(snapshot.elapsed_time_s * 1000)}ms` : '',
-      });
-    }
+  const timeRange = dumpNames.length > 1
+    ? `${dumpNames[0]} - ${dumpNames[dumpNames.length - 1]}`
+    : dumpNames[0] || 'N/A';
 
-    // Check if this thread is holding any locks
-    const heldLocks = findHeldLocks(snapshot.stack_trace);
-    heldLocks.forEach(lock => {
-      if (!holdingByLock.has(lock.address)) {
-        holdingByLock.set(lock.address, { thread, snapshot });
-      }
-    });
-  });
-
-  // Build final lock entries to only include locks that have at least 1 blocked thread
-  const entries: DerivedLockEntry[] = [];
-
-  waitingByLock.forEach((data, address) => {
-    const holder = holdingByLock.get(address) ?? null;
-
-    entries.push({
-      className: data.className,
-      lockAddress: address,
-      owner: holder ? { thread: holder.thread, snapshot: holder.snapshot } : null,
-      blockedThreads: data.threads.sort((a, b) => a.thread.name.localeCompare(b.thread.name)),
-    });
-  });
-
-  // Sort by number of blocked threads descending
-  entries.sort((a, b) => b.blockedThreads.length - a.blockedThreads.length);
-
-  return entries;
+  return { threadCount, criticalIssues, highCpuThreads, blockedThreads, timeRange };
 }
 
-// Stat Card
+// Stat Cards
 
 interface StatCardProps {
   label: string;
@@ -181,302 +76,34 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, alert = false, isTime
   </Paper>
 );
 
-// Thread State Chip
-
-const ThreadStateChip: React.FC<{ state: string }> = ({ state }) => {
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    RUNNABLE: { bg: '#e8f5e9', text: '#2e7d32' },
-    BLOCKED: { bg: '#ffebee', text: '#c62828' },
-    WAITING: { bg: '#fff3e0', text: '#e65100' },
-    TIMED_WAITING: { bg: '#fff8e1', text: '#f57f17' },
-    NEW: { bg: '#e3f2fd', text: '#1565c0' },
-    TERMINATED: { bg: '#f5f5f5', text: '#616161' },
-  };
-  const c = colorMap[state] || { bg: '#f5f5f5', text: '#616161' };
-
-  return (
-    <Chip
-      label={state}
-      size="small"
-      sx={{
-        backgroundColor: c.bg,
-        color: c.text,
-        fontWeight: 700,
-        fontSize: '0.65rem',
-        height: 22,
-        borderRadius: 1,
-        letterSpacing: '0.04em',
-        flexShrink: 0,
-      }}
-    />
-  );
-};
-
-// Lock Contention Card
-
-const LockContentionCard: React.FC<{ lock: DerivedLockEntry; defaultExpanded?: boolean }> = ({ lock, defaultExpanded = false }) => {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  // Add navigate hook here
-  const navigate = useNavigate();
-
-  // Create a helper function to handle the redirect
-  const handleThreadClick = (threadName: string) => {
-    // Navigate to Thread Explorer and pass the thread name in the state
-    navigate('/thread-explorer', { state: { searchThread: threadName } });
-  };
-
-  return (
-    <Box
-      sx={{
-        borderLeft: '3px solid #e53935',
-        mb: 2,
-        backgroundColor: '#fff',
-        borderRadius: '0 8px 8px 0',
-      }}
-    >
-      {/* Header Row */}
-      <Box
-        onClick={() => setExpanded(!expanded)}
-        sx={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          p: 2,
-          cursor: 'pointer',
-          '&:hover': { backgroundColor: '#fafafa' },
-          borderRadius: '0 8px 8px 0',
-        }}
-      >
-        <Box sx={{ mr: 1, mt: 0.25 }}>
-          {expanded ? (
-            <ExpandMoreIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-          ) : (
-            <ChevronRightIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-          )}
-        </Box>
-        <LockOutlinedIcon sx={{ fontSize: 18, color: '#e53935', mr: 1, mt: 0.3 }} />
-        <Box>
-          <Typography
-            variant="body2"
-            sx={{ fontFamily: 'monospace', fontWeight: 600, color: '#111' }}
-          >
-            {lock.className}
-          </Typography>
-          <Typography variant="caption" color="text.disabled" display="block">
-            &lt;{lock.lockAddress}&gt;
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {lock.blockedThreads.length} thread{lock.blockedThreads.length !== 1 ? 's' : ''} blocked waiting for this lock
-          </Typography>
-        </Box>
-      </Box>
-
-      {/* Expanded Content */}
-      <Collapse in={expanded}>
-        <Box sx={{ px: 2, pb: 2, pl: 5 }}>
-          {/* Lock Owner */}
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontWeight: 600, display: 'block', mb: 1, mt: 0.5, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.68rem' }}
-          >
-            Lock Owner
-          </Typography>
-          {lock.owner ? (
-            <Paper
-              elevation={0}
-              sx={{
-                p: 1.5,
-                border: '1px solid #c8e6c9',
-                backgroundColor: '#f1f8e9',
-                borderRadius: 1.5,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                mb: 2,
-              }}
-            >
-              <Box>
-                <Typography
-                  variant="body2"
-                  onClick={() => handleThreadClick(lock.owner!.thread.name)}
-                  sx={{
-                    fontFamily: 'monospace',
-                    fontWeight: 600,
-                    color: '#1565c0',
-                    cursor: 'pointer',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                >
-                  {lock.owner.thread.name}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  This thread is currently holding the lock
-                </Typography>
-              </Box>
-              <ThreadStateChip state={lock.owner.snapshot.state} />
-            </Paper>
-          ) : (
-            <Paper
-              elevation={0}
-              sx={{
-                p: 1.5,
-                border: '1px solid #e0e0e0',
-                backgroundColor: '#fafafa',
-                borderRadius: 1.5,
-                mb: 2,
-              }}
-            >
-              <Typography variant="caption" color="text.secondary" fontStyle="italic">
-                Lock owner could not be identified from the thread dump
-              </Typography>
-            </Paper>
-          )}
-
-          {/* Blocked Threads */}
-          {lock.blockedThreads.length > 0 && (
-            <>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ fontWeight: 600, display: 'block', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.68rem' }}
-              >
-                Blocked Threads ({lock.blockedThreads.length})
-              </Typography>
-              <Box display="flex" flexDirection="column" gap={1}>
-                {lock.blockedThreads.map((blocked, idx) => (
-                  <Paper
-                    key={idx}
-                    elevation={0}
-                    sx={{
-                      p: 1.5,
-                      border: '1px solid #ffcdd2',
-                      backgroundColor: '#fff8f0',
-                      borderRadius: 1.5,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        onClick={() => handleThreadClick(blocked.thread.name)}
-                        sx={{
-                          fontFamily: 'monospace',
-                          fontWeight: 600,
-                          color: '#1565c0',
-                          cursor: 'pointer',
-                          '&:hover': { textDecoration: 'underline' },
-                        }}
-                      >
-                        {blocked.thread.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Waiting to lock &lt;{blocked.lockAddress}&gt;
-                        {blocked.waitTime ? ` (${blocked.waitTime})` : ''}
-                      </Typography>
-                    </Box>
-                    <ThreadStateChip state={blocked.snapshot.state} />
-                  </Paper>
-                ))}
-              </Box>
-            </>
-          )}
-        </Box>
-      </Collapse>
-    </Box>
-  );
-};
-
-// Summary Computation
-
-function computeSummary(threads: Thread[]) {
-  const latestSnapshots: ThreadSnapshot[] = [];
-  threads.forEach(t => {
-    if (t.snapshots.length > 0) {
-      latestSnapshots.push(t.snapshots[t.snapshots.length - 1]);
-    }
-  });
-
-  const threadCount = latestSnapshots.length;
-  const blockedThreads = latestSnapshots.filter(s => s.state === 'BLOCKED').length;
-  const highCpuThreads = latestSnapshots.filter(s => s.cpu_percent > 0).length;
-
-  // Count unique contended locks as critical issues
-  const criticalIssues = new Set(
-    latestSnapshots
-      .filter(s => s.state === 'BLOCKED')
-      .map(s => {
-        const lock = findWaitingLock(s.stack_trace);
-        return lock?.address;
-      })
-      .filter(Boolean)
-  ).size;
-
-  // Time range from dump names
-  const dumpNames = [...new Set(latestSnapshots.map(s => s.dump_name))]
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-  const timeRange = dumpNames.length > 1
-    ? `${dumpNames[0]} - ${dumpNames[dumpNames.length - 1]}`
-    : dumpNames[0] || 'N/A';
-
-
-  return { threadCount, criticalIssues, highCpuThreads, blockedThreads, timeRange };
-}
-
-/* Main Component */
+// Main Component
 
 const DashboardHome: React.FC = () => {
   const { data } = useAnalysisData();
-  const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
   const threads = data?.threads ?? [];
 
-  // Derive summary stats
   const summary = useMemo(() => computeSummary(threads), [threads]);
 
-  // Derive lock contention from stack traces
-  const lockEntries = useMemo(() => deriveLockContention(threads), [threads]);
+  const topCpuThreads = useMemo(() =>
+    [...threads]
+      .map(t => ({ name: t.name, cpu: t.snapshots.at(-1)?.cpu_percent ?? 0 }))
+      .filter(t => t.cpu > 0)
+      .sort((a, b) => b.cpu - a.cpu)
+      .slice(0, 5),
+  [threads]);
 
-  // Filter lock entries by search
-  const filteredLocks = useMemo(() => {
-    if (!searchQuery.trim()) return lockEntries;
-    const q = searchQuery.toLowerCase();
-    return lockEntries.filter(lock =>
-      lock.className.toLowerCase().includes(q) ||
-      lock.lockAddress.toLowerCase().includes(q) ||
-      lock.owner?.thread.name.toLowerCase().includes(q) ||
-      lock.blockedThreads.some(bt => bt.thread.name.toLowerCase().includes(q))
-    );
-  }, [lockEntries, searchQuery]);
+  const topElapsedThreads = useMemo(() =>
+    [...threads]
+      .map(t => ({ name: t.name, elapsed: t.snapshots.at(-1)?.elapsed_time_s ?? 0 }))
+      .filter(t => t.elapsed > 0)
+      .sort((a, b) => b.elapsed - a.elapsed)
+      .slice(0, 5),
+  [threads]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 2000, mx: 'auto' }}>
-
-      {/* Top Bar: Search*/}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Paper
-          elevation={0}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            border: '1px solid #e0e0e0',
-            borderRadius: 2,
-            px: 1.5,
-            py: 0.25,
-            width: 320,
-          }}
-        >
-          <SearchIcon sx={{ color: 'text.disabled', fontSize: 20, mr: 1 }} />
-          <InputBase
-            placeholder="Search threads, pools, or stack traces..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ flex: 1, fontSize: '0.85rem' }}
-          />
-        </Paper>
-      </Box>
 
       {/* Analysis Summary */}
       <Typography variant="subtitle1" fontWeight={700} mb={1.5}>
@@ -493,7 +120,6 @@ const DashboardHome: React.FC = () => {
       {/* Main Content */}
       <Box display="flex" gap={3} flexDirection={{ xs: 'column', md: 'row' }}>
 
-        {/* LEFT COLUMN */}
         <Box flex={2} minWidth={0}>
 
           {/* Key Findings (placeholder) */}
@@ -520,7 +146,7 @@ const DashboardHome: React.FC = () => {
             </Box>
           </Paper>
 
-          {/* Lock Contention & Monitors */}
+          {/* Interesting Highlights */}
           <Paper
             elevation={0}
             sx={{
@@ -529,42 +155,124 @@ const DashboardHome: React.FC = () => {
               borderRadius: 2,
             }}
           >
-            <Box display="flex" alignItems="center" gap={1} mb={0.5}>
-              <LockOutlinedIcon sx={{ fontSize: 20, color: '#e53935' }} />
-              <Typography variant="subtitle2" fontWeight={700}>
-                Lock Contention & Monitors
-              </Typography>
-            </Box>
+            <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+              Interesting Highlights
+            </Typography>
             <Typography variant="caption" color="text.secondary" display="block" mb={2.5}>
-              Critical monitors under contention and blocked thread correlations
+              Threads with notable CPU usage or long elapsed times
             </Typography>
 
-            {filteredLocks.length > 0 ? (
-              filteredLocks.map((lock) => (
-                <LockContentionCard
-                  key={lock.lockAddress}
-                  lock={lock}
-                  defaultExpanded={false}
-                />
-              ))
-            ) : (
-              <Box
-                sx={{
-                  py: 4,
-                  textAlign: 'center',
-                  color: 'text.disabled',
-                }}
-              >
-                <LockOutlinedIcon sx={{ fontSize: 36, mb: 1, opacity: 0.4 }} />
-                <Typography variant="body2" color="text.disabled">
-                  {threads.length === 0
-                    ? 'No analysis data loaded'
-                    : searchQuery
-                      ? 'No lock contention matches your search'
-                      : 'No lock contention detected in the thread dumps'}
-                </Typography>
+            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
+
+              {/* High CPU Threads */}
+              <Box flex={1}>
+                <Box display="flex" alignItems="center" gap={0.75} mb={1.5}>
+                  <TrendingUpIcon sx={{ fontSize: 16, color: '#e53935' }} />
+                  <Typography
+                    variant="caption"
+                    fontWeight={700}
+                    color="#e53935"
+                    sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                  >
+                    High CPU Threads
+                  </Typography>
+                </Box>
+                {topCpuThreads.length > 0 ? (
+                  topCpuThreads.map((t, idx) => (
+                    <Box
+                      key={idx}
+                      onClick={() => navigate('/thread-explorer', { state: { searchThread: t.name } })}
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        py: 1,
+                        px: 1.5,
+                        mb: 0.75,
+                        borderRadius: 1.5,
+                        border: '1px solid #ffcdd2',
+                        bgcolor: '#fff8f8',
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: '#ffebee', borderColor: '#e53935' },
+                        transition: 'background-color 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#1565c0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mr: 1 }}
+                        title={t.name}
+                      >
+                        {t.name}
+                      </Typography>
+                      <Chip
+                        label={`${t.cpu.toFixed(1)}%`}
+                        size="small"
+                        sx={{ bgcolor: '#e53935', color: 'white', fontWeight: 700, fontSize: '0.65rem', height: 20, flexShrink: 0 }}
+                      />
+                    </Box>
+                  ))
+                ) : (
+                  <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                    No high-CPU threads detected
+                  </Typography>
+                )}
               </Box>
-            )}
+
+              {/* Long-Running Threads */}
+              <Box flex={1}>
+                <Box display="flex" alignItems="center" gap={0.75} mb={1.5}>
+                  <AccessTimeIcon sx={{ fontSize: 16, color: '#ff6d00' }} />
+                  <Typography
+                    variant="caption"
+                    fontWeight={700}
+                    color="#e65100"
+                    sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                  >
+                    Long-Running Threads
+                  </Typography>
+                </Box>
+                {topElapsedThreads.length > 0 ? (
+                  topElapsedThreads.map((t, idx) => (
+                    <Box
+                      key={idx}
+                      onClick={() => navigate('/thread-explorer', { state: { searchThread: t.name } })}
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        py: 1,
+                        px: 1.5,
+                        mb: 0.75,
+                        borderRadius: 1.5,
+                        border: '1px solid #ffe0b2',
+                        bgcolor: '#fff8f0',
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: '#fff3e0', borderColor: '#ff9800' },
+                        transition: 'background-color 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#1565c0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mr: 1 }}
+                        title={t.name}
+                      >
+                        {t.name}
+                      </Typography>
+                      <Chip
+                        label={t.elapsed >= 1 ? `${t.elapsed.toFixed(1)}s` : `${Math.round(t.elapsed * 1000)}ms`}
+                        size="small"
+                        sx={{ bgcolor: '#ff6d00', color: 'white', fontWeight: 700, fontSize: '0.65rem', height: 20, flexShrink: 0 }}
+                      />
+                    </Box>
+                  ))
+                ) : (
+                  <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                    No long-running threads detected
+                  </Typography>
+                )}
+              </Box>
+
+            </Box>
           </Paper>
         </Box>
 

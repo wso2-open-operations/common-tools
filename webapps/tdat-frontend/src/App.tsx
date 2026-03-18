@@ -20,6 +20,7 @@ import UploadPage from './pages/UploadPage';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardHome from './components/Dashboard/DashboardHome';
 import ThreadExplorer from './components/Dashboard/ThreadExplorer';
+import LockContention from './components/Dashboard/LockContention';
 import { AnalysisProvider } from './context/AnalysisContext';
 import LoginIcon from '@mui/icons-material/Login';
 
@@ -132,6 +133,11 @@ function App() {
                   {/* Thread Explorer */}
                   <Route path="/thread-explorer" element={<DashboardLayout isSidebarOpen={isSidebarOpen} />}>
                     <Route index element={<ThreadExplorer />} />
+                  </Route>
+
+                  {/* Lock Contention */}
+                  <Route path="/lock-contention" element={<DashboardLayout isSidebarOpen={isSidebarOpen} />}>
+                    <Route index element={<LockContention />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />

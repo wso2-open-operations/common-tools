@@ -35,7 +35,7 @@ const getStateLabel = (value: number) => {
 const StackTraceViewer: React.FC<{ snapshot: ThreadSnapshot; index: number }> = ({ snapshot, index }) => {
     // Fallback for missing state
     const displayState = snapshot.state || 'N/A';
-    
+
     return (
         <Box sx={{ mt: 2, mb: 3 }}>
             <Box display="flex" alignItems="center" gap={2} mb={1}>
@@ -46,10 +46,10 @@ const StackTraceViewer: React.FC<{ snapshot: ThreadSnapshot; index: number }> = 
                     label={displayState}
                     size="small"
                     color={
-                        displayState === 'RUNNABLE' ? 'success' : 
-                        displayState === 'WAITING' ? 'info' : 
-                        displayState === 'BLOCKED' ? 'error' : 
-                        displayState === 'TIMED_WAITING' ? 'secondary' : 'default'
+                        displayState === 'RUNNABLE' ? 'success' :
+                            displayState === 'WAITING' ? 'info' :
+                                displayState === 'BLOCKED' ? 'error' :
+                                    displayState === 'TIMED_WAITING' ? 'secondary' : 'default'
                     }
                     variant="outlined"
                 />
@@ -131,10 +131,10 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                             label={stats.lastState}
                             size="small"
                             color={
-                                stats.lastState === 'RUNNABLE' ? 'success' : 
-                                stats.lastState === 'WAITING' ? 'info' : 
-                                stats.lastState === 'BLOCKED' ? 'error' : 
-                                stats.lastState === 'TIMED_WAITING' ? 'secondary' : 'default'
+                                stats.lastState === 'RUNNABLE' ? 'success' :
+                                    stats.lastState === 'WAITING' ? 'info' :
+                                        stats.lastState === 'BLOCKED' ? 'error' :
+                                            stats.lastState === 'TIMED_WAITING' ? 'secondary' : 'default'
                             }
                         />
                     </Grid>
@@ -245,7 +245,7 @@ const ThreadExplorer: React.FC = () => {
             if (targetThread) {
                 setSelectedPool(targetThread.thread_pool || "Uncategorized");
             } else {
-                setSelectedPool(Object.keys(threadsByPool)[0]); 
+                setSelectedPool(Object.keys(threadsByPool)[0]);
             }
 
             // Clear the router state
@@ -291,7 +291,7 @@ const ThreadExplorer: React.FC = () => {
             const totalUserTime = snapshots.reduce((acc, s) => acc + (s.cpu_time_ms || 0), 0);
             const avgUserTime = snapshots.length > 0 ? (totalUserTime / snapshots.length) : 0;
             const avgCpu = lastSnap?.cpu_percent || 0;
-            
+
             // Defensively check for state to ensure it never throws an undefined error
             const displayState = lastSnap?.state || 'N/A';
 
@@ -351,7 +351,7 @@ const ThreadExplorer: React.FC = () => {
 
     const handlePoolChange = (pool: string) => {
         setSelectedPool(pool);
-        setSearchQuery(''); 
+        setSearchQuery('');
     };
 
     return (
@@ -444,35 +444,6 @@ const ThreadExplorer: React.FC = () => {
                     </Paper>
                 )}
 
-                {/* Pagination Controls */}
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color="text.secondary">Threads per page:</Typography>
-                        <Select
-                            size="small"
-                            value={rowsPerPage}
-                            onChange={(e: SelectChangeEvent<number>) => setRowsPerPage(Number(e.target.value))}
-                            sx={{ bgcolor: 'white', height: 32 }}
-                        >
-                            <MenuItem value={10}>10</MenuItem>
-                            <MenuItem value={25}>25</MenuItem>
-                            <MenuItem value={50}>50</MenuItem>
-                        </Select>
-                    </Box>
-
-                    {totalPages > 0 && (
-                        <Pagination
-                            count={totalPages}
-                            page={page}
-                            onChange={(_, val) => setPage(val)}
-                            showFirstButton
-                            showLastButton
-                            shape="rounded"
-                            sx={{ '& .MuiPaginationItem-root.Mui-selected': { bgcolor: '#ff6d00', color: 'white' } }}
-                        />
-                    )}
-                </Box>
-
                 {/* Header Row with Sort Labels */}
                 <Paper sx={{ p: 2, mb: 2, bgcolor: '#f1f3f4', borderRadius: 4 }} elevation={0}>
                     <Grid container spacing={2}>
@@ -526,6 +497,36 @@ const ThreadExplorer: React.FC = () => {
                         </Typography>
                     </Box>
                 )}
+
+                {/* Pagination Controls */}
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" color="text.secondary">Threads shown per page:</Typography>
+                        <Select
+                            size="small"
+                            value={rowsPerPage}
+                            onChange={(e: SelectChangeEvent<number>) => setRowsPerPage(Number(e.target.value))}
+                            sx={{ bgcolor: 'white', height: 32 }}
+                        >
+                            <MenuItem value={10}>10</MenuItem>
+                            <MenuItem value={25}>25</MenuItem>
+                            <MenuItem value={50}>50</MenuItem>
+                            <MenuItem value={100}>100</MenuItem>
+                        </Select>
+                    </Box>
+
+                    {totalPages > 0 && (
+                        <Pagination
+                            count={totalPages}
+                            page={page}
+                            onChange={(_, val) => setPage(val)}
+                            showFirstButton
+                            showLastButton
+                            shape="rounded"
+                            sx={{ '& .MuiPaginationItem-root.Mui-selected': { bgcolor: '#ff6d00', color: 'white' } }}
+                        />
+                    )}
+                </Box>
             </Box>
         </Box>
     );
