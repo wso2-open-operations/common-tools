@@ -276,7 +276,7 @@ const VictimRow: React.FC<{
     victim: BlockedThreadInfo;
     onThreadClick: (name: string) => void;
 }> = ({ victim, onThreadClick }) => (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, flexWrap: 'wrap' }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 0.75 }}>
         <Typography
             variant="body2"
             onClick={() => onThreadClick(victim.thread.name)}
@@ -286,17 +286,24 @@ const VictimRow: React.FC<{
                 fontSize: '0.8rem',
                 color: '#1565c0',
                 cursor: 'pointer',
+                flex: 1,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
                 '&:hover': { textDecoration: 'underline' },
             }}
         >
             {victim.thread.name}
         </Typography>
-        <ThreadStateChip state={victim.snapshot.state} />
-        {victim.waitTime && (
-            <Typography variant="caption" sx={{ color: '#888', fontSize: '0.75rem' }}>
-                Waiting for {victim.waitTime}
-            </Typography>
-        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, ml: 2 }}>
+            <ThreadStateChip state={victim.snapshot.state} />
+            {victim.waitTime && (
+                <Typography variant="caption" sx={{ color: '#888', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                    Waiting for {victim.waitTime}
+                </Typography>
+            )}
+        </Box>
     </Box>
 );
 
@@ -315,10 +322,21 @@ const MonitorSection: React.FC<{
     const hiddenCount = lock.victims.length - VICTIM_LIMIT;
 
     return (
-        <Box sx={{ mb: 2 }}>
-            {/* Lock sub-header */}
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, mb: 0.25, flexWrap: 'wrap' }}>
-                <LockOutlinedIcon sx={{ fontSize: 14, color: '#555', flexShrink: 0, mt: '2px' }} />
+        <Box sx={{ mb: 2, border: '1px solid #eeeeee', borderRadius: 1.5, overflow: 'hidden' }}>
+            {/* Lock sub-header — grey background band */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    px: 2,
+                    py: 0.9,
+                    bgcolor: '#f5f5f5',
+                    flexWrap: 'wrap',
+                    borderBottom: '1px solid #eeeeee',
+                }}
+            >
+                <LockOutlinedIcon sx={{ fontSize: 14, color: '#555', flexShrink: 0 }} />
                 <Typography variant="body2" sx={{ fontWeight: 700, color: '#333', fontSize: '0.8rem' }}>
                     {shortName}
                 </Typography>
@@ -326,39 +344,47 @@ const MonitorSection: React.FC<{
                     ( {lock.className} )
                 </Typography>
                 <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#999', fontSize: '0.72rem' }}>
-                    &lt; {lock.address} &gt;
+                    &lt;{lock.address}&gt;
+                </Typography>
+                <Typography variant="caption" sx={{ ml: 'auto', color: '#888', whiteSpace: 'nowrap' }}>
+                    {lock.victims.length} thread{lock.victims.length !== 1 ? 's' : ''} blocked on this monitor
                 </Typography>
             </Box>
-            <Typography variant="caption" sx={{ color: '#888', display: 'block', mb: 0.75, pl: 3 }}>
-                {lock.victims.length} thread{lock.victims.length !== 1 ? 's' : ''} blocked on this monitor
-            </Typography>
 
             {/* Victim list */}
-            <Box sx={{ pl: 3 }}>
-                {visibleVictims.map(victim => (
-                    <VictimRow key={victim.thread.id} victim={victim} onThreadClick={onThreadClick} />
-                ))}
-                {!showAll && hiddenCount > 0 && (
-                    <Button
-                        size="small"
-                        variant="text"
-                        onClick={() => setShowAll(true)}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem', color: '#1565c0', p: 0, mt: 0.25 }}
-                    >
-                        Show all {lock.victims.length} threads
-                    </Button>
-                )}
-                {showAll && hiddenCount > 0 && (
-                    <Button
-                        size="small"
-                        variant="text"
-                        onClick={() => setShowAll(false)}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem', color: '#888', p: 0, mt: 0.25 }}
-                    >
-                        Show fewer
-                    </Button>
-                )}
-            </Box>
+            {lock.victims.length === 0 ? (
+                <Box sx={{ px: 2, py: 2, bgcolor: '#fafafa', textAlign: 'center' }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                        No blocked threads recorded for this monitor.
+                    </Typography>
+                </Box>
+            ) : (
+                <>
+                    {visibleVictims.map((victim, idx) => (
+                        <React.Fragment key={victim.thread.id}>
+                            {idx > 0 && <Divider />}
+                            <VictimRow victim={victim} onThreadClick={onThreadClick} />
+                        </React.Fragment>
+                    ))}
+
+                    {/* Show all / Show fewer footer strip */}
+                    {hiddenCount > 0 && (
+                        <>
+                            <Divider />
+                            <Box sx={{ textAlign: 'center', py: 0.5, bgcolor: '#fafafa' }}>
+                                <Button
+                                    size="small"
+                                    variant="text"
+                                    onClick={() => setShowAll(v => !v)}
+                                    sx={{ textTransform: 'none', fontSize: '0.75rem', color: '#1565c0' }}
+                                >
+                                    {showAll ? 'Show fewer' : `Show all ${lock.victims.length} threads`}
+                                </Button>
+                            </Box>
+                        </>
+                    )}
+                </>
+            )}
         </Box>
     );
 };
@@ -431,16 +457,10 @@ const CulpritAccordion: React.FC<{
                 </Box>
             </AccordionSummary>
 
-            <AccordionDetails sx={{ px: 2.5, pb: 2, pt: 0 }}>
-                <Divider sx={{ mb: 1.75 }} />
-                <Box>
-                    {entry.heldLocks.map((lock, idx) => (
-                        <Box key={lock.address}>
-                            {idx > 0 && <Divider sx={{ my: 1.5 }} />}
-                            <MonitorSection lock={lock} onThreadClick={onThreadClick} />
-                        </Box>
-                    ))}
-                </Box>
+            <AccordionDetails sx={{ px: 2, pb: 2, pt: 1.5 }}>
+                {entry.heldLocks.map(lock => (
+                    <MonitorSection key={lock.address} lock={lock} onThreadClick={onThreadClick} />
+                ))}
             </AccordionDetails>
         </Accordion>
     );
@@ -448,11 +468,17 @@ const CulpritAccordion: React.FC<{
 
 // ─── OrphanedLockCard ─────────────────────────────────────────────────────────
 
+const ORPHAN_VICTIM_LIMIT = 10;
+
 const OrphanedLockCard: React.FC<{
     lock: OrphanedLock;
     onThreadClick: (name: string) => void;
 }> = ({ lock, onThreadClick }) => {
+    const [showAll, setShowAll] = useState(false);
+
     const shortName = lock.className.split('.').pop() ?? lock.className;
+    const visibleVictims = showAll ? lock.victims : lock.victims.slice(0, ORPHAN_VICTIM_LIMIT);
+    const hiddenCount = lock.victims.length - ORPHAN_VICTIM_LIMIT;
 
     return (
         <Accordion
@@ -511,14 +537,45 @@ const OrphanedLockCard: React.FC<{
                 />
             </AccordionSummary>
 
-            <AccordionDetails sx={{ px: 2.5, pb: 1.5, pt: 0 }}>
-                <Divider sx={{ mb: 1.25 }} />
-                <Typography variant="caption" sx={{ color: '#888', display: 'block', mb: 0.75, fontFamily: 'monospace' }}>
-                    {lock.className}
-                </Typography>
-                {lock.victims.map(victim => (
-                    <VictimRow key={victim.thread.id} victim={victim} onThreadClick={onThreadClick} />
-                ))}
+            <AccordionDetails sx={{ p: 0 }}>
+                {/* Full class name sub-header on grey */}
+                <Box sx={{ px: 2, py: 0.75, bgcolor: '#f5f5f5', borderTop: '1px solid #ffe0b2', borderBottom: '1px solid #eeeeee' }}>
+                    <Typography variant="caption" sx={{ color: '#777', fontFamily: 'monospace', fontSize: '0.72rem' }}>
+                        {lock.className}
+                    </Typography>
+                </Box>
+
+                {lock.victims.length === 0 ? (
+                    <Box sx={{ px: 2, py: 2, bgcolor: '#fafafa', textAlign: 'center' }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            No blocked threads recorded for this monitor.
+                        </Typography>
+                    </Box>
+                ) : (
+                    <>
+                        {visibleVictims.map((victim, idx) => (
+                            <React.Fragment key={victim.thread.id}>
+                                {idx > 0 && <Divider />}
+                                <VictimRow victim={victim} onThreadClick={onThreadClick} />
+                            </React.Fragment>
+                        ))}
+                        {hiddenCount > 0 && (
+                            <>
+                                <Divider />
+                                <Box sx={{ textAlign: 'center', py: 0.5, bgcolor: '#fafafa' }}>
+                                    <Button
+                                        size="small"
+                                        variant="text"
+                                        onClick={() => setShowAll(v => !v)}
+                                        sx={{ textTransform: 'none', fontSize: '0.75rem', color: '#e65100' }}
+                                    >
+                                        {showAll ? 'Show fewer' : `Show all ${lock.victims.length} threads`}
+                                    </Button>
+                                </Box>
+                            </>
+                        )}
+                    </>
+                )}
             </AccordionDetails>
         </Accordion>
     );
@@ -539,6 +596,13 @@ const LockContention: React.FC = () => {
 
     const totalBlocked = culprits.reduce((acc, c) => acc + c.totalVictims, 0);
     const hasContention = culprits.length > 0 || orphanedLocks.length > 0;
+
+    const ORPHAN_LOCK_LIMIT = 15;
+    const [showAllOrphanedLocks, setShowAllOrphanedLocks] = useState(false);
+    const visibleOrphanedLocks = showAllOrphanedLocks
+        ? orphanedLocks
+        : orphanedLocks.slice(0, ORPHAN_LOCK_LIMIT);
+    const hiddenOrphanedCount = orphanedLocks.length - ORPHAN_LOCK_LIMIT;
 
     // Fixed Routing Path
     const handleThreadClick = (name: string) => {
@@ -577,7 +641,7 @@ const LockContention: React.FC = () => {
                 <Paper
                     elevation={0}
                     sx={{
-                        display: 'flex',
+                        display: 'inline-flex',
                         gap: 4,
                         px: 2.5,
                         py: 1.25,
@@ -589,7 +653,6 @@ const LockContention: React.FC = () => {
                     }}
                 >
                     {[
-                        { label: 'Timestamp', value: data.timestamp },
                         { label: 'Total Threads', value: threads.length },
                     ].map(({ label, value }) => (
                         <Box key={label}>
@@ -639,7 +702,7 @@ const LockContention: React.FC = () => {
                 )}
 
                 {/* Culprit Threads Section */}
-                {culprits.length > 0 && (
+                {hasContention && (
                     <Box sx={{ mb: 4 }}>
                         <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5, color: '#1a1a2e' }}>
                             Culprit Threads (Owners)
@@ -647,7 +710,30 @@ const LockContention: React.FC = () => {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.75 }}>
                             Threads holding locks/monitors and blocking other threads, sorted by impact.
                         </Typography>
-                        {culprits.map(entry => (
+                        {culprits.length === 0 ? (
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    p: 2.5,
+                                    bgcolor: '#f5f5f5',
+                                    border: '1px solid #e0e0e0',
+                                    borderRadius: 2,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1.5,
+                                }}
+                            >
+                                <LockOutlinedIcon sx={{ color: '#bbb', fontSize: 22, flexShrink: 0 }} />
+                                <Box>
+                                    <Typography variant="body2" fontWeight={600} color="text.secondary">
+                                        No culprit threads identified
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        No thread was found actively holding a lock that is blocking others. The monitors below may be orphaned or already released.
+                                    </Typography>
+                                </Box>
+                            </Paper>
+                        ) : culprits.map(entry => (
                             <CulpritAccordion key={entry.thread.id} entry={entry} onThreadClick={handleThreadClick} />
                         ))}
                     </Box>
@@ -662,9 +748,23 @@ const LockContention: React.FC = () => {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                             Locks with blocked threads but no identifiable owner in the current snapshot.
                         </Typography>
-                        {orphanedLocks.map(lock => (
+                        {visibleOrphanedLocks.map(lock => (
                             <OrphanedLockCard key={lock.address} lock={lock} onThreadClick={handleThreadClick} />
                         ))}
+                        {hiddenOrphanedCount > 0 && (
+                            <Box sx={{ textAlign: 'center', py: 0.5 }}>
+                                <Button
+                                    size="small"
+                                    variant="text"
+                                    onClick={() => setShowAllOrphanedLocks(v => !v)}
+                                    sx={{ textTransform: 'none', fontSize: '0.75rem', color: '#e65100' }}
+                                >
+                                    {showAllOrphanedLocks
+                                        ? 'Show fewer'
+                                        : `Show all ${orphanedLocks.length} locks`}
+                                </Button>
+                            </Box>
+                        )}
                     </Box>
                 )}
 

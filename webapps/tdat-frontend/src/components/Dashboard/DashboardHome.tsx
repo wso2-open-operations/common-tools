@@ -1,289 +1,744 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Box, Typography, Paper, Chip
+  Box, Typography, Paper, Chip, CircularProgress as MuiCircularProgress,
+  Tabs, Tab, Table,
+  TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Button, Select, MenuItem
 } from '@mui/material';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import LayersIcon from '@mui/icons-material/Layers';
+import { PieChart } from '@mui/x-charts';
 import { useAnalysisData } from '../../context/AnalysisContext';
 import type { Thread, ThreadSnapshot } from '../../types/api';
 import { useNavigate } from 'react-router-dom';
 
-function computeSummary(threads: Thread[]) {
-  const latestSnapshots: ThreadSnapshot[] = [];
-  threads.forEach(t => {
-    if (t.snapshots.length > 0) {
-      latestSnapshots.push(t.snapshots[t.snapshots.length - 1]);
-    }
-  });
+// Types
 
-  const threadCount = latestSnapshots.length;
-  const blockedThreads = latestSnapshots.filter(s => s.state === 'BLOCKED').length;
-  const highCpuThreads = latestSnapshots.filter(s => s.cpu_percent > 0).length;
-  const criticalIssues = latestSnapshots.filter(s => s.state === 'BLOCKED').length;
-
-  const dumpNames = [...new Set(latestSnapshots.map(s => s.dump_name))]
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-  const timeRange = dumpNames.length > 1
-    ? `${dumpNames[0]} - ${dumpNames[dumpNames.length - 1]}`
-    : dumpNames[0] || 'N/A';
-
-  return { threadCount, criticalIssues, highCpuThreads, blockedThreads, timeRange };
+interface DashboardSummary {
+  threadCount: number;
+  criticalIssues: number;
+  blockedThreads: number;
+  healthScore: number;
+  trendPercent: number | null;
 }
 
-// Stat Cards
-
-interface StatCardProps {
-  label: string;
-  value: string | number;
-  alert?: boolean;
-  isTime?: boolean;
+interface ThreadCluster {
+  clusterName: string;
+  count: number;
+  dominantState: string;
+  threadNames: string[];
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, alert = false, isTime = false }) => (
-  <Paper
-    elevation={0}
-    sx={{
-      flex: 1,
-      p: 2,
-      border: '1px solid #e8e8e8',
-      borderRadius: 1.5,
-      position: 'relative',
-      minWidth: 0,
-    }}
-  >
-    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ fontSize: '0.75rem', fontWeight: 500, letterSpacing: '0.01em' }}
-      >
-        {label}
-      </Typography>
-      {alert && (
-        <WarningAmberIcon sx={{ fontSize: 16, color: '#e53935' }} />
-      )}
-    </Box>
-    <Typography
-      variant={isTime ? 'body1' : 'h4'}
-      fontWeight={isTime ? 500 : 700}
-      sx={{ mt: 0.5, color: '#111', fontSize: isTime ? '0.9rem' : undefined }}
-    >
-      {value}
-    </Typography>
-  </Paper>
-);
+interface LongRunningThread {
+  threadName: string;
+  state: string;
+  elapsedSeconds: number;
+}
 
-// Main Component
+// Constants
+
+const STATE_COLORS: Record<string, string> = {
+  RUNNABLE: '#43a047',
+  WAITING: '#ff9800',
+  TIMED_WAITING: '#1976d2',
+  BLOCKED: '#e53935',
+  TERMINATED: '#fffbfb',
+};
+
+const STATE_ORDER = ['RUNNABLE', 'WAITING', 'TIMED_WAITING', 'BLOCKED', 'N/A', 'TERMINATED'];
+
+// Helpers
+
+function computeHealthScore(snapshots: ThreadSnapshot[]): number {
+  if (snapshots.length === 0) return 100;
+  const total = snapshots.length;
+  const blocked = snapshots.filter(s => s.state === 'BLOCKED').length;
+  const waiting = snapshots.filter(s => s.state === 'WAITING').length;
+  const timedWaiting = snapshots.filter(s => s.state === 'TIMED_WAITING').length;
+  const penalty =
+    (blocked / total) * 50 +
+    (waiting / total) * 15 +
+    (timedWaiting / total) * 5;
+  return Math.max(0, Math.round(100 - penalty));
+}
+
+function getHealthMeta(score: number): { label: string; labelColor: string; barColor: string } {
+  if (score >= 90) return { label: 'Excellent', labelColor: '#2e7d32', barColor: '#43a047' };
+  if (score >= 75) return { label: 'Good', labelColor: '#388e3c', barColor: '#43a047' };
+  if (score >= 50) return { label: 'Fair', labelColor: '#f57c00', barColor: '#ff9800' };
+  return { label: 'Poor', labelColor: '#c62828', barColor: '#e53935' };
+}
+
+function getClusterKey(stackTrace: string[]): string {
+  for (const line of stackTrace) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('at ')) return trimmed.substring(3).trim();
+  }
+  return stackTrace[0]?.trim() || 'Unknown';
+}
+
+// ThreadStateChip
+
+const ThreadStateChip: React.FC<{ state: string }> = ({ state }) => {
+  const colorMap: Record<string, { bg: string; text: string }> = {
+    RUNNABLE: { bg: '#e8f5e9', text: '#2e7d32' },
+    BLOCKED: { bg: '#ffebee', text: '#c62828' },
+    WAITING: { bg: '#fff3e0', text: '#e65100' },
+    TIMED_WAITING: { bg: '#fff8e1', text: '#f57f17' },
+    NEW: { bg: '#e3f2fd', text: '#1565c0' },
+    TERMINATED: { bg: '#f5f5f5', text: '#616161' },
+  };
+  const c = colorMap[state] ?? { bg: '#f5f5f5', text: '#616161' };
+  return (
+    <Chip
+      label={state}
+      size="small"
+      sx={{
+        backgroundColor: c.bg,
+        color: c.text,
+        fontWeight: 700,
+        fontSize: '0.65rem',
+        height: 22,
+        borderRadius: 1,
+        letterSpacing: '0.04em',
+      }}
+    />
+  );
+};
+
+// DashboardHome
 
 const DashboardHome: React.FC = () => {
   const { data } = useAnalysisData();
   const navigate = useNavigate();
+  const [selectedDump, setSelectedDump] = useState<string>('');
+  const [activityTab, setActivityTab] = useState(0);
 
-  const threads = data?.threads ?? [];
+  const threads: Thread[] = data?.threads ?? [];
 
-  const summary = useMemo(() => computeSummary(threads), [threads]);
+  // Unique dump names, sorted naturally
+  const dumpNames = useMemo(() => {
+    const names = new Set<string>();
+    threads.forEach(t => t.snapshots.forEach(s => names.add(s.dump_name)));
+    return [...names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [threads]);
 
-  const topCpuThreads = useMemo(() =>
-    [...threads]
-      .map(t => ({ name: t.name, cpu: t.snapshots.at(-1)?.cpu_percent ?? 0 }))
-      .filter(t => t.cpu > 0)
-      .sort((a, b) => b.cpu - a.cpu)
-      .slice(0, 5),
-  [threads]);
+  // Default to first dump on load or when dumps change
+  useEffect(() => {
+    if (dumpNames.length > 0 && !dumpNames.includes(selectedDump)) {
+      setSelectedDump(dumpNames[0]);
+    }
+  }, [dumpNames, selectedDump]);
 
-  const topElapsedThreads = useMemo(() =>
-    [...threads]
-      .map(t => ({ name: t.name, elapsed: t.snapshots.at(-1)?.elapsed_time_s ?? 0 }))
-      .filter(t => t.elapsed > 0)
-      .sort((a, b) => b.elapsed - a.elapsed)
-      .slice(0, 5),
-  [threads]);
+  // Latest snapshot per thread (for summary cards)
+  const latestSnapshots = useMemo((): ThreadSnapshot[] =>
+    threads.flatMap(t => t.snapshots.length > 0 ? [t.snapshots[t.snapshots.length - 1]] : []),
+    [threads]
+  );
+
+  // Thread count trend: compare last two dumps
+  const trendPercent = useMemo((): number | null => {
+    if (dumpNames.length < 2) return null;
+    const prev = dumpNames[dumpNames.length - 2];
+    const curr = dumpNames[dumpNames.length - 1];
+    const prevCount = threads.filter(t => t.snapshots.some(s => s.dump_name === prev)).length;
+    const currCount = threads.filter(t => t.snapshots.some(s => s.dump_name === curr)).length;
+    if (prevCount === 0) return null;
+    return parseFloat(((currCount - prevCount) / prevCount * 100).toFixed(1));
+  }, [threads, dumpNames]);
+
+  // Dashboard summary derived from latest snapshots
+  const summary: DashboardSummary = useMemo(() => ({
+    threadCount: latestSnapshots.length,
+    criticalIssues: latestSnapshots.filter(s => s.state === 'BLOCKED').length,
+    blockedThreads: latestSnapshots.filter(s => s.state === 'BLOCKED').length,
+    healthScore: computeHealthScore(latestSnapshots),
+    trendPercent,
+  }), [latestSnapshots, trendPercent]);
+
+  // Snapshots belonging to the selected dump file
+  const selectedSnapshots = useMemo((): Array<{ thread: Thread; snapshot: ThreadSnapshot }> => {
+    const effectiveDump = dumpNames.includes(selectedDump) ? selectedDump : dumpNames[0] ?? '';
+    const result: Array<{ thread: Thread; snapshot: ThreadSnapshot }> = [];
+    threads.forEach(t => {
+      const snap = t.snapshots.find(s => s.dump_name === effectiveDump);
+      if (snap) result.push({ thread: t, snapshot: snap });
+    });
+    return result;
+  }, [threads, selectedDump, dumpNames]);
+
+  // Thread-state distribution for the donut chart
+  const stateDistribution = useMemo((): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    selectedSnapshots.forEach(({ snapshot }) => {
+      counts[snapshot.state] = (counts[snapshot.state] ?? 0) + 1;
+    });
+    return counts;
+  }, [selectedSnapshots]);
+
+  const totalSelectedThreads = selectedSnapshots.length;
+
+  // Pie-chart series data (only non-zero states)
+  const pieData = useMemo(() =>
+    STATE_ORDER
+      .filter(s => (stateDistribution[s] ?? 0) > 0)
+      .map((s, idx) => ({
+        id: idx,
+        value: stateDistribution[s] ?? 0,
+        color: STATE_COLORS[s],
+        label: s,
+      })),
+    [stateDistribution]
+  );
+
+  // Long-running threads for selected dump, sorted by elapsed time desc
+  const longRunningThreads = useMemo((): LongRunningThread[] =>
+    [...selectedSnapshots]
+      .filter(({ snapshot }) => snapshot.elapsed_time_s > 0)
+      .sort((a, b) => b.snapshot.elapsed_time_s - a.snapshot.elapsed_time_s)
+      .slice(0, 25)
+      .map(({ thread, snapshot }) => ({
+        threadName: thread.name,
+        state: snapshot.state,
+        elapsedSeconds: snapshot.elapsed_time_s,
+      })),
+    [selectedSnapshots]
+  );
+
+  // Thread clusters: group by top stack frame, show clusters with >1 thread
+  const threadClusters = useMemo((): ThreadCluster[] => {
+    const clusterMap = new Map<string, Array<{ thread: Thread; snapshot: ThreadSnapshot }>>();
+    selectedSnapshots.forEach(({ thread, snapshot }) => {
+      const key = getClusterKey(snapshot.stack_trace);
+      if (!clusterMap.has(key)) clusterMap.set(key, []);
+      clusterMap.get(key)!.push({ thread, snapshot });
+    });
+    return [...clusterMap.entries()]
+      .map(([key, items]) => {
+        const stateCounts: Record<string, number> = {};
+        items.forEach(({ snapshot }) => {
+          stateCounts[snapshot.state] = (stateCounts[snapshot.state] ?? 0) + 1;
+        });
+        const dominantState =
+          Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'UNKNOWN';
+        return {
+          clusterName: key,
+          count: items.length,
+          dominantState,
+          threadNames: items.map(i => i.thread.name),
+        };
+      })
+      .filter(c => c.count > 1)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
+  }, [selectedSnapshots]);
+
+  const { label: healthLabel, labelColor: healthLabelColor, barColor: healthBarColor } =
+    getHealthMeta(summary.healthScore);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 2000, mx: 'auto' }}>
 
-      {/* Analysis Summary */}
-      <Typography variant="subtitle1" fontWeight={700} mb={1.5}>
-        Analysis Summary
-      </Typography>
+      {/* Row 1: Summary Cards */}
       <Box display="flex" gap={2} mb={3} flexWrap="wrap">
-        <StatCard label="Thread Count (Last Dump)" value={summary.threadCount} />
-        <StatCard label="Critical Issues" value={summary.criticalIssues} alert={summary.criticalIssues > 0} />
-        <StatCard label="High-CPU Threads" value={summary.highCpuThreads} alert={summary.highCpuThreads > 0} />
-        <StatCard label="Blocked Threads" value={summary.blockedThreads} alert={summary.blockedThreads > 0} />
-        <StatCard label="Analysis Time Range" value={summary.timeRange} isTime />
+
+        {/* Thread Count */}
+        <Paper
+          elevation={0}
+          variant="outlined"
+          sx={{ flex: 1, minWidth: 180, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0' }}
+        >
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+              Thread Count
+            </Typography>
+            <ShowChartIcon sx={{ fontSize: 18, color: '#42a5f5' }} />
+          </Box>
+          <Typography variant="h4" fontWeight={700} sx={{ mt: 0.75, mb: 1.25, color: '#111' }}>
+            {summary.threadCount.toLocaleString()}
+          </Typography>
+          {summary.trendPercent !== null ? (
+            <Chip
+              icon={
+                summary.trendPercent >= 0
+                  ? <TrendingUpIcon sx={{ fontSize: '14px !important' }} />
+                  : <TrendingDownIcon sx={{ fontSize: '14px !important' }} />
+              }
+              label={`${summary.trendPercent >= 0 ? '+' : ''}${summary.trendPercent}% vs previous`}
+              size="small"
+              sx={{
+                bgcolor: summary.trendPercent >= 0 ? '#e8f5e9' : '#ffebee',
+                color: summary.trendPercent >= 0 ? '#2e7d32' : '#c62828',
+                fontWeight: 600,
+                fontSize: '0.68rem',
+                height: 22,
+              }}
+            />
+          ) : (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
+              Single snapshot
+            </Typography>
+          )}
+        </Paper>
+
+        {/* Critical Issues */}
+        <Paper
+          elevation={0}
+          variant="outlined"
+          sx={{ flex: 1, minWidth: 180, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0' }}
+        >
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+              Critical Issues
+            </Typography>
+            <ErrorOutlineIcon sx={{ fontSize: 18, color: '#e53935' }} />
+          </Box>
+          <Typography
+            variant="h4"
+            fontWeight={700}
+            sx={{ mt: 0.75, mb: 1.25, color: summary.criticalIssues > 0 ? '#e53935' : '#111' }}
+          >
+            {summary.criticalIssues}
+          </Typography>
+          <Chip
+            label={summary.criticalIssues > 0 ? 'Requires attention' : 'All clear'}
+            size="small"
+            sx={{
+              bgcolor: summary.criticalIssues > 0 ? '#ffebee' : '#e8f5e9',
+              color: summary.criticalIssues > 0 ? '#c62828' : '#2e7d32',
+              fontWeight: 600,
+              fontSize: '0.68rem',
+              height: 22,
+            }}
+          />
+        </Paper>
+
+        {/* Blocked Threads */}
+        <Paper
+          elevation={0}
+          variant="outlined"
+          sx={{ flex: 1, minWidth: 180, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0' }}
+        >
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+              Blocked Threads
+            </Typography>
+            <PauseCircleOutlineIcon sx={{ fontSize: 18, color: '#ff9800' }} />
+          </Box>
+          <Typography variant="h4" fontWeight={700} sx={{ mt: 0.75, mb: 1.25, color: '#111' }}>
+            {summary.blockedThreads}
+          </Typography>
+          <Chip
+            label={summary.blockedThreads > 0 ? 'Active contention' : 'No contention'}
+            size="small"
+            sx={{
+              bgcolor: summary.blockedThreads > 0 ? '#fff3e0' : '#e8f5e9',
+              color: summary.blockedThreads > 0 ? '#e65100' : '#2e7d32',
+              fontWeight: 600,
+              fontSize: '0.68rem',
+              height: 22,
+            }}
+          />
+        </Paper>
+
+        {/* Health Score */}
+        <Paper
+          elevation={0}
+          variant="outlined"
+          sx={{ flex: 1, minWidth: 180, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0' }}
+        >
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+            Health Score
+          </Typography>
+          <Box display="flex" flexDirection="column" alignItems="center" mt={0.75}>
+            <Box sx={{ position: 'relative', display: 'inline-flex', mb: 0.75 }}>
+              {/* Track */}
+              <MuiCircularProgress
+                variant="determinate"
+                value={100}
+                size={76}
+                thickness={5}
+                sx={{ color: '#e0e0e0', position: 'absolute' }}
+              />
+              {/* Filled arc */}
+              <MuiCircularProgress
+                variant="determinate"
+                value={summary.healthScore}
+                size={76}
+                thickness={5}
+                sx={{ color: healthBarColor }}
+              />
+              <Box sx={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Typography fontWeight={700} sx={{ fontSize: '1rem', lineHeight: 1 }}>
+                  {summary.healthScore}%
+                </Typography>
+              </Box>
+            </Box>
+            <Typography variant="caption" sx={{ color: healthLabelColor, fontWeight: 600, fontSize: '0.75rem' }}>
+              {healthLabel}
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
 
-      {/* Main Content */}
+      {/* Row 2 + Sidebar */}
       <Box display="flex" gap={3} flexDirection={{ xs: 'column', md: 'row' }}>
 
-        <Box flex={2} minWidth={0}>
+        {/* Left column */}
+        <Box flex={2} minWidth={0} display="flex" flexDirection="column" gap={3}>
 
-          {/* Key Findings (placeholder) */}
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2.5,
-              border: '1px solid #e8e8e8',
-              borderRadius: 2,
-              mb: 3,
-            }}
-          >
-            <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-              Key Findings
-            </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-              Critical issues and patterns detected by the analysis engine
-            </Typography>
+          {/* Chart row: Thread State Distribution + Key Findings */}
+          <Box display="flex" gap={3} flexDirection={{ xs: 'column', lg: 'row' }} alignItems="stretch">
 
-            <Box display="flex" flexDirection="column" gap={0}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                <strong> Placeholder: </strong> This section will highlight the most critical findings from the thread dump analysis, such as detected deadlocks, hotspots of contention, or threads with unusually high CPU usage. Each finding will include a brief description and its potential impact on application performance and stability.
+            {/* Thread State Distribution */}
+            <Paper
+              elevation={0}
+              variant="outlined"
+              sx={{ flex: 7, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0', minWidth: 0 }}
+            >
+              <Typography variant="subtitle2" fontWeight={700} mb={1.75}>
+                Thread State Distribution
               </Typography>
-            </Box>
-          </Paper>
 
-          {/* Interesting Highlights */}
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2.5,
-              border: '1px solid #e8e8e8',
-              borderRadius: 2,
-            }}
-          >
-            <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-              Interesting Highlights
-            </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" mb={2.5}>
-              Threads with notable CPU usage or long elapsed times
-            </Typography>
-
-            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
-
-              {/* High CPU Threads */}
-              <Box flex={1}>
-                <Box display="flex" alignItems="center" gap={0.75} mb={1.5}>
-                  <TrendingUpIcon sx={{ fontSize: 16, color: '#e53935' }} />
-                  <Typography
-                    variant="caption"
-                    fontWeight={700}
-                    color="#e53935"
-                    sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              {/* Snapshot selector */}
+              {dumpNames.length > 0 && (
+                <Box mb={2.5} display="flex" alignItems="center" gap={1}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, flexShrink: 0 }}>
+                    Snapshot:
+                  </Typography>
+                  <Select
+                    value={dumpNames.includes(selectedDump) ? selectedDump : (dumpNames[0] || '')}
+                    onChange={(e) => { if (e.target.value) setSelectedDump(e.target.value); }}
+                    size="small"
+                    sx={{
+                      minWidth: 220,
+                      height: 36,
+                      bgcolor: 'white',
+                      fontSize: '0.8rem',
+                      borderRadius: 1
+                    }}
                   >
-                    High CPU Threads
-                  </Typography>
-                </Box>
-                {topCpuThreads.length > 0 ? (
-                  topCpuThreads.map((t, idx) => (
-                    <Box
-                      key={idx}
-                      onClick={() => navigate('/thread-explorer', { state: { searchThread: t.name } })}
-                      sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        py: 1,
-                        px: 1.5,
-                        mb: 0.75,
-                        borderRadius: 1.5,
-                        border: '1px solid #ffcdd2',
-                        bgcolor: '#fff8f8',
-                        cursor: 'pointer',
-                        '&:hover': { bgcolor: '#ffebee', borderColor: '#e53935' },
-                        transition: 'background-color 0.15s, border-color 0.15s',
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#1565c0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mr: 1 }}
-                        title={t.name}
+                    {dumpNames.map((name) => (
+                      <MenuItem
+                        key={name}
+                        value={name}
+                        sx={{
+                          fontSize: '0.8rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          minWidth: 200
+                        }}
                       >
-                        {t.name}
-                      </Typography>
-                      <Chip
-                        label={`${t.cpu.toFixed(1)}%`}
-                        size="small"
-                        sx={{ bgcolor: '#e53935', color: 'white', fontWeight: 700, fontSize: '0.65rem', height: 20, flexShrink: 0 }}
-                      />
-                    </Box>
-                  ))
-                ) : (
-                  <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                    No high-CPU threads detected
-                  </Typography>
-                )}
-              </Box>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          {name}
+                        </Box>
 
-              {/* Long-Running Threads */}
-              <Box flex={1}>
-                <Box display="flex" alignItems="center" gap={0.75} mb={1.5}>
-                  <AccessTimeIcon sx={{ fontSize: 16, color: '#ff6d00' }} />
-                  <Typography
-                    variant="caption"
-                    fontWeight={700}
-                    color="#e65100"
-                    sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                  >
-                    Long-Running Threads
-                  </Typography>
+                      </MenuItem>
+                    ))}
+                  </Select>
                 </Box>
-                {topElapsedThreads.length > 0 ? (
-                  topElapsedThreads.map((t, idx) => (
-                    <Box
-                      key={idx}
-                      onClick={() => navigate('/thread-explorer', { state: { searchThread: t.name } })}
-                      sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        py: 1,
-                        px: 1.5,
-                        mb: 0.75,
-                        borderRadius: 1.5,
-                        border: '1px solid #ffe0b2',
-                        bgcolor: '#fff8f0',
-                        cursor: 'pointer',
-                        '&:hover': { bgcolor: '#fff3e0', borderColor: '#ff9800' },
-                        transition: 'background-color 0.15s, border-color 0.15s',
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#1565c0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mr: 1 }}
-                        title={t.name}
-                      >
-                        {t.name}
-                      </Typography>
-                      <Chip
-                        label={t.elapsed >= 1 ? `${t.elapsed.toFixed(1)}s` : `${Math.round(t.elapsed * 1000)}ms`}
-                        size="small"
-                        sx={{ bgcolor: '#ff6d00', color: 'white', fontWeight: 700, fontSize: '0.65rem', height: 20, flexShrink: 0 }}
-                      />
-                    </Box>
-                  ))
-                ) : (
-                  <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                    No long-running threads detected
-                  </Typography>
-                )}
-              </Box>
+              )}
 
+              {/* Donut chart + legend */}
+              {totalSelectedThreads > 0 ? (
+                <Box display="flex" alignItems="center" gap={3} flexWrap="wrap">
+                  {/* Donut */}
+                  <Box sx={{ position: 'relative', flexShrink: 0, width: 240, height: 240 }}>
+                    <PieChart
+                      series={[{
+                        data: pieData,
+                        innerRadius: 68,
+                        outerRadius: 108,
+                        paddingAngle: 2,
+                        cornerRadius: 3,
+                      }]}
+                      width={240}
+                      height={240}
+                      sx={{ '& .MuiChartsLegend-root': { display: 'none' } }}
+                      margin={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    />
+                    {/* Center label overlay */}
+                    <Box sx={{
+                      position: 'absolute', inset: 0,
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center',
+                      pointerEvents: 'none',
+                    }}>
+                      <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1 }}>
+                        {totalSelectedThreads.toLocaleString()}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem', letterSpacing: '0.1em', mt: 0.3 }}>
+                        THREADS
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Legend */}
+                  <Box flex={1} minWidth={150}>
+                    {STATE_ORDER.map(state => {
+                      const count = stateDistribution[state] ?? 0;
+                      const pct = totalSelectedThreads > 0
+                        ? Math.round(count / totalSelectedThreads * 100)
+                        : 0;
+                      return (
+                        <Box
+                          key={state}
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          py={0.9}
+                          sx={{ borderBottom: '1px solid #f0f0f0', '&:last-child': { borderBottom: 0 } }}
+                        >
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Box sx={{
+                              width: 10, height: 10, borderRadius: '50%',
+                              bgcolor: STATE_COLORS[state], flexShrink: 0,
+                            }} />
+                            <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>
+                              {state}
+                            </Typography>
+                          </Box>
+                          <Box display="flex" alignItems="center" gap={1.5}>
+                            <Typography
+                              variant="body2"
+                              fontWeight={700}
+                              sx={{ fontSize: '0.8rem', color: '#222', minWidth: 52, textAlign: 'right' }}
+                            >
+                              {count.toLocaleString()}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ minWidth: 34, textAlign: 'right', fontSize: '0.75rem' }}
+                            >
+                              {pct}%
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              ) : (
+                <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                  No thread data available for this snapshot.
+                </Typography>
+              )}
+            </Paper>
+
+            {/* Key Findings — preserved exactly */}
+            <Paper
+              elevation={0}
+              variant="outlined"
+              sx={{ flex: 4, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0', minWidth: 220 }}
+            >
+              <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                Key Findings
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                Critical issues and patterns detected by the analysis engine
+              </Typography>
+              <Box display="flex" flexDirection="column" gap={0}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                  <strong> Placeholder: </strong> This section will highlight the most critical findings from the thread dump analysis, such as detected deadlocks, hotspots of contention, or threads with unusually high CPU usage. Each finding will include a brief description and its potential impact on application performance and stability.
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
+
+          {/* Thread Activity */}
+          <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, borderColor: '#E0E0E0', overflow: 'hidden' }}>
+            <Box sx={{ borderBottom: '1px solid #E0E0E0' }}>
+              <Tabs
+                value={activityTab}
+                onChange={(_, v) => setActivityTab(v)}
+                sx={{
+                  px: 2,
+                  minHeight: 46,
+                  '& .MuiTab-root': {
+                    minHeight: 46,
+                    fontSize: '0.82rem',
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    gap: 0.75,
+                  },
+                  '& .Mui-selected': { fontWeight: 700 },
+                }}
+              >
+                <Tab icon={<LayersIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Thread Clusters" />
+                <Tab icon={<AccessTimeIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Long-Running Threads" />
+              </Tabs>
             </Box>
+
+            {/* Thread Clusters tab */}
+            {activityTab === 0 && (
+              <TableContainer sx={{ maxHeight: 420 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={thSx}>CLUSTER GROUP</TableCell>
+                      <TableCell align="center" sx={{ ...thSx, width: 120 }}>THREAD COUNT</TableCell>
+                      <TableCell align="center" sx={{ ...thSx, width: 160 }}>DOMINANT STATE</TableCell>
+                      <TableCell align="center" sx={{ ...thSx, width: 100 }}>ACTION</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {threadClusters.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ py: 5 }}>
+                          <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                            No clusters detected — requires &gt;1 thread sharing the same top stack frame.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : threadClusters.map((cluster, idx) => (
+                      <TableRow key={idx} hover sx={{ '&:last-child td': { border: 0 } }}>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            title={cluster.clusterName}
+                            sx={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.75rem',
+                              color: '#1565c0',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: 440,
+                            }}
+                          >
+                            {cluster.clusterName}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem' }}>
+                            {cluster.count}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <ThreadStateChip state={cluster.dominantState} />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() =>
+                              navigate('/thread-explorer', { state: { searchThread: cluster.threadNames[0] } })
+                            }
+                            sx={{
+                              textTransform: 'none',
+                              fontSize: '0.72rem',
+                              py: 0.3,
+                              px: 1.25,
+                              borderColor: '#E0E0E0',
+                              color: '#1976d2',
+                              '&:hover': { borderColor: '#1976d2', bgcolor: '#e3f2fd' },
+                            }}
+                          >
+                            Explore
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* Long-Running tab */}
+            {activityTab === 1 && (
+              <TableContainer sx={{ maxHeight: 420 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={thSx}>THREAD NAME</TableCell>
+                      <TableCell align="center" sx={{ ...thSx, width: 160 }}>STATE</TableCell>
+                      <TableCell align="right" sx={{ ...thSx, width: 160 }}>ELAPSED TIME</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {longRunningThreads.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center" sx={{ py: 5 }}>
+                          <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                            No elapsed-time data available for this snapshot.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : longRunningThreads.map((t, idx) => (
+                      <TableRow
+                        key={idx}
+                        hover
+                        sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
+                        onClick={() => navigate('/thread-explorer', { state: { searchThread: t.threadName } })}
+                      >
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            title={t.threadName}
+                            sx={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.78rem',
+                              color: '#1565c0',
+                              fontWeight: 500,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: 520,
+                            }}
+                          >
+                            {t.threadName}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <ThreadStateChip state={t.state} />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={
+                              t.elapsedSeconds >= 1
+                                ? `${Math.round(t.elapsedSeconds).toLocaleString()}s`
+                                : `${Math.round(t.elapsedSeconds * 1000)}ms`
+                            }
+                            size="small"
+                            sx={{
+                              bgcolor: t.elapsedSeconds > 3600 ? '#fff3e0' : '#f5f5f5',
+                              color: t.elapsedSeconds > 3600 ? '#e65100' : '#555',
+                              fontWeight: 700,
+                              fontSize: '0.72rem',
+                              height: 22,
+                              fontFamily: 'monospace',
+                            }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </Paper>
         </Box>
 
-        {/* AI Insights (placeholder) */}
+        {/* Right Sidebar: AI Insights */}
         <Box flex={1} minWidth={280} maxWidth={{ md: 420 }}>
           <Paper
             elevation={0}
+            variant="outlined"
             sx={{
               p: 2.5,
-              border: '1px solid #e8e8e8',
               borderRadius: 2,
+              borderColor: '#E0E0E0',
               position: 'sticky',
               top: 24,
             }}
@@ -299,15 +754,7 @@ const DashboardHome: React.FC = () => {
             </Typography>
 
             {/* Executive Summary */}
-            <Box
-              sx={{
-                borderLeft: '3px solid #ef9a9a',
-                backgroundColor: '#fce4ec',
-                p: 2,
-                borderRadius: '0 8px 8px 0',
-                mb: 2,
-              }}
-            >
+            <Box sx={{ borderLeft: '3px solid #ef9a9a', backgroundColor: '#fce4ec', p: 2, borderRadius: '0 8px 8px 0', mb: 2 }}>
               <Typography variant="caption" fontWeight={700} display="block" mb={0.5} color="#b71c1c">
                 Executive Summary
               </Typography>
@@ -317,15 +764,7 @@ const DashboardHome: React.FC = () => {
             </Box>
 
             {/* Recommended Actions */}
-            <Box
-              sx={{
-                borderLeft: '3px solid #ffe082',
-                backgroundColor: '#fff8e1',
-                p: 2,
-                borderRadius: '0 8px 8px 0',
-                mb: 2,
-              }}
-            >
+            <Box sx={{ borderLeft: '3px solid #ffe082', backgroundColor: '#fff8e1', p: 2, borderRadius: '0 8px 8px 0', mb: 2 }}>
               <Typography variant="caption" fontWeight={700} display="block" mb={0.5} color="#e65100">
                 Recommended Actions
               </Typography>
@@ -335,14 +774,7 @@ const DashboardHome: React.FC = () => {
             </Box>
 
             {/* Pattern Recognition */}
-            <Box
-              sx={{
-                borderLeft: '3px solid #ef9a9a',
-                backgroundColor: '#fce4ec',
-                p: 2,
-                borderRadius: '0 8px 8px 0',
-              }}
-            >
+            <Box sx={{ borderLeft: '3px solid #ef9a9a', backgroundColor: '#fce4ec', p: 2, borderRadius: '0 8px 8px 0' }}>
               <Typography variant="caption" fontWeight={700} display="block" mb={0.5} color="#b71c1c">
                 Pattern Recognition
               </Typography>
@@ -356,5 +788,15 @@ const DashboardHome: React.FC = () => {
     </Box>
   );
 };
+
+// Shared table header cell styles
+const thSx = {
+  fontWeight: 700,
+  fontSize: '0.71rem',
+  color: '#666',
+  letterSpacing: '0.05em',
+  bgcolor: '#fafafa',
+  borderBottom: '1px solid #E0E0E0',
+} as const;
 
 export default DashboardHome;
