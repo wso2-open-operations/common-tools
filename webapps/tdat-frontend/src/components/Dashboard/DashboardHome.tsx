@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Chip, CircularProgress as MuiCircularProgress,
   Tabs, Tab, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Button, Select, MenuItem
+  Select, MenuItem
 } from '@mui/material';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -48,10 +48,11 @@ const STATE_COLORS: Record<string, string> = {
   WAITING: '#ff9800',
   TIMED_WAITING: '#1976d2',
   BLOCKED: '#e53935',
-  TERMINATED: '#fffbfb',
+  TERMINATED: '#9e9e9e',
+  'N/A': '#bdbdbd',
 };
 
-const STATE_ORDER = ['RUNNABLE', 'WAITING', 'TIMED_WAITING', 'BLOCKED', 'N/A', 'TERMINATED'];
+const STATE_ORDER = ['RUNNABLE', 'WAITING', 'TIMED_WAITING', 'BLOCKED', 'TERMINATED', 'N/A'];
 
 // Helpers
 
@@ -173,11 +174,13 @@ const DashboardHome: React.FC = () => {
     return result;
   }, [threads, selectedDump, dumpNames]);
 
-  // Thread-state distribution for the donut chart
+  // Thread-state distribution for the donut chart.
+  // Threads present in the dump but with no parseable state are normalised to 'N/A'.
   const stateDistribution = useMemo((): Record<string, number> => {
     const counts: Record<string, number> = {};
     selectedSnapshots.forEach(({ snapshot }) => {
-      counts[snapshot.state] = (counts[snapshot.state] ?? 0) + 1;
+      const state = snapshot.state?.trim() || 'N/A';
+      counts[state] = (counts[state] ?? 0) + 1;
     });
     return counts;
   }, [selectedSnapshots]);
@@ -256,7 +259,7 @@ const DashboardHome: React.FC = () => {
         >
           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
-              Thread Count
+              Thread Count (Last Dump)
             </Typography>
             <ShowChartIcon sx={{ fontSize: 18, color: '#42a5f5' }} />
           </Box>
@@ -589,20 +592,26 @@ const DashboardHome: React.FC = () => {
                       <TableCell sx={thSx}>CLUSTER GROUP</TableCell>
                       <TableCell align="center" sx={{ ...thSx, width: 120 }}>THREAD COUNT</TableCell>
                       <TableCell align="center" sx={{ ...thSx, width: 160 }}>DOMINANT STATE</TableCell>
-                      <TableCell align="center" sx={{ ...thSx, width: 100 }}>ACTION</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {threadClusters.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 5 }}>
+                        <TableCell colSpan={3} align="center" sx={{ py: 5 }}>
                           <Typography variant="caption" color="text.disabled" fontStyle="italic">
                             No clusters detected — requires &gt;1 thread sharing the same top stack frame.
                           </Typography>
                         </TableCell>
                       </TableRow>
                     ) : threadClusters.map((cluster, idx) => (
-                      <TableRow key={idx} hover sx={{ '&:last-child td': { border: 0 } }}>
+                      <TableRow
+                        key={idx}
+                        hover
+                        sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
+                        onClick={() =>
+                          navigate('/thread-explorer', { state: { searchThread: cluster.threadNames[0] } })
+                        }
+                      >
                         <TableCell>
                           <Typography
                             variant="body2"
@@ -627,26 +636,6 @@ const DashboardHome: React.FC = () => {
                         </TableCell>
                         <TableCell align="center">
                           <ThreadStateChip state={cluster.dominantState} />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() =>
-                              navigate('/thread-explorer', { state: { searchThread: cluster.threadNames[0] } })
-                            }
-                            sx={{
-                              textTransform: 'none',
-                              fontSize: '0.72rem',
-                              py: 0.3,
-                              px: 1.25,
-                              borderColor: '#E0E0E0',
-                              color: '#1976d2',
-                              '&:hover': { borderColor: '#1976d2', bgcolor: '#e3f2fd' },
-                            }}
-                          >
-                            Explore
-                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
