@@ -22,14 +22,48 @@ type Thread struct {
 	CPUPercentage float64  `json:"cpu_percent"`
 
 	// Fields for Rules Engine
-	RiskLevel      string   `json:"risk_level"` // "CRITICAL", "HIGH", "MEDIUM", "INFO"
-	Issues         []string `json:"issues"`
-	Recommendation string   `json:"recommendation"`
+	RiskLevel           string   `json:"risk_level"` // "CRITICAL", "HIGH", "MEDIUM", "INFO"
+	Issues              []string `json:"issues"`
+	Recommendation      string   `json:"recommendation"`
+	IsDeadlocked        bool     `json:"is_deadlocked,omitempty"`
+	WaitingToLockAddress string  `json:"waiting_to_lock_address,omitempty"`
+	LockContentionCount  int     `json:"lock_contention_count,omitempty"`
 }
 
-// A helper method for Grule to call inside rules
+// AddIssue appends an issue string — called by Grule rules.
 func (t *Thread) AddIssue(issue string) {
 	t.Issues = append(t.Issues, issue)
+}
+
+// NameContains reports whether the thread name contains s (case-insensitive).
+func (t *Thread) NameContains(s string) bool {
+	return strings.Contains(strings.ToLower(t.Name), strings.ToLower(s))
+}
+
+// StackTraceCount returns how many stack frames contain keyword.
+func (t *Thread) StackTraceCount(keyword string) int {
+	count := 0
+	for _, line := range t.StackTrace {
+		if strings.Contains(line, keyword) {
+			count++
+		}
+	}
+	return count
+}
+
+// HasRepeatedLock reports whether the thread holds the same lock address more than once —
+// a sign of recursive or nested synchronization on the same object.
+func (t *Thread) HasRepeatedLock() bool {
+	seen := map[string]bool{}
+	for _, line := range t.StackTrace {
+		if m := lockedAddressRE.FindStringSubmatch(line); len(m) >= 2 {
+			if seen[m[1]] {
+				return true
+			}
+			seen[m[1]] = true
+		}
+	}
+	return false
 }
 
 // ThreadUsage represents thread usage data
@@ -41,11 +75,12 @@ type ThreadUsage struct {
 
 // GlobalStats holds aggregate data for Global Rules
 type GlobalStats struct {
-	TotalThreads        int
-	BlockedCount        int
-	BlockedPercentage   float64
-	ThreadCountGrowth   float64
-	IsUsageDataProvided bool
+	TotalThreads             int
+	BlockedCount             int
+	BlockedPercentage        float64
+	PreviousBlockedPercentage float64 // set externally for temporal spike detection
+	ThreadCountGrowth        float64  // set externally for temporal leak detection
+	IsUsageDataProvided      bool
 }
 
 var (
@@ -61,6 +96,14 @@ var (
 	cpuAttributeRE = regexp.MustCompile(`cpu=([\d\.]+)\s*(ms|s|ns)?`)
 	//Captures elapsed attribute
 	elapsedAttributeRE = regexp.MustCompile(`elapsed=([\d\.]+)\s*(ms|s)?`)
+	//Captures "Found X Java-level deadlock" section header
+	deadlockSectionRE = regexp.MustCompile(`(?i)found.*java-level deadlock`)
+	//Captures thread names listed in deadlock section: "name":
+	deadlockThreadNameRE = regexp.MustCompile(`^"(.+?)":\s*$`)
+	//Captures the monitor address from "waiting to lock <0x...>" stack lines
+	waitingToLockRE = regexp.MustCompile(`waiting to lock <(0x[0-9a-fA-F]+)>`)
+	//Captures the monitor address from "- locked <0x...>" stack lines
+	lockedAddressRE = regexp.MustCompile(`- locked <(0x[0-9a-fA-F]+)>`)
 )
 
 /* Parsing Thread Dumps */
@@ -68,6 +111,8 @@ var (
 func ParseThread(r io.Reader) ([]Thread, error) {
 	var threads []Thread
 	var currentThread *Thread
+	inDeadlockSection := false
+	deadlockedNames := map[string]bool{}
 
 	scanner := bufio.NewScanner(r)
 	buf := make([]byte, 0, 64*1024)
@@ -81,6 +126,21 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 
 		// Skip empty lines
 		if trimmedLine == "" {
+			continue
+		}
+
+		// Detect start of deadlock summary section — stop normal parsing from here
+		if deadlockSectionRE.MatchString(trimmedLine) {
+			inDeadlockSection = true
+			currentThread = nil // prevent stray stack lines from being attributed
+			continue
+		}
+
+		// Collect deadlocked thread names and skip all deadlock section lines
+		if inDeadlockSection {
+			if m := deadlockThreadNameRE.FindStringSubmatch(trimmedLine); len(m) >= 2 {
+				deadlockedNames[m[1]] = true
+			}
 			continue
 		}
 
@@ -159,11 +219,24 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 		// Stacktrace Parsing
 		if stackLineRE.MatchString(rawLine) {
 			currentThread.StackTrace = append(currentThread.StackTrace, trimmedLine)
+			// Capture the first "waiting to lock" monitor address for contention rules
+			if currentThread.WaitingToLockAddress == "" {
+				if m := waitingToLockRE.FindStringSubmatch(trimmedLine); len(m) >= 2 {
+					currentThread.WaitingToLockAddress = m[1]
+				}
+			}
 		}
 	}
 
 	if currentThread != nil {
 		threads = append(threads, *currentThread)
+	}
+
+	// Mark threads that appear in the deadlock summary section
+	for i := range threads {
+		if deadlockedNames[threads[i].Name] {
+			threads[i].IsDeadlocked = true
+		}
 	}
 
 	return threads, scanner.Err()

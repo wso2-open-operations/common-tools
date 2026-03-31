@@ -8,26 +8,33 @@ import (
 	"mime/multipart"
 	"net/http"
 	"sync"
+	"tdat-backend/internal/ai"
 	"tdat-backend/internal/analyzer"
 	"tdat-backend/internal/parser"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 // Top-level JSON response format for a structured analysis
 type AggregatedAnalysisResponse struct {
-	SessionID   string                       `json:"session_id"`
-	Timestamp   string                       `json:"timestamp"`
-	Threads     []analyzer.AnalyzedThread    `json:"threads"`
-	ThreadPools map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
-	Errors      []string                     `json:"errors,omitempty"`
+	SessionID  string                    `json:"session_id"`
+	Timestamp  string                    `json:"timestamp"`
+	Threads    []analyzer.AnalyzedThread `json:"threads"`
+	AIInsights *ai.AIInsights            `json:"ai_insights,omitempty"`
+	Errors     []string                  `json:"errors,omitempty"`
 }
 
 // Start HTTP server
 
 func main() {
+	// Load .env file if present (ignore error if not found)
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, relying on environment variables")
+	}
+
 	// Initialize Rules Engine
 	engine, err := analyzer.NewEngine("./internal/rules/rules.grl")
 	if err != nil {
@@ -186,13 +193,21 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 	// Pivots data from a file-centric view to a thread-centric history view.
 	aggregatedThreads := analyzer.AggregateThreads(parsedFiles)
 
+	// Call Claude AI for an executive summary of the uploaded dumps
+	usageUploaded := len(usageHeaders) > 0
+	aiInsights, err := ai.GetInsights(aggregatedThreads, usageUploaded)
+	if err != nil {
+		log.Printf("AI insights error: %v", err)
+		errorMessages = append(errorMessages, fmt.Sprintf("AI insights unavailable: %v", err))
+	}
+
 	// Construct Final Response Object
 	response := AggregatedAnalysisResponse{
-		SessionID:   uuid.New().String(),
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Threads:     aggregatedThreads,
-		ThreadPools: enricher.PoolMetadata(),
-		Errors:      errorMessages,
+		SessionID:  uuid.New().String(),
+		Timestamp:  time.Now().Format(time.RFC3339),
+		Threads:    aggregatedThreads,
+		AIInsights: aiInsights,
+		Errors:     errorMessages,
 	}
 
 	// Send JSON Response
@@ -203,7 +218,6 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 	}
 }
 
-/* HTML page for testing */
 func serveHTML(w http.ResponseWriter, r *http.Request) {
 	html := `
 	<!DOCTYPE html>
@@ -222,12 +236,19 @@ func serveHTML(w http.ResponseWriter, r *http.Request) {
 			.hint { font-size: 0.875rem; color: #777; margin-top: 0.25rem; }
 			button { background-color: #007bff; color: white; border: none; padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 600; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 			button:hover { background-color: #0056b3; }
+			button:disabled { background-color: #6aabf7; cursor: not-allowed; }
+			#summary-box { margin-top: 2rem; padding: 1rem 1.25rem; background: #fde9cd; border-left: 4px solid #ff6d00; border-radius: 4px; display: none; }
+			#summary-box h3 { margin: 0 0 0.5rem; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; color: #ff6d00; }
+			#summary-text { margin: 0; line-height: 1.6; }
+			#json-output { margin-top: 1.5rem; display: none; }
+			#json-output h3 { font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin: 0 0 0.5rem; }
+			pre { background: #f4f4f9; border: 1px solid #ddd; border-radius: 4px; padding: 1rem; overflow: auto; font-size: 0.8rem; max-height: 500px; }
 		</style>
 	</head>
 	<body>
 		<div class="container">
 			<h2>Thread Dump Analyzer</h2>
-			<form action="/api/v1/analyze" method="post" enctype="multipart/form-data">
+			<form id="upload-form">
 				<div class="form-group">
 					<label for="thread_dumps">1. Thread Dumps (Required)</label>
 					<input type="file" id="thread_dumps" name="thread_dumps" multiple required>
@@ -237,9 +258,51 @@ func serveHTML(w http.ResponseWriter, r *http.Request) {
 					<label for="thread_usages">2. Thread Usage (Optional)</label>
 					<input type="file" id="thread_usages" name="thread_usages" multiple>
 				</div>
-				<button type="submit">Analyze</button>
+				<button type="submit" id="submit-btn">Analyze</button>
 			</form>
+
+			<div id="summary-box">
+				<h3>Executive Summary</h3>
+				<p id="summary-text"></p>
+			</div>
+
+			<div id="json-output">
+				<h3>Full JSON Response</h3>
+				<pre id="json-pre"></pre>
+			</div>
 		</div>
+		<script>
+			document.getElementById('upload-form').addEventListener('submit', async function(e) {
+				e.preventDefault();
+				const btn = document.getElementById('submit-btn');
+				btn.disabled = true;
+				btn.textContent = 'Analyzing...';
+				document.getElementById('summary-box').style.display = 'none';
+				document.getElementById('json-output').style.display = 'none';
+
+				const form = new FormData();
+				for (const f of document.getElementById('thread_dumps').files) form.append('thread_dumps', f);
+				for (const f of document.getElementById('thread_usages').files) form.append('thread_usages', f);
+
+				try {
+					const res = await fetch('/api/v1/analyze', { method: 'POST', body: form });
+					const data = await res.json();
+
+					if (data.ai_insights && data.ai_insights.executive_summary) {
+						document.getElementById('summary-text').textContent = data.ai_insights.executive_summary;
+						document.getElementById('summary-box').style.display = 'block';
+					}
+
+					document.getElementById('json-pre').textContent = JSON.stringify(data, null, 2);
+					document.getElementById('json-output').style.display = 'block';
+				} catch (err) {
+					alert('Request failed: ' + err.message);
+				} finally {
+					btn.disabled = false;
+					btn.textContent = 'Analyze';
+				}
+			});
+		</script>
 	</body>
 	</html>
 	`

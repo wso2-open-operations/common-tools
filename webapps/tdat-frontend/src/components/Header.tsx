@@ -1,4 +1,4 @@
-import { AppBar, Toolbar, Typography, IconButton } from '@mui/material';
+import { AppBar, Toolbar, Typography, IconButton, Button } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
@@ -14,7 +14,7 @@ interface HeaderProps {
   toggleSidebar: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleTheme, onSignOut,  toggleSidebar }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleTheme, onSignOut, toggleSidebar }) => {
   const theme = useTheme();
 
   //Get current Location of the user
@@ -22,24 +22,24 @@ const Header: React.FC<HeaderProps> = ({ onToggleTheme, onSignOut,  toggleSideba
   const isUploadPage = location.pathname === '/';
 
   return (
-    <AppBar 
-      position="sticky" 
-      color="default" 
-      elevation={1} 
+    <AppBar
+      position="sticky"
+      color="default"
+      elevation={1}
       sx={{ bgcolor: 'background.paper', zIndex: (theme) => theme.zIndex.drawer + 1 }}
     >
       <Toolbar>
         {/* Menu Icon triggering the passed down toggle function */}
         {!isUploadPage && (
-        <IconButton
-          edge="start"
-          color="inherit"
-          aria-label="open drawer"
-          onClick={toggleSidebar}
-          sx={{ mr: 1 }}
-        >
-          <MenuIcon />
-        </IconButton>
+          <IconButton
+            edge="start"
+            color="inherit"
+            aria-label="open drawer"
+            onClick={toggleSidebar}
+            sx={{ mr: 1 }}
+          >
+            <MenuIcon />
+          </IconButton>
         )}
 
         {/* Logo and Title */}
@@ -55,9 +55,22 @@ const Header: React.FC<HeaderProps> = ({ onToggleTheme, onSignOut,  toggleSideba
 
         {/* Logout Button */}
         {onSignOut && (
-          <IconButton sx={{ ml: 1 }} onClick={onSignOut} color="inherit" title="Logout">
-            <LogoutIcon />
-          </IconButton>
+          <Button
+            sx={{
+              ml: 1,
+              borderRadius: 5,
+              borderColor: theme.palette.mode === 'dark' ? 'grey.700' : 'grey.300',
+              '&:hover': {
+                borderColor: theme.palette.mode === 'dark' ? 'grey.500' : 'grey.500',
+              }
+            }}
+            variant="outlined"
+            startIcon={<LogoutIcon />}
+            onClick={onSignOut}
+            color="inherit"
+          >
+            Logout
+          </Button>
         )}
       </Toolbar>
     </AppBar>

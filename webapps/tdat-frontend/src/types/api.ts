@@ -5,6 +5,9 @@ export interface ThreadSnapshot {
   elapsed_time_s: number;
   cpu_time_ms: number;
   cpu_percent: number;
+  risk_level?: string;
+  issues?: string[];
+  recommendation?: string;
 }
 
 export interface Thread {
@@ -20,10 +23,17 @@ export interface ThreadPoolInfo {
   expected_behavior: string;
 }
 
+export interface AIInsights {
+  executive_summary: string;
+  pattern_recognition: string;
+  recommended_actions: string;
+}
+
 export interface AnalysisResponse {
   session_id: string;
   timestamp: string;
   threads: Thread[];
   thread_pools?: Record<string, ThreadPoolInfo>;
+  ai_insights?: AIInsights;
   errors?: string[];
 }

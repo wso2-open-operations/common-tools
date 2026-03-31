@@ -62,6 +62,19 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		stats.BlockedPercentage = (float64(blockedCount) / float64(len(threads))) * 100.0
 	}
 
+	// Compute lock contention counts: how many threads are waiting for each monitor address
+	lockAddrCount := map[string]int{}
+	for _, t := range threads {
+		if t.WaitingToLockAddress != "" {
+			lockAddrCount[t.WaitingToLockAddress]++
+		}
+	}
+	for i := range threads {
+		if threads[i].WaitingToLockAddress != "" {
+			threads[i].LockContentionCount = lockAddrCount[threads[i].WaitingToLockAddress]
+		}
+	}
+
 	// Thread level Concurrency Setup
 	numWorkers := runtime.NumCPU()
 	if numWorkers > len(threads) {

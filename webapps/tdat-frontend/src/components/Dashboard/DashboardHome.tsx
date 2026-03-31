@@ -15,7 +15,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LayersIcon from '@mui/icons-material/Layers';
 import { PieChart } from '@mui/x-charts';
 import { useAnalysisData } from '../../context/AnalysisContext';
-import type { Thread, ThreadSnapshot } from '../../types/api';
+import type { Thread, ThreadSnapshot, AIInsights } from '../../types/api';
 import { useNavigate } from 'react-router-dom';
 
 // Types
@@ -122,6 +122,7 @@ const DashboardHome: React.FC = () => {
   const [activityTab, setActivityTab] = useState(0);
 
   const threads: Thread[] = data?.threads ?? [];
+  const aiInsights: AIInsights | undefined = data?.ai_insights;
 
   // Unique dump names, sorted naturally
   const dumpNames = useMemo(() => {
@@ -143,6 +144,13 @@ const DashboardHome: React.FC = () => {
     [threads]
   );
 
+  // Count threads present in the latest dump specifically
+  const latestDumpCount = useMemo((): number => {
+    if (dumpNames.length === 0) return 0;
+    const lastDump = dumpNames[dumpNames.length - 1];
+    return threads.filter(t => t.snapshots.some(s => s.dump_name === lastDump)).length;
+  }, [threads, dumpNames]);
+
   // Thread count trend: compare last two dumps
   const trendPercent = useMemo((): number | null => {
     if (dumpNames.length < 2) return null;
@@ -156,12 +164,12 @@ const DashboardHome: React.FC = () => {
 
   // Dashboard summary derived from latest snapshots
   const summary: DashboardSummary = useMemo(() => ({
-    threadCount: latestSnapshots.length,
+    threadCount: latestDumpCount,
     criticalIssues: latestSnapshots.filter(s => s.state === 'BLOCKED').length,
     blockedThreads: latestSnapshots.filter(s => s.state === 'BLOCKED').length,
     healthScore: computeHealthScore(latestSnapshots),
     trendPercent,
-  }), [latestSnapshots, trendPercent]);
+  }), [latestSnapshots, latestDumpCount, trendPercent]);
 
   // Snapshots belonging to the selected dump file
   const selectedSnapshots = useMemo((): Array<{ thread: Thread; snapshot: ThreadSnapshot }> => {
@@ -208,7 +216,7 @@ const DashboardHome: React.FC = () => {
       .slice(0, 25)
       .map(({ thread, snapshot }) => ({
         threadName: thread.name,
-        state: snapshot.state,
+        state: snapshot.state?.trim() || 'N/A',
         elapsedSeconds: snapshot.elapsed_time_s,
       })),
     [selectedSnapshots]
@@ -226,10 +234,11 @@ const DashboardHome: React.FC = () => {
       .map(([key, items]) => {
         const stateCounts: Record<string, number> = {};
         items.forEach(({ snapshot }) => {
-          stateCounts[snapshot.state] = (stateCounts[snapshot.state] ?? 0) + 1;
+          const st = snapshot.state?.trim() || 'N/A';
+          stateCounts[st] = (stateCounts[st] ?? 0) + 1;
         });
         const dominantState =
-          Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'UNKNOWN';
+          Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'N/A';
         return {
           clusterName: key,
           count: items.length,
@@ -241,6 +250,61 @@ const DashboardHome: React.FC = () => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 20);
   }, [selectedSnapshots]);
+
+  // Key findings derived from rule engine risk levels and issues
+  const keyFindings = useMemo(() => {
+    type FindingItem = { label: string; color: string; bgColor: string; affectedThreads: string[] };
+    const findings: FindingItem[] = [];
+
+    const deadlocked = threads.filter(t =>
+      t.snapshots.some(s => s.issues?.some(i => i.toLowerCase().includes('deadlock')))
+    );
+    if (deadlocked.length > 0) {
+      findings.push({ label: 'Deadlock Detected', color: '#c62828', bgColor: '#ffebee', affectedThreads: deadlocked.map(t => t.name) });
+    }
+
+    const deadlockedSet = new Set(deadlocked.map(t => t.name));
+
+    const critical = threads.filter(t =>
+      !deadlockedSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'CRITICAL')
+    );
+    if (critical.length > 0) {
+      findings.push({ label: 'Critical Risk', color: '#e53935', bgColor: '#fff5f5', affectedThreads: critical.map(t => t.name) });
+    }
+
+    const criticalSet = new Set([...deadlocked, ...critical].map(t => t.name));
+
+    const high = threads.filter(t =>
+      !criticalSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'HIGH')
+    );
+    if (high.length > 0) {
+      findings.push({ label: 'High Risk', color: '#ef6c00', bgColor: '#fff3e0', affectedThreads: high.map(t => t.name) });
+    }
+
+    if (dumpNames.length > 0) {
+      const lastDump = dumpNames[dumpNames.length - 1];
+      const blocked = threads.filter(t => {
+        const snap = t.snapshots.find(s => s.dump_name === lastDump);
+        return snap?.state === 'BLOCKED' && !criticalSet.has(t.name) && !high.map(x => x.name).includes(t.name);
+      });
+      if (blocked.length > 0) {
+        findings.push({ label: 'Blocked Threads', color: '#f57c00', bgColor: '#fff8e1', affectedThreads: blocked.map(t => t.name) });
+      }
+    }
+
+    const excludedNames = new Set([
+      ...deadlocked, ...critical, ...high,
+    ].map(t => t.name));
+    const longRunning = selectedSnapshots
+      .filter(({ snapshot }) => snapshot.elapsed_time_s > 60)
+      .filter(({ thread }) => !excludedNames.has(thread.name))
+      .map(({ thread }) => thread.name);
+    if (longRunning.length > 0) {
+      findings.push({ label: 'Long-Running (>60s)', color: '#1565c0', bgColor: '#e3f2fd', affectedThreads: longRunning });
+    }
+
+    return findings;
+  }, [threads, dumpNames, selectedSnapshots]);
 
   const { label: healthLabel, labelColor: healthLabelColor, barColor: healthBarColor } =
     getHealthMeta(summary.healthScore);
@@ -539,7 +603,7 @@ const DashboardHome: React.FC = () => {
               )}
             </Paper>
 
-            {/* Key Findings — preserved exactly */}
+            {/* Key Findings */}
             <Paper
               elevation={0}
               variant="outlined"
@@ -551,11 +615,64 @@ const DashboardHome: React.FC = () => {
               <Typography variant="caption" color="text.secondary" display="block" mb={2}>
                 Critical issues and patterns detected by the analysis engine
               </Typography>
-              <Box display="flex" flexDirection="column" gap={0}>
-                <Typography variant="subtitle2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                  <strong> Placeholder: </strong> This section will highlight the most critical findings from the thread dump analysis, such as detected deadlocks, hotspots of contention, or threads with unusually high CPU usage. Each finding will include a brief description and its potential impact on application performance and stability.
+              {keyFindings.length === 0 ? (
+                <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                  No critical issues detected in this analysis.
                 </Typography>
-              </Box>
+              ) : (
+                <Box display="flex" flexDirection="column" gap={1.5}>
+                  {keyFindings.map((finding, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        borderLeft: `3px solid ${finding.color}`,
+                        bgcolor: finding.bgColor,
+                        p: 1.5,
+                        borderRadius: '0 6px 6px 0',
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        fontWeight={700}
+                        display="block"
+                        mb={0.75}
+                        sx={{ color: finding.color }}
+                      >
+                        {finding.label} ({finding.affectedThreads.length})
+                      </Typography>
+                      <Box display="flex" flexWrap="wrap" gap={0.5}>
+                        {finding.affectedThreads.slice(0, 5).map((name, i) => (
+                          <Chip
+                            key={i}
+                            label={name}
+                            size="small"
+                            onClick={() => navigate('/thread-explorer', { state: { searchThread: name } })}
+                            sx={{
+                              fontSize: '0.6rem',
+                              height: 20,
+                              cursor: 'pointer',
+                              bgcolor: 'white',
+                              border: `1px solid ${finding.color}`,
+                              color: finding.color,
+                              fontFamily: 'monospace',
+                              fontWeight: 600,
+                              maxWidth: 160,
+                              '&:hover': { opacity: 0.75 },
+                            }}
+                          />
+                        ))}
+                        {finding.affectedThreads.length > 5 && (
+                          <Chip
+                            label={`+${finding.affectedThreads.length - 5} more`}
+                            size="small"
+                            sx={{ fontSize: '0.6rem', height: 20, bgcolor: '#f5f5f5', color: '#666' }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
             </Paper>
           </Box>
 
@@ -742,35 +859,43 @@ const DashboardHome: React.FC = () => {
               AI analysis and recommendations based on detected patterns and anomalies in the thread dump data
             </Typography>
 
-            {/* Executive Summary */}
-            <Box sx={{ borderLeft: '3px solid #ef9a9a', backgroundColor: '#fce4ec', p: 2, borderRadius: '0 8px 8px 0', mb: 2 }}>
-              <Typography variant="caption" fontWeight={700} display="block" mb={0.5} color="#b71c1c">
-                Executive Summary
+            {!aiInsights ? (
+              <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                AI insights unavailable — ensure GROQ_API_KEY is set and a valid dump was uploaded.
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.6, fontStyle: 'italic' }}>
-                <strong> Placeholder: </strong>  This section will provide a high-level overview of the most critical findings, patterns, and recommended actions based on the thread dump data.
-              </Typography>
-            </Box>
+            ) : (
+              <>
+                {/* Executive Summary */}
+                <Box sx={{ borderLeft: '3px solid #ef9a9a', backgroundColor: '#fce4ec', p: 2, borderRadius: '0 8px 8px 0', mb: 2 }}>
+                  <Typography variant="caption" fontWeight={700} display="block" mb={0.75} color="#b71c1c">
+                    Executive Summary
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                    {aiInsights.executive_summary || '—'}
+                  </Typography>
+                </Box>
 
-            {/* Recommended Actions */}
-            <Box sx={{ borderLeft: '3px solid #ffe082', backgroundColor: '#fff8e1', p: 2, borderRadius: '0 8px 8px 0', mb: 2 }}>
-              <Typography variant="caption" fontWeight={700} display="block" mb={0.5} color="#e65100">
-                Recommended Actions
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.6, fontStyle: 'italic' }}>
-                <strong> Placeholder: </strong> This section will suggest specific steps to address identified issues, such as code changes, configuration tweaks, or further monitoring recommendations.
-              </Typography>
-            </Box>
+                {/* Pattern Recognition */}
+                <Box sx={{ borderLeft: '3px solid #90caf9', backgroundColor: '#e3f2fd', p: 2, borderRadius: '0 8px 8px 0', mb: 2 }}>
+                  <Typography variant="caption" fontWeight={700} display="block" mb={0.75} color="#1565c0">
+                    Pattern Recognition
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                    {aiInsights.pattern_recognition || '—'}
+                  </Typography>
+                </Box>
 
-            {/* Pattern Recognition */}
-            <Box sx={{ borderLeft: '3px solid #ef9a9a', backgroundColor: '#fce4ec', p: 2, borderRadius: '0 8px 8px 0' }}>
-              <Typography variant="caption" fontWeight={700} display="block" mb={0.5} color="#b71c1c">
-                Pattern Recognition
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.6, fontStyle: 'italic' }}>
-                <strong> Placeholder: </strong>  This section will highlight any recurring patterns or anomalies detected across the thread dumps, such as specific locks frequently contended, common stack trace signatures, or trends in thread states over time.
-              </Typography>
-            </Box>
+                {/* Recommended Actions */}
+                <Box sx={{ borderLeft: '3px solid #ffe082', backgroundColor: '#fff8e1', p: 2, borderRadius: '0 8px 8px 0' }}>
+                  <Typography variant="caption" fontWeight={700} display="block" mb={0.75} color="#e65100">
+                    Recommended Actions
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                    {aiInsights.recommended_actions || '—'}
+                  </Typography>
+                </Box>
+              </>
+            )}
           </Paper>
         </Box>
       </Box>
