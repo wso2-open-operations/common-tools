@@ -14,8 +14,8 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LayersIcon from '@mui/icons-material/Layers';
 import { PieChart } from '@mui/x-charts';
-import { useAnalysisData } from '../../context/AnalysisContext';
-import type { Thread, ThreadSnapshot, AIInsights } from '../../types/api';
+import { useAnalysisData } from '@context/AnalysisContext';
+import type { Thread, ThreadSnapshot, AIInsights } from '@/types/api';
 import { useNavigate } from 'react-router-dom';
 
 // Types

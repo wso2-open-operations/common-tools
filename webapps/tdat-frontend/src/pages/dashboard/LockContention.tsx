@@ -8,9 +8,9 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useNavigate } from 'react-router-dom';
-import { useAnalysisData } from '../../context/AnalysisContext';
-import type { Thread, ThreadSnapshot } from '../../types/api';
-import noData from '../../assets/error.svg';
+import { useAnalysisData } from '@context/AnalysisContext';
+import type { Thread, ThreadSnapshot } from '@/types/api';
+import noData from '@assets/error.svg';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

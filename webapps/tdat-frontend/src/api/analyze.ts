@@ -1,4 +1,4 @@
-import type { AnalysisResponse } from "../types/api";
+import type { AnalysisResponse } from "@/types/api";
 
 // Read Configurations
 const apiUrl = String(window?.configs?.apiUrl || "");

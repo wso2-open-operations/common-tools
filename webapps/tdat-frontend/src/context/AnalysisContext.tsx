@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, type ReactNode } from 'react';
-import type { AnalysisResponse } from '../types/api';
+import type { AnalysisResponse } from '@/types/api';
 
 interface AnalysisContextType {
   data: AnalysisResponse | null;

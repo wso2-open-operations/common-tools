@@ -2,15 +2,15 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Drawer, List, ListItem, ListItemButton,
-  ListItemIcon, ListItemText, Divider
+  ListItemIcon, ListItemText, Divider,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { useAnalysisData } from '../context/AnalysisContext';
 
-//Sidebar width when expanded and collapsed
+import { useAnalysisData } from '@context/AnalysisContext';
+
 const drawerWidth = 240;
 const collapsedWidth = 65;
 
@@ -24,13 +24,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const { clearSession } = useAnalysisData();
 
   const handleNewSession = () => {
-    if (window.confirm("Are you sure to start a new session? This will clear current analysis data.")) {
+    if (window.confirm('Are you sure to start a new session? This will clear current analysis data.')) {
       clearSession();
       navigate('/');
     }
   };
 
-  // Active paths for dashboard and thread explorer
   const isDashboard = location.pathname === '/dashboard';
   const isThreadExplorer = location.pathname === '/thread-explorer';
   const isLockContention = location.pathname === '/lock-contention';
@@ -123,7 +122,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         <Box sx={{ p: 2 }}>
           <ListItemButton
             onClick={handleNewSession}
-            sx={{ border: '1px solid #ccc', borderRadius: 1, justifyContent: isSidebarOpen ? 'initial' : 'center', px: 2.5, py: 0.45 }}
+            sx={{
+              border: '1px solid #ccc',
+              borderRadius: 1,
+              justifyContent: isSidebarOpen ? 'initial' : 'center',
+              px: 2.5,
+              py: 0.45,
+            }}
           >
             <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 3 : 'auto', justifyContent: 'center' }}>
               <RefreshIcon />

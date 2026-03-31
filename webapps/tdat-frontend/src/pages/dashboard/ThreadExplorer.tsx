@@ -13,10 +13,10 @@ import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { LineChart } from '@mui/x-charts/LineChart';
-import { useAnalysisData } from '../../context/AnalysisContext';
-import type { Thread, ThreadSnapshot } from '../../types/api';
-import noData from '../../assets/error.svg';
-import notFound from '../../assets/no-search-results.svg';
+import { useAnalysisData } from '@context/AnalysisContext';
+import type { Thread, ThreadSnapshot } from '@/types/api';
+import noData from '@assets/error.svg';
+import notFound from '@assets/no-search-results.svg';
 
 // Types for Sorting
 type Order = 'asc' | 'desc';

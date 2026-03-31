@@ -12,8 +12,8 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
-import { useAnalyzeThreads } from '../hooks/useAnalyzeThreads';
-import { useAnalysisData } from '../context/AnalysisContext';
+import { useAnalyzeThreads } from '@hooks/useAnalyzeThreads';
+import { useAnalysisData } from '@context/AnalysisContext';
 
 // Styled input for hidden file input
 const VisuallyHiddenInput = styled('input')({
