@@ -20,11 +20,12 @@ import (
 
 // Top-level JSON response format for a structured analysis
 type AggregatedAnalysisResponse struct {
-	SessionID  string                    `json:"session_id"`
-	Timestamp  string                    `json:"timestamp"`
-	Threads    []analyzer.AnalyzedThread `json:"threads"`
-	AIInsights *ai.AIInsights            `json:"ai_insights,omitempty"`
-	Errors     []string                  `json:"errors,omitempty"`
+	SessionID   string                             `json:"session_id"`
+	Timestamp   string                             `json:"timestamp"`
+	Threads     []analyzer.AnalyzedThread          `json:"threads"`
+	ThreadPools map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
+	AIInsights  *ai.AIInsights                     `json:"ai_insights,omitempty"`
+	Errors      []string                           `json:"errors,omitempty"`
 }
 
 // Start HTTP server
@@ -203,11 +204,12 @@ func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngi
 
 	// Construct Final Response Object
 	response := AggregatedAnalysisResponse{
-		SessionID:  uuid.New().String(),
-		Timestamp:  time.Now().Format(time.RFC3339),
-		Threads:    aggregatedThreads,
-		AIInsights: aiInsights,
-		Errors:     errorMessages,
+		SessionID:   uuid.New().String(),
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Threads:     aggregatedThreads,
+		ThreadPools: enricher.PoolMetadata(),
+		AIInsights:  aiInsights,
+		Errors:      errorMessages,
 	}
 
 	// Send JSON Response

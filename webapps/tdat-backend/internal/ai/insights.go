@@ -14,7 +14,7 @@ import (
 // AIInsights holds the three-section analysis produced by Groq.
 type AIInsights struct {
 	ExecutiveSummary   string `json:"executive_summary"`
-	PatternRecognition string `json:"pattern_recognition"`
+	KeyFindings        string `json:"pattern_recognition"`
 	RecommendedActions string `json:"recommended_actions"`
 }
 
@@ -59,7 +59,7 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 
 	return &AIInsights{
 		ExecutiveSummary:   executive,
-		PatternRecognition: patterns,
+		KeyFindings:        patterns,
 		RecommendedActions: recommendations,
 	}, nil
 }
@@ -68,7 +68,7 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 func parseThreeSections(text string) (executive, patterns, recommendations string) {
 	const (
 		hExec    = "Executive Summary:"
-		hPattern = "Pattern Recognition:"
+		hPattern = "Key Findings:"
 		hRec     = "Recommended Actions:"
 	)
 	execIdx := strings.Index(text, hExec)
@@ -179,17 +179,22 @@ func riskRank(level string) int {
 	}
 }
 
-const systemPrompt = `You are a Java performance engineer reviewing thread dumps.
-Respond with exactly three sections. Each section must start with its label on its own line followed by a colon.
+const systemPrompt = `You are an expert WSO2 / Java Performance Engineer reviewing thread dumps for products like WSO2 IS, APIM, and ESB. 
+You must respond with EXACTLY three sections. Each section must start with its exact label on its own line followed by a colon. 
+
+CRITICAL RULE: Use highly structured, easy-to-read formatting. Use bullet points and bold text for scannability. Do not write giant walls of text.
 
 Executive Summary:
-3–5 sentences on overall JVM health: what the system is doing, what problems exist, and how severe they are.
+Provide 3-5 concise sentences on the overall JVM health. Explicitly state:
+- If a Java-level deadlock was detected.
+- If there is severe thread pool saturation (e.g., Tomcat HTTP workers or PassThrough message processors).
+- The overall severity of the issue (Critical, Warning, Normal).
 
-Pattern Recognition:
-2–4 sentences on recurring patterns across the dumps: common stack trace signatures, contention hotspots, dominant thread states, or trends. If CPU/usage data was not provided, note that limitation.
+Key Findings:
+Use a bulleted list. For every issue found, you MUST explicitly state WHAT the issue is and WHERE it is happening. Focus specifically on WSO2 bottlenecks:
+- WHAT: Lock contention, DB connection exhaustion, slow LDAP responses, OAuth token validation bottlenecks, or idle starvation.
+- WHERE: Cite specific thread names (e.g., 'http-nio-*', 'PassThroughMessageProcessor-*') and specific WSO2/Java packages (e.g., 'org.wso2.carbon.identity.oauth2.*', 'javax.naming.*', 'org.apache.tomcat.jdbc.pool.*').
+Example format: "- **Database Pool Exhaustion:** 45 HTTP worker threads are blocked waiting for connections in 'org.apache.tomcat.jdbc.pool.ConnectionPool.borrowConnection'."
 
 Recommended Actions:
-2–4 sentences with specific, actionable remediation steps: code changes, configuration tweaks, further investigation, or monitoring recommendations.
-
-Rules: plain prose only, no bullet points, no individual thread names, no markdown.
-If CPU data is unavailable, do not speculate about CPU usage.`
+Use a numbered list of 2-4 highly specific, actionable remediation steps. Tailor these to WSO2 (e.g., tuning 'master-datasources.xml', increasing Tomcat 'maxThreads', enabling caching in 'identity.xml', or adding DB indexes).`
