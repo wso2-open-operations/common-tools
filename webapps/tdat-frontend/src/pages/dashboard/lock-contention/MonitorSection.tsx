@@ -19,7 +19,7 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
     const hiddenCount = lock.victims.length - VICTIM_LIMIT;
 
     return (
-        <Box sx={{ mb: 2, border: '1px solid #eeeeee', borderRadius: 1.5, overflow: 'hidden' }}>
+        <Box sx={{ mb: 2, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 2.5, overflow: 'hidden' }}>
             <Box
                 sx={{
                     display: 'flex',
@@ -27,9 +27,9 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
                     gap: 0.75,
                     px: 2,
                     py: 0.9,
-                    bgcolor: '#f5f5f5',
+                    bgcolor: 'rgba(249,250,251,0.6)',
                     flexWrap: 'wrap',
-                    borderBottom: '1px solid #eeeeee',
+                    borderBottom: '1px solid rgba(0,0,0,0.06)',
                 }}
             >
                 <LockOutlinedIcon sx={{ fontSize: 14, color: '#555', flexShrink: 0 }} />
@@ -43,7 +43,7 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
                     &lt;{lock.address}&gt;
                 </Typography>
                 <Typography variant="caption" sx={{ ml: 'auto', color: '#888', whiteSpace: 'nowrap' }}>
-                    {lock.victims.length} thread{lock.victims.length !== 1 ? 's' : ''} blocked on this monitor
+                    {lock.victims.length} blocked thread{lock.victims.length !== 1 ? 's' : ''}
                 </Typography>
             </Box>
 

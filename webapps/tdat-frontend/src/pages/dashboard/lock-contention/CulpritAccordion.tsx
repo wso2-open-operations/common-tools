@@ -19,11 +19,14 @@ const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClic
             disableGutters
             elevation={0}
             sx={{
-                mb: 1,
-                border: '1px solid #e0e0e0',
-                borderRadius: '8px !important',
+                mb: 1.5,
+                border: '1px solid rgba(0,0,0,0.06)',
+                borderRadius: '12px !important',
+                bgcolor: 'rgba(255,255,255,0.8)',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 '&:before': { display: 'none' },
-                '&.Mui-expanded': { mb: 1 },
+                '&.Mui-expanded': { mb: 1.5 },
             }}
         >
             <AccordionSummary

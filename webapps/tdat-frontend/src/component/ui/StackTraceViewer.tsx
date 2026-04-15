@@ -32,7 +32,6 @@ const StackTraceViewer: React.FC<Props> = ({ snapshot, index }) => {
                 </Typography>
             </Box>
             <Paper
-                variant="outlined"
                 sx={{
                     p: 2,
                     bgcolor: '#0d1117',
@@ -40,7 +39,8 @@ const StackTraceViewer: React.FC<Props> = ({ snapshot, index }) => {
                     fontFamily: 'Consolas, Monaco, "Andale Mono"',
                     fontSize: '0.8rem',
                     overflowX: 'auto',
-                    borderRadius: 2,
+                    borderRadius: 3,
+                    border: '1px solid #30363d',
                 }}
             >
                 <pre style={{ margin: 0 }}>

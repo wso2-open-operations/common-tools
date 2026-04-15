@@ -15,12 +15,12 @@ const PreLoader = ({ isLoading = true, message }: PreLoaderProps) => {
         alignItems: 'center',
         height: '100vh',
         gap: 2,
-        background: (theme) => theme.palette.background.default,
+        background: '#0d1117',
       }}
     >
-      {isLoading && <CircularProgress sx={{ color: '#ff6d00' }} />}
+      {isLoading && <CircularProgress sx={{ color: '#ff6d00' }} size={36} />}
       {message && (
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)' }}>
           {message}
         </Typography>
       )}

@@ -33,7 +33,7 @@ function renderFormattedText(text: string): React.ReactNode {
 }
 
 const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights }) => (
-    <Paper elevation={0} variant="outlined" sx={{ p: 2.5, borderRadius: 2, borderColor: '#E0E0E0', height: '100%' }}>
+    <Paper sx={{ p: 2.5, borderRadius: 3, height: '100%', bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <Box display="flex" alignItems="center" gap={1} mb={0.5}>
             <Typography variant="subtitle2" fontWeight={700}>Executive Summary</Typography>
         </Box>

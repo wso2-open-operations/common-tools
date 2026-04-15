@@ -34,3 +34,7 @@ go.work
 # Build output
 bin/
 dist/
+
+# Markdown files (except README)
+*.md
+!README.md

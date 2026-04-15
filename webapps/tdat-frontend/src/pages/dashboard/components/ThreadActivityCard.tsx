@@ -22,16 +22,17 @@ interface ThreadActivityCardProps {
 const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
     threadClusters, longRunningThreads, highCpuThreads, onThreadClick, activityTab, onTabChange,
 }) => (
-    <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, borderColor: '#E0E0E0', overflow: 'hidden' }}>
-        <Box sx={{ borderBottom: '1px solid #E0E0E0' }}>
+    <Paper sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <Box sx={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
             <Tabs
                 value={activityTab}
                 onChange={(_, v) => onTabChange(v)}
                 sx={{
                     px: 2,
                     minHeight: 46,
-                    '& .MuiTab-root': { minHeight: 46, fontSize: '0.82rem', textTransform: 'none', fontWeight: 500, gap: 0.75 },
-                    '& .Mui-selected': { fontWeight: 700 },
+                    '& .MuiTab-root': { minHeight: 46, fontSize: '0.82rem', textTransform: 'none', fontWeight: 500, gap: 0.75, color: '#6b7280' },
+                    '& .Mui-selected': { fontWeight: 700, color: '#111827 !important' },
+                    '& .MuiTabs-indicator': { bgcolor: '#ff6d00', height: 2.5, borderRadius: 2 },
                 }}
             >
                 <Tab icon={<LayersIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Thread Clusters" />

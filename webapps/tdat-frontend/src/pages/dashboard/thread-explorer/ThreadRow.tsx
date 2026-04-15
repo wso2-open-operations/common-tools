@@ -37,12 +37,12 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
     }));
 
     return (
-        <Paper sx={{ mb: 2, overflow: 'hidden' }} variant="outlined">
+        <Paper sx={{ mb: 2, overflow: 'hidden', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)', bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.06)' } }}>
             <Box
                 sx={{
                     p: 2,
                     cursor: 'pointer',
-                    bgcolor: open ? '#f8f9fa' : 'white',
+                    bgcolor: open ? 'rgba(249,250,251,0.6)' : 'transparent',
                     transition: 'background-color 0.2s',
                 }}
                 onClick={() => setOpen(!open)}

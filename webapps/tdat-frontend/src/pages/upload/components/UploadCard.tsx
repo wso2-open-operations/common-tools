@@ -38,9 +38,9 @@ const UploadCard: React.FC<UploadCardProps> = ({
     const [isDragActive, setIsDragActive] = useState(false);
 
     const isPrimary = required;
-    const borderColor = isPrimary ? '#ffab91' : '#e0e0e0';
-    const bgColor = isPrimary ? '#fffbf7' : '#f8f9fa';
-    const badgeColor = isPrimary ? '#ff6d00' : '#455a64';
+    const borderColor = isPrimary ? 'rgba(253,186,116,0.5)' : 'rgba(0,0,0,0.06)';
+    const bgColor = 'rgba(255,255,255,0.8)';
+    const badgeColor = isPrimary ? '#ff6d00' : '#6b7280';
 
     const processFiles = (incomingFiles: File[]) => {
         const { valid, invalid } = validateFiles(incomingFiles);
@@ -73,8 +73,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
     return (
         <Paper
-            elevation={0}
-            sx={{ p: 3, mb: 3, border: '1px solid', borderColor, backgroundColor: bgColor, borderRadius: 2 }}
+            sx={{ p: 3, mb: 3, border: '1px solid', borderColor, backgroundColor: bgColor, backdropFilter: 'blur(8px)', borderRadius: 3, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
         >
             <Box display="flex" alignItems="center" gap={1} mb={1}>
                 <Typography variant="h6" fontWeight="600" color="text.primary">{title}</Typography>
@@ -96,8 +95,8 @@ const UploadCard: React.FC<UploadCardProps> = ({
                 sx={{
                     border: '1px dashed',
                     borderColor: isDragActive ? '#2196f3' : 'divider',
-                    borderRadius: 2,
-                    backgroundColor: isDragActive ? '#e3f2fd' : 'white',
+                    borderRadius: 3,
+                    backgroundColor: isDragActive ? 'rgba(239,246,255,0.8)' : 'rgba(249,250,251,0.6)',
                     p: files.length > 0 ? 3 : 6,
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center',

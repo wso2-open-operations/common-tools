@@ -10,7 +10,18 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: `
+          radial-gradient(ellipse at 18% 8%, rgba(196,181,243,0.22) 0%, transparent 55%),
+          radial-gradient(ellipse at 72% 55%, rgba(255,197,150,0.18) 0%, transparent 55%),
+          #f5f6fa`,
+        backgroundAttachment: 'fixed',
+      }}
+    >
       <CssBaseline />
 
       <Header
@@ -21,7 +32,7 @@ const Layout = () => {
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar isSidebarOpen={isSidebarOpen} />
 
-        <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: '#f8f9fa', overflow: 'auto' }}>
+        <Box component="main" sx={{ flexGrow: 1, p: 3, overflow: 'auto' }}>
           <Outlet />
         </Box>
       </Box>

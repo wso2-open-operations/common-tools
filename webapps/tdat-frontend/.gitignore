@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 
+.agents/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -24,3 +26,9 @@ dist-ssr
 *.sw?
 .env
 .env.local
+
+# Markdown files (except README)
+*.md
+!README.md
+
+skills-lock.json

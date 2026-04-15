@@ -22,21 +22,21 @@ interface StateDistributionCardProps {
 const StateDistributionCard: React.FC<StateDistributionCardProps> = ({
     dumpNames, selectedDump, onDumpChange, pieData, stateDistribution, totalSelectedThreads,
 }) => (
-    <Paper elevation={0} variant="outlined" sx={{ flex: 7, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0', minWidth: 0 }}>
-        <Typography variant="subtitle2" fontWeight={700} mb={1.75}>
+    <Paper sx={{ flex: 7, p: 2.5, borderRadius: 3, minWidth: 0, bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <Typography variant="subtitle2" fontWeight={700} mb={1.75} sx={{ color: '#111827' }}>
             Thread State Distribution
         </Typography>
 
         {dumpNames.length > 0 && (
             <Box mb={2.5} display="flex" alignItems="center" gap={1}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, flexShrink: 0 }}>
+                <Typography variant="caption" sx={{ fontWeight: 500, flexShrink: 0, color: '#6b7280' }}>
                     Snapshot:
                 </Typography>
                 <Select
                     value={dumpNames.includes(selectedDump) ? selectedDump : (dumpNames[0] || '')}
                     onChange={(e) => { if (e.target.value) onDumpChange(e.target.value); }}
                     size="small"
-                    sx={{ minWidth: 220, height: 36, bgcolor: 'white', fontSize: '0.8rem', borderRadius: 1 }}
+                    sx={{ minWidth: 220, height: 36, bgcolor: 'rgba(249,250,251,0.6)', fontSize: '0.8rem', borderRadius: 2, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.08)' } }}
                 >
                     {dumpNames.map((name) => (
                         <MenuItem key={name} value={name} sx={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 200 }}>

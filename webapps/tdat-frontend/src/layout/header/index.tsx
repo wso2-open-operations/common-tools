@@ -3,8 +3,9 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useLocation } from 'react-router-dom';
 import { useAuthContext } from '@asgardeo/auth-react';
+import '@fontsource-variable/inter/index.css';
 
-import logo from '@assets/wso2-logo.svg';
+import logo from '@assets/WSO2.png';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -19,29 +20,33 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
   return (
     <AppBar
       position="sticky"
-      color="default"
-      elevation={1}
-      sx={{ bgcolor: 'background.paper', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+      elevation={0}
+      sx={{
+        bgcolor: 'rgba(255,255,255,0.65)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+        borderBottom: '1px solid rgba(0,0,0,0.06)',
+      }}
     >
       <Toolbar>
         {!isUploadPage && (
           <IconButton
             edge="start"
-            color="inherit"
             aria-label="open drawer"
             onClick={toggleSidebar}
-            sx={{ mr: 1 }}
+            sx={{ mr: 1, color: '#4b5563', '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' } }}
           >
             <MenuIcon />
           </IconButton>
         )}
 
-        <img src={logo} alt="WSO2_Logo" height="45" />
+        <img src={logo} alt="WSO2_Logo" height="36" style={{ marginRight: '8px', borderRadius: '6px' }} />
         <Typography
-          variant="h5"
+          variant="h6"
           noWrap
           component="div"
-          sx={{ flexGrow: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center', ml: 0.5 }}
+          sx={{ fontFamily: 'inherit', flexGrow: 1, fontWeight: 700, display: 'flex', alignItems: 'center', ml: 0.5, color: '#0d1117', letterSpacing: '-0.01em' }}
         >
           Thread Dump Analyzer
         </Typography>
@@ -49,14 +54,16 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
         <Button
           sx={{
             ml: 1,
-            borderRadius: 5,
-            borderColor: 'grey.300',
-            '&:hover': { borderColor: 'grey.500' },
+            borderRadius: 2,
+            borderColor: 'rgba(0,0,0,0.12)',
+            color: '#4b5563',
+            fontSize: '0.8rem',
+            px: 2,
+            '&:hover': { borderColor: 'rgba(0,0,0,0.25)', bgcolor: 'rgba(0,0,0,0.03)' },
           }}
           variant="outlined"
-          startIcon={<LogoutIcon />}
+          startIcon={<LogoutIcon sx={{ fontSize: '18px !important' }} />}
           onClick={() => signOut()}
-          color="inherit"
         >
           Logout
         </Button>

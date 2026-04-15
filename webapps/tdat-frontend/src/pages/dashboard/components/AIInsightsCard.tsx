@@ -35,9 +35,7 @@ function renderFormattedText(text: string): React.ReactNode {
 
 const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => (
     <Paper
-        elevation={0}
-        variant="outlined"
-        sx={{ p: 2.5, borderRadius: 2, borderColor: '#E0E0E0', position: 'sticky', top: 24 }}
+        sx={{ p: 2.5, borderRadius: 3, position: 'sticky', top: 24, bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
     >
         <Box display="flex" alignItems="center" gap={1} mb={0.5}>
             <AutoAwesomeIcon sx={{ fontSize: 20, color: '#ff6d00' }} />

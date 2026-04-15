@@ -15,7 +15,7 @@ interface KeyFindingsCardProps {
 }
 
 const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThreadClick }) => (
-    <Paper elevation={0} variant="outlined" sx={{ flex: 4, p: 2.5, borderRadius: 2, borderColor: '#E0E0E0', minWidth: 220 }}>
+    <Paper sx={{ flex: 4, p: 2.5, borderRadius: 3, minWidth: 220, bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <Typography variant="subtitle2" fontWeight={700} gutterBottom>
             Key Findings
         </Typography>

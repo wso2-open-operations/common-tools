@@ -92,12 +92,18 @@ function UploadPage() {
     };
 
     return (
-        <>
+        <Box sx={{
+            minHeight: '100vh',
+            background: `
+                radial-gradient(ellipse at 18% 8%, rgba(196,181,243,0.22) 0%, transparent 55%),
+                radial-gradient(ellipse at 72% 55%, rgba(255,197,150,0.18) 0%, transparent 55%),
+                #f5f6fa`,
+        }}>
             <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
-            <Container maxWidth="md" sx={{ py: 6 }}>
-                <Box>
-                    <Typography variant="h5" fontWeight="bold" gutterBottom>Start New Analysis Session</Typography>
-                    <Typography variant="body1" color="text.secondary" gutterBottom>
+            <Container maxWidth="md" sx={{ py: 5 }}>
+                <Box sx={{ mb: 4 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#111827', mb: 0.5 }}>Start New Analysis Session</Typography>
+                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
                         Upload thread dump files and their corresponding Thread Usage metrics to begin analysis
                     </Typography>
                 </Box>
@@ -130,7 +136,7 @@ function UploadPage() {
 
                 {/* File Pairing Overview */}
                 {(dumps.length > 0 || usages.length > 0) && (
-                    <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #e0e0e0', borderRadius: 2, backgroundColor: '#fafafa' }}>
+                    <Paper sx={{ p: 3, mb: 3, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                         <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                             <Typography variant="subtitle1" fontWeight="bold">Paired Files</Typography>
                             {usages.length > 0 && (
@@ -200,7 +206,13 @@ function UploadPage() {
                         size="large"
                         onClick={handleAnalyzeClick}
                         disabled={isPending || dumps.length === 0}
-                        sx={{ textTransform: 'none', px: 4, py: 1, backgroundColor: '#ff6d00', color: 'white !important' }}
+                        sx={{
+                            px: 5, py: 1.25, backgroundColor: '#ff6d00', color: 'white !important',
+                            borderRadius: 2.5, fontWeight: 600, fontSize: '0.9rem',
+                            boxShadow: '0 4px 14px rgba(255,109,0,0.3)',
+                            '&:hover': { backgroundColor: '#e65100', boxShadow: '0 6px 20px rgba(255,109,0,0.35)' },
+                            '&.Mui-disabled': { bgcolor: '#d1d5db', color: '#9ca3af !important', boxShadow: 'none' },
+                        }}
                     >
                         {isPending ? <CircularProgress size={24} color="inherit" /> : 'Analyze Session'}
                     </Button>
@@ -212,7 +224,7 @@ function UploadPage() {
                     </MuiAlert>
                 </Snackbar>
             </Container>
-        </>
+        </Box>
     );
 }
 export default UploadPage;

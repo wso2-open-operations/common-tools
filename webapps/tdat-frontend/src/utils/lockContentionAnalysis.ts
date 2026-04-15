@@ -8,6 +8,7 @@ export interface BlockedThreadInfo {
     snapshot: ThreadSnapshot;
     lockAddress: string;
     waitTime: string;
+    waitTimeMs: number;
 }
 
 export interface LockWithVictims {
@@ -141,8 +142,9 @@ export function deriveCulpritCentricData(threads: Thread[]): CulpritCentricData 
                 if (!waitingByLock.has(waitLock.address)) {
                     waitingByLock.set(waitLock.address, { className: waitLock.className, lockType: waitLock.lockType, victims: [] });
                 }
-                const waitTime = snapshot.elapsed_time_s > 0 ? `${Math.round(snapshot.elapsed_time_s * 1000)} ms` : '';
-                waitingByLock.get(waitLock.address)!.victims.push({ thread, snapshot, lockAddress: waitLock.address, waitTime });
+                const waitTimeMs = snapshot.elapsed_time_s > 0 ? Math.round(snapshot.elapsed_time_s * 1000) : 0;
+                const waitTime = waitTimeMs > 0 ? `${waitTimeMs} ms` : '';
+                waitingByLock.get(waitLock.address)!.victims.push({ thread, snapshot, lockAddress: waitLock.address, waitTime, waitTimeMs });
                 waitGraph.set(thread.id, waitLock.address);
             }
         }
