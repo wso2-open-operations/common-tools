@@ -7,12 +7,9 @@ import {
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
-import CheckIcon from '@mui/icons-material/Check';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
 import { useAnalysisData } from '@context/AnalysisContext';
-import { useExportReport } from '@hooks/useExportReport';
 
 const drawerWidth = 240;
 const collapsedWidth = 65;
@@ -25,7 +22,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { clearSession } = useAnalysisData();
-  const { exportReport, isExporting, exported, hasData } = useExportReport();
 
   const handleNewSession = () => {
     if (window.confirm('Are you sure to start a new session? This will clear current analysis data.')) {
@@ -108,32 +104,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         </Box>
         <Box sx={{ px: 1.5, pb: 1 }}>
           <Divider sx={{ mb: 1.5 }} />
-          <ListItemButton
-            onClick={exportReport}
-            disabled={!hasData || isExporting}
-            sx={{
-              borderRadius: 2,
-              justifyContent: isSidebarOpen ? 'initial' : 'center',
-              px: 2,
-              py: 1,
-              mb: 0.75,
-              bgcolor: exported ? 'rgba(240,253,244,0.7)' : 'transparent',
-              border: '1px solid',
-              borderColor: exported ? 'rgba(187,247,208,0.7)' : 'rgba(0,0,0,0.08)',
-              '&.Mui-disabled': { opacity: 0.4 },
-              '&:hover': { bgcolor: exported ? 'rgba(240,253,244,0.7)' : 'rgba(0,0,0,0.03)' },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 2 : 'auto', justifyContent: 'center' }}>
-              {exported ? <CheckIcon sx={{ color: '#16a34a', fontSize: 20 }} /> : <FileDownloadOutlinedIcon sx={{ fontSize: 20, color: '#6b7280' }} />}
-            </ListItemIcon>
-            <ListItemText
-              primary={exported ? 'Exported' : 'Export Report'}
-              sx={{ opacity: isSidebarOpen ? 1 : 0 }}
-              slotProps={{ primary: { sx: { fontSize: '0.82rem', fontWeight: 500, color: exported ? '#16a34a' : '#374151' } } }}
-            />
-          </ListItemButton>
-
           <ListItemButton
             onClick={handleNewSession}
             sx={{

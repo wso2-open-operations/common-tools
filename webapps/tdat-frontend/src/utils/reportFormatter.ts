@@ -30,6 +30,19 @@ function formatDuration(seconds: number): string {
     return `${seconds.toFixed(1)}s`;
 }
 
+function formatWaitTime(ms: number): string {
+    if (ms >= 60_000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms >= 1_000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${ms}ms`;
+}
+
+function waitSeverityTag(ms: number): string {
+    if (ms >= 60_000) return '[CRITICAL]';
+    if (ms >= 10_000) return '[HIGH]';
+    if (ms >= 1_000) return '[WARN]';
+    return '[OK]';
+}
+
 // ─── Table Generator ────────────────────────────────────────────────────────
 
 interface TableColumn {
@@ -135,14 +148,18 @@ function formatMetrics(
     healthScore: number,
     blockedCount: number,
     criticalCount: number,
+    deadlockCycles: number,
+    maxWaitTimeMs: number,
     stateDistribution: Record<string, number>,
 ): string {
     const header = sectionHeader('METRICS');
     const lines = [
         kvLine('Total Threads', threadCount),
         kvLine('Health Score', `${healthScore} / 100`),
-        kvLine('Blocked Threads', blockedCount),
+        kvLine('Blocked Threads', blockedCount > 0 ? `${blockedCount}  ⚠` : String(blockedCount)),
+        kvLine('Deadlock Cycles', deadlockCycles > 0 ? `${deadlockCycles}  ⚠` : String(deadlockCycles)),
         kvLine('Critical Issues', criticalCount),
+        ...(maxWaitTimeMs > 0 ? [kvLine('Max Wait Time', `${formatWaitTime(maxWaitTimeMs)}  ${waitSeverityTag(maxWaitTimeMs)}`)] : []),
         '',
         '  State Distribution:',
         ...Object.entries(stateDistribution)
@@ -380,8 +397,10 @@ function formatLockContention(threads: Thread[]): string {
                 const shortName = lock.className.split('.').pop() ?? lock.className;
                 sections.push(`\n    Monitor: ${shortName} <${lock.address}>`);
                 lock.victims.forEach(v => {
-                    const blocked = v.waitTime ? ` (blocked ${v.waitTime})` : '';
-                    sections.push(`      - ${truncate(v.thread.name, 50)} [${v.snapshot.state}]${blocked}`);
+                    const waitStr = v.waitTimeMs > 0
+                        ? `  wait: ${formatWaitTime(v.waitTimeMs)} ${waitSeverityTag(v.waitTimeMs)}`
+                        : '';
+                    sections.push(`      - ${truncate(v.thread.name, 50)} [${v.snapshot.state}]${waitStr}`);
                 });
             });
         });
@@ -391,14 +410,17 @@ function formatLockContention(threads: Thread[]): string {
     if (orphanedLocks.length > 0) {
         sections.push('');
         sections.push(`  --- Unowned Monitors (${orphanedLocks.length}) ---`);
-        sections.push('  Monitors with blocked threads but no owner visible in this snapshot.');
+        sections.push('  Monitors with blocked threads but no owner thread visible in this snapshot.');
 
         orphanedLocks.forEach(lock => {
             const shortName = lock.className.split('.').pop() ?? lock.className;
             sections.push(`\n  Monitor: ${shortName} <${lock.address}>`);
             sections.push(`    ${lock.victims.length} blocked thread${lock.victims.length !== 1 ? 's' : ''}:`);
             lock.victims.slice(0, 10).forEach(v => {
-                sections.push(`      - ${truncate(v.thread.name, 50)} [${v.snapshot.state}]`);
+                const waitStr = v.waitTimeMs > 0
+                    ? `  wait: ${formatWaitTime(v.waitTimeMs)} ${waitSeverityTag(v.waitTimeMs)}`
+                    : '';
+                sections.push(`      - ${truncate(v.thread.name, 50)} [${v.snapshot.state}]${waitStr}`);
             });
             if (lock.victims.length > 10) {
                 sections.push(`      ... +${lock.victims.length - 10} more`);
@@ -432,6 +454,23 @@ export function generateReport(data: AnalysisResponse): string {
         t.snapshots.some(s => s.risk_level === 'CRITICAL'),
     ).length;
 
+    const { culprits, orphanedLocks, deadlocks } = deriveCulpritCentricData(threads);
+    const deadlockCycles = deadlocks.length;
+
+    let maxWaitTimeMs = 0;
+    for (const c of culprits) {
+        for (const lock of c.heldLocks) {
+            for (const v of lock.victims) {
+                if (v.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = v.waitTimeMs;
+            }
+        }
+    }
+    for (const o of orphanedLocks) {
+        for (const v of o.victims) {
+            if (v.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = v.waitTimeMs;
+        }
+    }
+
     const stateDistribution: Record<string, number> = {};
     snapshots.forEach(({ snapshot }) => {
         const state = snapshot.state?.trim() || 'N/A';
@@ -441,7 +480,7 @@ export function generateReport(data: AnalysisResponse): string {
     return [
         formatHeader(data.session_id, data.timestamp),
         formatExecutiveSummary(aiInsights),
-        formatMetrics(threadCount, healthScore, blockedCount, criticalCount, stateDistribution),
+        formatMetrics(threadCount, healthScore, blockedCount, criticalCount, deadlockCycles, maxWaitTimeMs, stateDistribution),
         formatKeyFindings(threads, dumpNames),
         formatAIInsights(aiInsights),
         formatThreadClusters(snapshots),

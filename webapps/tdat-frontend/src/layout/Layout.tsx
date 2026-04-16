@@ -1,13 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, CssBaseline } from '@mui/material';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 
 import Header from '@layout/header';
 import Sidebar from '@layout/sidebar';
 import Footer from '@layout/footer';
 
+const PAGE_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/thread-explorer': 'Thread Explorer',
+  '/lock-contention': 'Lock Contention',
+};
+
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const page = PAGE_TITLES[pathname];
+    if (page) document.title = `${page} | TDAT`;
+  }, [pathname]);
 
   return (
     <Box

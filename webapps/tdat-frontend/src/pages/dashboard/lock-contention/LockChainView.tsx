@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Paper, Typography, Chip } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
@@ -111,7 +111,19 @@ interface ContentionChainProps {
     onThreadClick: (name: string) => void;
 }
 
-const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClick }) => (
+const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClick }) => {
+    const [expandedLocks, setExpandedLocks] = useState<Set<string>>(new Set());
+
+    const toggleLock = (address: string) => {
+        setExpandedLocks(prev => {
+            const next = new Set(prev);
+            if (next.has(address)) next.delete(address);
+            else next.add(address);
+            return next;
+        });
+    };
+
+    return (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)', bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         {/* Owner node */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
@@ -136,6 +148,9 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
         {/* Locks and victims */}
         {culprit.heldLocks.map((lock) => {
             const shortClass = lock.className.split('.').pop() ?? lock.className;
+            const isExpanded = expandedLocks.has(lock.address);
+            const visibleVictims = isExpanded ? lock.victims : lock.victims.slice(0, 5);
+            const remainingCount = lock.victims.length - 5;
             return (
                 <React.Fragment key={lock.address}>
                     {/* Lock connector */}
@@ -158,7 +173,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                     </Box>
 
                     {/* Victim nodes */}
-                    {lock.victims.slice(0, 5).map((victim) => (
+                    {visibleVictims.map((victim) => (
                         <Box key={victim.thread.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <Box sx={{ width: 24, display: 'flex', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
                                 <Box sx={{ width: 2, bgcolor: '#e5e7eb', position: 'absolute', top: 0, bottom: '50%' }} />
@@ -184,11 +199,14 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                             </Box>
                         </Box>
                     ))}
-                    {lock.victims.length > 5 && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    {remainingCount > 0 && (
+                        <Box
+                            onClick={() => toggleLock(lock.address)}
+                            sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { '& .expand-label': { color: '#6b7280' } } }}
+                        >
                             <Box sx={{ width: 24, flexShrink: 0 }} />
-                            <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '0.68rem', ml: 1, py: 0.25 }}>
-                                + {lock.victims.length - 5} more blocked threads
+                            <Typography className="expand-label" variant="caption" sx={{ color: '#9ca3af', fontSize: '0.68rem', ml: 1, py: 0.25, userSelect: 'none' }}>
+                                {isExpanded ? '— Show fewer' : `+ ${remainingCount} more blocked threads`}
                             </Typography>
                         </Box>
                     )}
@@ -196,7 +214,8 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
             );
         })}
     </Paper>
-);
+    );
+};
 
 // ─── Exported Component ──────────────────────────────────────────────────────
 

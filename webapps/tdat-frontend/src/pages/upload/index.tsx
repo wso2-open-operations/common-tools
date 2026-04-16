@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import {
@@ -15,6 +15,10 @@ import Header from '@src/layout/header';
 function UploadPage() {
     const navigate = useNavigate();
     const { setAnalysisData } = useAnalysisData();
+
+    useEffect(() => {
+        document.title = 'New Session | TDAT';
+    }, []);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
@@ -100,7 +104,7 @@ function UploadPage() {
                 #f5f6fa`,
         }}>
             <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
-            <Container maxWidth="md" sx={{ py: 5 }}>
+            <Container maxWidth="lg" sx={{ py: 5 }}>
                 <Box sx={{ mb: 4 }}>
                     <Typography variant="h5" sx={{ fontWeight: 700, color: '#111827', mb: 0.5 }}>Start New Analysis Session</Typography>
                     <Typography variant="body2" sx={{ color: '#6b7280' }}>
@@ -110,29 +114,34 @@ function UploadPage() {
 
                 {error && <Alert severity="error" sx={{ mb: 3 }}>Analysis failed: {error.message}</Alert>}
 
-                <UploadCard
-                    title="Add Thread Dump Files"
-                    description="Upload one or more thread dump files (.txt, .log or similar)"
-                    required={true}
-                    fileTypeLabel="thread dump"
-                    files={dumps}
-                    onAddFiles={(newFiles) => setDumps(prev => addUnique(prev, newFiles))}
-                    onClearFiles={() => setDumps([])}
-                    onRemoveFile={(file) => setDumps(prev => prev.filter(f => f !== file))}
-                    onError={setErrorMsg}
-                />
-
-                <UploadCard
-                    title="Add Thread Usage Files"
-                    description="Upload CPU usage metrics to enhance analysis"
-                    required={false}
-                    fileTypeLabel="usage"
-                    files={usages}
-                    onAddFiles={(newFiles) => setUsages(prev => addUnique(prev, newFiles))}
-                    onClearFiles={() => setUsages([])}
-                    onRemoveFile={(file) => setUsages(prev => prev.filter(f => f !== file))}
-                    onError={setErrorMsg}
-                />
+                <Box sx={{ display: 'flex', gap: 3, mb: 0 }}>
+                    <Box sx={{ flex: 1 }}>
+                        <UploadCard
+                            title="Add Thread Dump Files"
+                            description="Upload one or more thread dump files (.txt, .log or similar)"
+                            required={true}
+                            fileTypeLabel="thread dump"
+                            files={dumps}
+                            onAddFiles={(newFiles) => setDumps(prev => addUnique(prev, newFiles))}
+                            onClearFiles={() => setDumps([])}
+                            onRemoveFile={(file) => setDumps(prev => prev.filter(f => f !== file))}
+                            onError={setErrorMsg}
+                        />
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                        <UploadCard
+                            title="Add Thread Usage Files"
+                            description="Upload CPU usage metrics to enhance analysis"
+                            required={false}
+                            fileTypeLabel="usage"
+                            files={usages}
+                            onAddFiles={(newFiles) => setUsages(prev => addUnique(prev, newFiles))}
+                            onClearFiles={() => setUsages([])}
+                            onRemoveFile={(file) => setUsages(prev => prev.filter(f => f !== file))}
+                            onError={setErrorMsg}
+                        />
+                    </Box>
+                </Box>
 
                 {/* File Pairing Overview */}
                 {(dumps.length > 0 || usages.length > 0) && (

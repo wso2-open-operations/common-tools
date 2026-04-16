@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box, Paper, Typography, Collapse, IconButton } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -31,7 +31,14 @@ interface ThreadRowProps {
 const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
     const [open, setOpen] = useState(false);
 
-    const chartData = thread.snapshots.map((s, i) => ({
+    const sortedSnapshots = useMemo(
+        () => [...thread.snapshots].sort((a, b) =>
+            a.dump_name.localeCompare(b.dump_name, undefined, { numeric: true, sensitivity: 'base' })
+        ),
+        [thread.snapshots]
+    );
+
+    const chartData = sortedSnapshots.map((s, i) => ({
         x: i + 1,
         y: STATE_LEVELS[s.state] || 0.5,
     }));
@@ -95,12 +102,13 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                     <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff' }}>
                         <LineChart
                             height={250}
-                            margin={{ left: 100, right: 30, top: 30, bottom: 30 }}
+                            margin={{ left: 120, right: 80, top: 30, bottom: 50 }}
                             grid={{ horizontal: true }}
                             xAxis={[{
                                 data: chartData.map(d => d.x),
-                                label: 'Dump Sequence',
+                                label: 'Thread Dumps',
                                 tickInterval: chartData.map(d => d.x),
+                                valueFormatter: (value: number) => sortedSnapshots[value - 1]?.dump_name ?? `Dump ${value}`,
                             }]}
                             yAxis={[{
                                 min: 0.5, max: 4.5,
@@ -114,13 +122,14 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                                 color: '#ff6700',
                                 area: false,
                                 showMark: true,
+                                valueFormatter: (value: number | null) => value === null ? '' : getStateLabel(value),
                             }]}
                             sx={{ '.MuiChartsAxis-left .MuiChartsAxis-tickLabel': { fontWeight: 'bold', fontSize: '0.70rem', fill: '#555' } }}
                         />
                     </Paper>
                     <Typography variant="h6" gutterBottom fontSize="1rem">Snapshot Details</Typography>
-                    {thread.snapshots.map((snap, idx) => (
-                        <StackTraceViewer key={idx} snapshot={snap} index={idx} />
+                    {sortedSnapshots.map((snap, idx) => (
+                        <StackTraceViewer key={idx} snapshot={snap} index={idx} dumpName={snap.dump_name} />
                     ))}
                 </Box>
             </Collapse>

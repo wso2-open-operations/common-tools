@@ -5,16 +5,17 @@ import type { ThreadSnapshot } from '@/types/api';
 interface Props {
     snapshot: ThreadSnapshot;
     index: number;
+    dumpName?: string;
 }
 
-const StackTraceViewer: React.FC<Props> = ({ snapshot, index }) => {
+const StackTraceViewer: React.FC<Props> = ({ snapshot, index, dumpName }) => {
     const displayState = snapshot.state || 'N/A';
 
     return (
         <Box sx={{ mt: 2, mb: 3 }}>
             <Box display="flex" alignItems="center" gap={2} mb={1}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555' }}>
-                    Dump {index + 1}
+                    {dumpName ? `Dump ${index + 1} - ${dumpName}` : `Dump ${index + 1}`}
                 </Typography>
                 <Chip
                     label={displayState}

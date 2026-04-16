@@ -244,7 +244,7 @@ const ThreadExplorer: React.FC = () => {
                             size="small"
                             value={rowsPerPage}
                             onChange={(e: SelectChangeEvent<number>) => setRowsPerPage(Number(e.target.value))}
-                            sx={{ bgcolor: 'rgba(255,255,255,0.8)', height: 32, borderRadius: 2, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.08)' } }}
+                            sx={{ bgcolor: '#fff', height: 32, borderRadius: 2, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.08)' } }}
                         >
                             {[10, 25, 50, 100].map(n => <MenuItem key={n} value={n}>{n}</MenuItem>)}
                         </Select>

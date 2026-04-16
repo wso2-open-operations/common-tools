@@ -15,6 +15,6 @@ export const thSx = {
     fontSize: '0.71rem',
     color: '#6b7280',
     letterSpacing: '0.05em',
-    bgcolor: 'rgba(249,250,251,0.6)',
+    bgcolor: '#f9fafb',
     borderBottom: '1px solid rgba(0,0,0,0.06)',
 } as const;
