@@ -110,7 +110,7 @@ const LockContention: React.FC = () => {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 2 }}>
                     <Box>
                         <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-                            <LockOutlinedIcon sx={{ color: '#e53935' }} />
+                            <LockOutlinedIcon sx={(theme) => ({ color: theme.palette.state.blocked.main })} />
                             <Typography variant="h5" fontWeight="bold">
                                 Lock Contention &amp; Monitors
                             </Typography>
@@ -128,43 +128,92 @@ const LockContention: React.FC = () => {
                             placeholder="Search thread name or monitor address..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#9ca3af', fontSize: 20 }} /></InputAdornment> } }}
-                            sx={{
+                            slotProps={{
+                                input: {
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchIcon sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: 20 })} />
+                                        </InputAdornment>
+                                    ),
+                                },
+                            }}
+                            sx={(theme) => ({
                                 width: 360,
-                                bgcolor: 'rgba(255,255,255,0.8)',
+                                bgcolor: theme.palette.surface.translucent,
                                 flexShrink: 0,
                                 '& .MuiOutlinedInput-root': { borderRadius: 2.5 },
-                                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.08)' },
-                                '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.15)' },
-                            }}
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.surface.border },
+                                '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.surface.borderStrong },
+                            })}
                         />
                     )}
                 </Box>
 
                 {/* Metadata Bar */}
-                <Paper sx={{ display: 'inline-flex', gap: 4, px: 2.5, py: 1.25, mb: 2.5, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', flexWrap: 'wrap', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <Paper
+                    sx={(theme) => ({
+                        display: 'inline-flex',
+                        gap: 4,
+                        px: 2.5,
+                        py: 1.25,
+                        mb: 2.5,
+                        border: `1px solid ${theme.palette.surface.border}`,
+                        borderRadius: 3,
+                        bgcolor: theme.palette.surface.translucent,
+                        backdropFilter: 'blur(8px)',
+                        flexWrap: 'wrap',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    })}
+                >
                     <Box>
-                        <Typography variant="caption" sx={{ fontSize: '0.72rem', display: 'block', color: '#6b7280' }}>Total Threads</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#111827', fontSize: '0.82rem' }}>{threads.length}</Typography>
+                        <Typography variant="caption" sx={(theme) => ({ fontSize: '0.72rem', display: 'block', color: theme.palette.text.secondary })}>Total Threads</Typography>
+                        <Typography variant="body2" sx={(theme) => ({ fontWeight: 600, color: theme.palette.text.primary, fontSize: '0.82rem' })}>{threads.length}</Typography>
                     </Box>
                     <Box>
-                        <Typography variant="caption" sx={{ fontSize: '0.72rem', display: 'block', color: '#6b7280' }}>Blocked Threads</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: totalBlocked > 0 ? '#dc2626' : '#111827', fontSize: '0.82rem' }}>{totalBlocked}</Typography>
+                        <Typography variant="caption" sx={(theme) => ({ fontSize: '0.72rem', display: 'block', color: theme.palette.text.secondary })}>Blocked Threads</Typography>
+                        <Typography
+                            variant="body2"
+                            sx={(theme) => ({
+                                fontWeight: 600,
+                                color: totalBlocked > 0 ? theme.palette.state.blocked.text : theme.palette.text.primary,
+                                fontSize: '0.82rem',
+                            })}
+                        >
+                            {totalBlocked}
+                        </Typography>
                     </Box>
                     <Box>
-                        <Typography variant="caption" sx={{ fontSize: '0.72rem', display: 'block', color: '#6b7280' }}>Deadlock Cycles</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: deadlocks.length > 0 ? '#dc2626' : '#111827', fontSize: '0.82rem' }}>{deadlocks.length}</Typography>
+                        <Typography variant="caption" sx={(theme) => ({ fontSize: '0.72rem', display: 'block', color: theme.palette.text.secondary })}>Deadlock Cycles</Typography>
+                        <Typography
+                            variant="body2"
+                            sx={(theme) => ({
+                                fontWeight: 600,
+                                color: deadlocks.length > 0 ? theme.palette.state.blocked.text : theme.palette.text.primary,
+                                fontSize: '0.82rem',
+                            })}
+                        >
+                            {deadlocks.length}
+                        </Typography>
                     </Box>
                     {maxWaitTimeMs > 0 && (
                         <Box>
-                            <Typography variant="caption" sx={{ fontSize: '0.72rem', display: 'block', color: '#6b7280' }}>
+                            <Typography variant="caption" sx={(theme) => ({ fontSize: '0.72rem', display: 'block', color: theme.palette.text.secondary })}>
                                 <AccessTimeIcon sx={{ fontSize: 11, mr: 0.3, verticalAlign: 'middle' }} />
                                 Max Wait Time
                             </Typography>
-                            <Typography variant="body2" sx={{
-                                fontWeight: 600, fontSize: '0.82rem', fontFamily: 'monospace',
-                                color: maxWaitTimeMs >= 60_000 ? '#dc2626' : maxWaitTimeMs >= 10_000 ? '#ea580c' : '#111827',
-                            }}>
+                            <Typography
+                                variant="body2"
+                                sx={(theme) => ({
+                                    fontWeight: 600,
+                                    fontSize: '0.82rem',
+                                    fontFamily: 'monospace',
+                                    color: maxWaitTimeMs >= 60_000
+                                        ? theme.palette.state.blocked.text
+                                        : maxWaitTimeMs >= 10_000
+                                            ? theme.palette.state.waiting.text
+                                            : theme.palette.text.primary,
+                                })}
+                            >
                                 {formatMaxWait(maxWaitTimeMs)}
                             </Typography>
                         </Box>
@@ -191,8 +240,20 @@ const LockContention: React.FC = () => {
 
                 {/* No contention state */}
                 {!hasContention && (
-                    <Paper sx={{ p: 3, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 3, textAlign: 'center' }}>
-                        <Typography variant="body1" color="#2e7d32" fontWeight={600}>
+                    <Paper
+                        sx={(theme) => ({
+                            p: 3,
+                            bgcolor: theme.palette.severity.success.bg,
+                            border: `1px solid ${theme.palette.severity.success.border}`,
+                            borderRadius: 3,
+                            textAlign: 'center',
+                        })}
+                    >
+                        <Typography
+                            variant="body1"
+                            fontWeight={600}
+                            sx={(theme) => ({ color: theme.palette.severity.success.text })}
+                        >
                             All clear — no lock contention detected.
                         </Typography>
                         <Typography variant="body2" color="text.secondary" mt={0.5}>
@@ -208,12 +269,23 @@ const LockContention: React.FC = () => {
 
                 {/* Search empty state */}
                 {q && !hasFilteredResults && (
-                    <Paper sx={{ p: 4, bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 3, textAlign: 'center', mb: 3, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                        <SearchIcon sx={{ fontSize: 40, color: '#d1d5db', mb: 1 }} />
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#6b7280' }}>
+                    <Paper
+                        sx={(theme) => ({
+                            p: 4,
+                            bgcolor: theme.palette.surface.translucent,
+                            backdropFilter: 'blur(8px)',
+                            border: `1px solid ${theme.palette.surface.border}`,
+                            borderRadius: 3,
+                            textAlign: 'center',
+                            mb: 3,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        })}
+                    >
+                        <SearchIcon sx={(theme) => ({ fontSize: 40, color: theme.palette.text.disabled, mb: 1 })} />
+                        <Typography variant="body1" sx={(theme) => ({ fontWeight: 600, color: theme.palette.text.secondary })}>
                             No results for "{searchQuery}"
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#9ca3af', mt: 0.5 }}>
+                        <Typography variant="body2" sx={(theme) => ({ color: theme.palette.text.disabled, mt: 0.5 })}>
                             Try searching by thread name, thread ID, monitor address, or class name.
                         </Typography>
                     </Paper>
@@ -223,18 +295,28 @@ const LockContention: React.FC = () => {
                 {hasContention && hasFilteredResults && (
                     <Box sx={{ mb: 4 }}>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
-                            <Typography variant="h6" fontWeight={700} sx={{ color: '#111827' }}>Lock Owners</Typography>
-                            {q && <Typography variant="caption" sx={{ color: '#9ca3af' }}>({filteredCulprits.length} match{filteredCulprits.length !== 1 ? 'es' : ''})</Typography>}
+                            <Typography variant="h6" fontWeight={700} sx={(theme) => ({ color: theme.palette.text.primary })}>Lock Owners</Typography>
+                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredCulprits.length} match{filteredCulprits.length !== 1 ? 'es' : ''})</Typography>}
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.75 }}>
                             Threads holding locks/monitors and blocking other threads, sorted by impact.
                         </Typography>
                         {filteredCulprits.length === 0 ? (
-                            <Paper sx={{ p: 2.5, bgcolor: 'rgba(249,250,251,0.6)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <LockOutlinedIcon sx={{ color: '#d1d5db', fontSize: 22, flexShrink: 0 }} />
+                            <Paper
+                                sx={(theme) => ({
+                                    p: 2.5,
+                                    bgcolor: theme.palette.surface.muted,
+                                    border: `1px solid ${theme.palette.surface.border}`,
+                                    borderRadius: 3,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1.5,
+                                })}
+                            >
+                                <LockOutlinedIcon sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: 22, flexShrink: 0 })} />
                                 <Box>
-                                    <Typography variant="body2" fontWeight={600} sx={{ color: '#6b7280' }}>No lock owners identified</Typography>
-                                    <Typography variant="caption" sx={{ color: '#9ca3af' }}>
+                                    <Typography variant="body2" fontWeight={600} sx={(theme) => ({ color: theme.palette.text.secondary })}>No lock owners identified</Typography>
+                                    <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>
                                         {q ? 'No lock owners match your search query.' : 'No thread was found actively holding a lock that is blocking others. The monitors below may be orphaned or already released.'}
                                     </Typography>
                                 </Box>
@@ -249,8 +331,8 @@ const LockContention: React.FC = () => {
                 {filteredOrphanedLocks.length > 0 && (
                     <Box>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
-                            <Typography variant="h6" fontWeight={700} sx={{ color: '#111827' }}>Unowned Monitors</Typography>
-                            {q && <Typography variant="caption" sx={{ color: '#9ca3af' }}>({filteredOrphanedLocks.length} match{filteredOrphanedLocks.length !== 1 ? 'es' : ''})</Typography>}
+                            <Typography variant="h6" fontWeight={700} sx={(theme) => ({ color: theme.palette.text.primary })}>Unowned Monitors</Typography>
+                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredOrphanedLocks.length} match{filteredOrphanedLocks.length !== 1 ? 'es' : ''})</Typography>}
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                             Monitors with blocked threads but no owner thread visible in this snapshot.
@@ -260,7 +342,12 @@ const LockContention: React.FC = () => {
                         ))}
                         {hiddenOrphanedCount > 0 && (
                             <Box sx={{ textAlign: 'center', py: 0.5 }}>
-                                <Button size="small" variant="text" onClick={() => setShowAllOrphanedLocks(v => !v)} sx={{ fontSize: '0.75rem', color: '#ea580c' }}>
+                                <Button
+                                    size="small"
+                                    variant="text"
+                                    onClick={() => setShowAllOrphanedLocks(v => !v)}
+                                    sx={(theme) => ({ fontSize: '0.75rem', color: theme.palette.brand.softText })}
+                                >
                                     {showAllOrphanedLocks ? 'Show fewer' : `Show all ${filteredOrphanedLocks.length} locks`}
                                 </Button>
                             </Box>

@@ -33,7 +33,17 @@ function renderFormattedText(text: string): React.ReactNode {
 }
 
 const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights }) => (
-    <Paper sx={{ p: 2.5, borderRadius: 3, height: '100%', bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+    <Paper
+        sx={(theme) => ({
+            p: 2.5,
+            borderRadius: 3,
+            height: '100%',
+            bgcolor: theme.palette.surface.translucent,
+            backdropFilter: 'blur(8px)',
+            border: `1px solid ${theme.palette.surface.border}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        })}
+    >
         <Box display="flex" alignItems="center" gap={1} mb={0.5}>
             <Typography variant="subtitle2" fontWeight={700}>Executive Summary</Typography>
         </Box>
@@ -46,7 +56,14 @@ const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights 
                 Executive summary unavailable — ensure GROQ_API_KEY is set and a valid dump was uploaded.
             </Typography>
         ) : (
-            <Box sx={{ borderLeft: '3px solid #ef9a9a', backgroundColor: '#fce4ec', p: 2, borderRadius: '0 8px 8px 0' }}>
+            <Box
+                sx={(theme) => ({
+                    borderLeft: `3px solid ${theme.palette.severity.summary.border}`,
+                    backgroundColor: theme.palette.severity.summary.bg,
+                    p: 2,
+                    borderRadius: '0 8px 8px 0',
+                })}
+            >
                 {aiInsights.executive_summary
                     ? renderFormattedText(aiInsights.executive_summary)
                     : <Typography variant="caption" color="text.disabled" fontStyle="italic">—</Typography>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, CssBaseline } from '@mui/material';
+import { Box } from '@mui/material';
 import { Outlet, useLocation } from 'react-router-dom';
 
 import Header from '@layout/header';
@@ -23,19 +23,15 @@ const Layout = () => {
 
   return (
     <Box
-      sx={{
+      sx={(theme) => ({
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        background: `
-          radial-gradient(ellipse at 18% 8%, rgba(196,181,243,0.22) 0%, transparent 55%),
-          radial-gradient(ellipse at 72% 55%, rgba(255,197,150,0.18) 0%, transparent 55%),
-          #f5f6fa`,
+        background: theme.palette.surface.pageGradient,
         backgroundAttachment: 'fixed',
-      }}
+        color: theme.palette.text.primary,
+      })}
     >
-      <CssBaseline />
-
       <Header
         isSidebarOpen={isSidebarOpen}
         toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}

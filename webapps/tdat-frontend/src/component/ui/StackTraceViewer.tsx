@@ -14,7 +14,10 @@ const StackTraceViewer: React.FC<Props> = ({ snapshot, index, dumpName }) => {
     return (
         <Box sx={{ mt: 2, mb: 3 }}>
             <Box display="flex" alignItems="center" gap={2} mb={1}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555' }}>
+                <Typography
+                    variant="subtitle2"
+                    sx={(theme) => ({ fontWeight: 'bold', color: theme.palette.text.secondary })}
+                >
                     {dumpName ? `Dump ${index + 1} - ${dumpName}` : `Dump ${index + 1}`}
                 </Typography>
                 <Chip
@@ -33,16 +36,16 @@ const StackTraceViewer: React.FC<Props> = ({ snapshot, index, dumpName }) => {
                 </Typography>
             </Box>
             <Paper
-                sx={{
+                sx={(theme) => ({
                     p: 2,
-                    bgcolor: '#0d1117',
-                    color: '#c9d1d9',
+                    bgcolor: theme.palette.surface.codeBg,
+                    color: theme.palette.surface.codeText,
                     fontFamily: 'Consolas, Monaco, "Andale Mono"',
                     fontSize: '0.8rem',
                     overflowX: 'auto',
                     borderRadius: 3,
-                    border: '1px solid #30363d',
-                }}
+                    border: `1px solid ${theme.palette.surface.codeBorder}`,
+                })}
             >
                 <pre style={{ margin: 0 }}>
                     {snapshot.stack_trace && snapshot.stack_trace.length > 0

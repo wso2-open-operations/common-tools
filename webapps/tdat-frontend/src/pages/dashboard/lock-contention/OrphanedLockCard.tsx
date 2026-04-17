@@ -23,19 +23,19 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
         <Accordion
             disableGutters
             elevation={0}
-            sx={{
+            sx={(theme) => ({
                 mb: 1.5,
-                border: '1px solid rgba(253,186,116,0.4)',
+                border: `1px solid ${theme.palette.brand.softBorder}`,
                 borderRadius: '12px !important',
-                bgcolor: 'rgba(255,255,255,0.8)',
+                bgcolor: theme.palette.surface.translucent,
                 backdropFilter: 'blur(8px)',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 '&:before': { display: 'none' },
                 '&.Mui-expanded': { mb: 1.5 },
-            }}
+            })}
         >
             <AccordionSummary
-                expandIcon={<ExpandMoreIcon sx={{ color: '#e65100' }} />}
+                expandIcon={<ExpandMoreIcon sx={(theme) => ({ color: theme.palette.accent.owner })} />}
                 sx={{
                     px: 2,
                     minHeight: 48,
@@ -47,26 +47,32 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                     },
                 }}
             >
-                <LockOutlinedIcon sx={{ fontSize: 16, color: '#bbb', flexShrink: 0 }} />
+                <LockOutlinedIcon sx={(theme) => ({ fontSize: 16, color: theme.palette.text.disabled, flexShrink: 0 })} />
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
                     <Typography
                         variant="body2"
-                        sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#333', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
+                        sx={(theme) => ({
+                            fontFamily: 'monospace',
+                            fontWeight: 700,
+                            color: theme.palette.text.primary,
+                            fontSize: '0.82rem',
+                            whiteSpace: 'nowrap',
+                        })}
                     >
                         &lt;{lock.address}&gt;
                     </Typography>
                     <Tooltip title={lock.className} placement="top">
                         <Typography
                             variant="caption"
-                            sx={{
-                                color: '#888',
+                            sx={(theme) => ({
+                                color: theme.palette.text.secondary,
                                 fontSize: '0.72rem',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
                                 maxWidth: { xs: 160, sm: 320, md: 500 },
                                 cursor: 'default',
-                            }}
+                            })}
                         >
                             {shortName}
                         </Typography>
@@ -75,19 +81,37 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                 <Chip
                     label={`${lock.victims.length} Blocked`}
                     size="small"
-                    sx={{ bgcolor: '#fff3e0', color: '#e65100', fontWeight: 700, fontSize: '0.68rem', height: 22, flexShrink: 0 }}
+                    sx={(theme) => ({
+                        bgcolor: theme.palette.severity.high.bg,
+                        color: theme.palette.severity.high.text,
+                        fontWeight: 700,
+                        fontSize: '0.68rem',
+                        height: 22,
+                        flexShrink: 0,
+                    })}
                 />
             </AccordionSummary>
 
             <AccordionDetails sx={{ p: 0 }}>
-                <Box sx={{ px: 2, py: 0.75, bgcolor: '#f5f5f5', borderTop: '1px solid #ffe0b2', borderBottom: '1px solid #eeeeee' }}>
-                    <Typography variant="caption" sx={{ color: '#777', fontFamily: 'monospace', fontSize: '0.72rem' }}>
+                <Box
+                    sx={(theme) => ({
+                        px: 2,
+                        py: 0.75,
+                        bgcolor: theme.palette.surface.muted,
+                        borderTop: `1px solid ${theme.palette.brand.softBorder}`,
+                        borderBottom: `1px solid ${theme.palette.surface.border}`,
+                    })}
+                >
+                    <Typography
+                        variant="caption"
+                        sx={(theme) => ({ color: theme.palette.text.secondary, fontFamily: 'monospace', fontSize: '0.72rem' })}
+                    >
                         {lock.className}
                     </Typography>
                 </Box>
 
                 {lock.victims.length === 0 ? (
-                    <Box sx={{ px: 2, py: 2, bgcolor: '#fafafa', textAlign: 'center' }}>
+                    <Box sx={(theme) => ({ px: 2, py: 2, bgcolor: theme.palette.surface.inset, textAlign: 'center' })}>
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
                             No blocked threads recorded for this monitor.
                         </Typography>
@@ -103,12 +127,12 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                         {hiddenCount > 0 && (
                             <>
                                 <Divider />
-                                <Box sx={{ textAlign: 'center', py: 0.5, bgcolor: '#fafafa' }}>
+                                <Box sx={(theme) => ({ textAlign: 'center', py: 0.5, bgcolor: theme.palette.surface.inset })}>
                                     <Button
                                         size="small"
                                         variant="text"
                                         onClick={() => setShowAll(v => !v)}
-                                        sx={{ textTransform: 'none', fontSize: '0.75rem', color: '#e65100' }}
+                                        sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', color: theme.palette.accent.owner })}
                                     >
                                         {showAll ? 'Show fewer' : `Show all ${lock.victims.length} threads`}
                                     </Button>

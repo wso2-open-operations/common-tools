@@ -37,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   return (
     <Drawer
       variant="permanent"
-      sx={{
+      sx={(theme) => ({
         width: isSidebarOpen ? drawerWidth : collapsedWidth,
         flexShrink: 0,
         whiteSpace: 'nowrap',
@@ -50,18 +50,27 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
           transition: 'width 0.2s',
           overflowX: 'hidden',
           overflowY: 'auto',
-          bgcolor: 'rgba(255,255,255,0.55)',
+          bgcolor: theme.palette.surface.sidebarBg,
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
-          borderRight: '1px solid rgba(0,0,0,0.06)',
+          borderRight: `1px solid ${theme.palette.surface.border}`,
         },
-      }}
+      })}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden', overflowY: 'auto' }}>
         <Box sx={{ flexGrow: 1, p: 1.5, mt: 0.5 }}>
           {isSidebarOpen && (
             <Box sx={{ px: 1.5, mb: 1.5 }}>
-              <Typography variant="caption" sx={{ color: '#8b949e', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <Typography
+                variant="caption"
+                sx={(theme) => ({
+                  color: theme.palette.text.disabled,
+                  fontWeight: 600,
+                  fontSize: '0.65rem',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                })}
+              >
                 Navigation
               </Typography>
             </Box>
@@ -76,21 +85,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                 <ListItemButton
                   selected={item.active}
                   onClick={() => navigate(item.path)}
-                  sx={{
+                  sx={(theme) => ({
                     minHeight: 44,
                     justifyContent: isSidebarOpen ? 'initial' : 'center',
                     px: 2,
                     borderRadius: 2,
-                    bgcolor: item.active ? 'rgba(255,237,213,0.7) !important' : 'transparent',
-                    color: item.active ? '#ea580c' : '#4b5563',
-                    borderLeft: item.active ? '3px solid #ff6d00' : '3px solid transparent',
+                    bgcolor: item.active ? `${theme.palette.brand.softBg} !important` : 'transparent',
+                    color: item.active ? theme.palette.brand.softText : theme.palette.text.secondary,
+                    borderLeft: item.active ? `3px solid ${theme.palette.brand.main}` : '3px solid transparent',
                     '&:hover': {
-                      bgcolor: item.active ? 'rgba(255,237,213,0.7)' : 'rgba(0,0,0,0.03)',
+                      bgcolor: item.active ? theme.palette.brand.softBg : theme.palette.surface.hoverBg,
                     },
-                  }}
+                  })}
                 >
                   <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 2 : 'auto', justifyContent: 'center' }}>
-                    {React.cloneElement(item.icon, { sx: { color: item.active ? '#ff6d00' : '#6b7280', fontSize: 20 } })}
+                    {React.cloneElement(item.icon, {
+                      sx: (theme: import('@mui/material/styles').Theme) => ({
+                        color: item.active ? theme.palette.brand.main : theme.palette.text.secondary,
+                        fontSize: 20,
+                      }),
+                    })}
                   </ListItemIcon>
                   <ListItemText
                     primary={item.label}
@@ -106,22 +120,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
           <Divider sx={{ mb: 1.5 }} />
           <ListItemButton
             onClick={handleNewSession}
-            sx={{
+            sx={(theme) => ({
               borderRadius: 2,
               justifyContent: isSidebarOpen ? 'initial' : 'center',
               px: 2,
               py: 1,
-              border: '1px solid rgba(0,0,0,0.08)',
-              '&:hover': { bgcolor: 'rgba(0,0,0,0.03)' },
-            }}
+              border: `1px solid ${theme.palette.surface.border}`,
+              '&:hover': { bgcolor: theme.palette.surface.hoverBg },
+            })}
           >
             <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 2 : 'auto', justifyContent: 'center' }}>
-              <RefreshIcon sx={{ fontSize: 20, color: '#6b7280' }} />
+              <RefreshIcon sx={(theme) => ({ fontSize: 20, color: theme.palette.text.secondary })} />
             </ListItemIcon>
             <ListItemText
               primary="New Session"
               sx={{ opacity: isSidebarOpen ? 1 : 0 }}
-              slotProps={{ primary: { sx: { fontSize: '0.82rem', fontWeight: 500, color: '#374151' } } }}
+              slotProps={{ primary: { sx: { fontSize: '0.82rem', fontWeight: 500 } } }}
             />
           </ListItemButton>
         </Box>

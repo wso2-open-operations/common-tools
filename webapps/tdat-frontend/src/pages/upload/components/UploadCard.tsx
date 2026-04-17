@@ -38,9 +38,6 @@ const UploadCard: React.FC<UploadCardProps> = ({
     const [isDragActive, setIsDragActive] = useState(false);
 
     const isPrimary = required;
-    const borderColor = isPrimary ? 'rgba(253,186,116,0.5)' : 'rgba(0,0,0,0.06)';
-    const bgColor = 'rgba(255,255,255,0.8)';
-    const badgeColor = isPrimary ? '#ff6d00' : '#6b7280';
 
     const processFiles = (incomingFiles: File[]) => {
         const { valid, invalid } = validateFiles(incomingFiles);
@@ -73,14 +70,28 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
     return (
         <Paper
-            sx={{ p: 3, mb: 3, border: '1px solid', borderColor, backgroundColor: bgColor, backdropFilter: 'blur(8px)', borderRadius: 3, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+            sx={(theme) => ({
+                p: 3,
+                mb: 3,
+                border: `1px solid ${isPrimary ? theme.palette.brand.softBorder : theme.palette.surface.border}`,
+                backgroundColor: theme.palette.surface.translucent,
+                backdropFilter: 'blur(8px)',
+                borderRadius: 3,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            })}
         >
             <Box display="flex" alignItems="center" gap={1} mb={1}>
                 <Typography variant="h6" fontWeight="600" color="text.primary">{title}</Typography>
                 <Chip
                     label={required ? 'Required' : 'Optional'}
                     size="small"
-                    sx={{ backgroundColor: badgeColor, color: 'white', fontWeight: 'bold', fontSize: '0.65rem', height: 20 }}
+                    sx={(theme) => ({
+                        backgroundColor: isPrimary ? theme.palette.brand.main : theme.palette.text.secondary,
+                        color: theme.palette.brand.contrast,
+                        fontWeight: 'bold',
+                        fontSize: '0.65rem',
+                        height: 20,
+                    })}
                 />
             </Box>
 
@@ -92,20 +103,25 @@ const UploadCard: React.FC<UploadCardProps> = ({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                sx={{
+                sx={(theme) => ({
                     border: '1px dashed',
-                    borderColor: isDragActive ? '#2196f3' : 'divider',
+                    borderColor: isDragActive ? theme.palette.brand.main : theme.palette.divider,
                     borderRadius: 3,
-                    backgroundColor: isDragActive ? 'rgba(239,246,255,0.8)' : 'rgba(249,250,251,0.6)',
+                    backgroundColor: isDragActive ? theme.palette.severity.info.bg : theme.palette.surface.muted,
                     p: files.length > 0 ? 3 : 6,
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     transition: 'all 0.2s ease-in-out',
                     ...(files.length === 0 && {
                         cursor: 'pointer',
-                        '&:hover': { backgroundColor: '#fafafa', borderColor: isPrimary ? '#ff6d00' : 'primary.main' },
+                        '&:hover': {
+                            backgroundColor: theme.palette.surface.hoverBg,
+                            borderColor: isPrimary ? theme.palette.brand.main : theme.palette.primary.main,
+                        },
                     }),
-                }}
+                })}
             >
                 {files.length > 0 ? (
                     <Box textAlign="center" width="100%">
@@ -126,7 +142,11 @@ const UploadCard: React.FC<UploadCardProps> = ({
                                 variant="outlined"
                                 color="primary"
                                 startIcon={<AddIcon />}
-                                sx={{ textTransform: 'none', borderColor: 'divider', color: 'text.primary' }}
+                                sx={(theme) => ({
+                                    textTransform: 'none',
+                                    borderColor: theme.palette.divider,
+                                    color: theme.palette.text.primary,
+                                })}
                             >
                                 Add More Files
                                 <VisuallyHiddenInput type="file" accept=".txt, .log" multiple onChange={handleInputChange} />
@@ -161,12 +181,12 @@ const UploadCard: React.FC<UploadCardProps> = ({
                             component="span"
                             variant="contained"
                             color="inherit"
-                            sx={{
+                            sx={(theme) => ({
                                 textTransform: 'none',
-                                backgroundColor: isPrimary ? '#0d1117' : '#0d1100',
-                                color: 'white',
+                                backgroundColor: theme.palette.mode === 'dark' ? theme.palette.surface.inset : '#0d1117',
+                                color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#ffffff',
                                 pointerEvents: 'none',
-                            }}
+                            })}
                             startIcon={<CloudUploadIcon />}
                         >
                             Browse Files

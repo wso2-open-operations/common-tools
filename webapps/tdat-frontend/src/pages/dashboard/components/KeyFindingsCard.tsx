@@ -1,11 +1,12 @@
 import React from 'react';
 import { Box, Paper, Typography, Chip } from '@mui/material';
 
+export type FindingSeverity = 'critical' | 'high' | 'medium' | 'info';
+
 interface FindingItem {
     label: string;
     description: string;
-    color: string;
-    bgColor: string;
+    severity: FindingSeverity;
     affectedThreads: string[];
 }
 
@@ -15,7 +16,18 @@ interface KeyFindingsCardProps {
 }
 
 const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThreadClick }) => (
-    <Paper sx={{ flex: 4, p: 2.5, borderRadius: 3, minWidth: 220, bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+    <Paper
+        sx={(theme) => ({
+            flex: 4,
+            p: 2.5,
+            borderRadius: 3,
+            minWidth: 220,
+            bgcolor: theme.palette.surface.translucent,
+            backdropFilter: 'blur(8px)',
+            border: `1px solid ${theme.palette.surface.border}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        })}
+    >
         <Typography variant="subtitle2" fontWeight={700} gutterBottom>
             Key Findings
         </Typography>
@@ -31,11 +43,23 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                 {keyFindings.map((finding, idx) => (
                     <Box
                         key={idx}
-                        sx={{ borderLeft: `3px solid ${finding.color}`, bgcolor: finding.bgColor, p: 1.5, borderRadius: '0 6px 6px 0' }}
+                        sx={(theme) => {
+                            const tokens = theme.palette.severity[finding.severity];
+                            return {
+                                borderLeft: `3px solid ${tokens.border}`,
+                                bgcolor: tokens.bg,
+                                p: 1.5,
+                                borderRadius: '0 6px 6px 0',
+                            };
+                        }}
                     >
                         {/* Issue label + count */}
                         <Box display="flex" alignItems="baseline" gap={1} mb={0.5}>
-                            <Typography variant="caption" fontWeight={700} sx={{ color: finding.color }}>
+                            <Typography
+                                variant="caption"
+                                fontWeight={700}
+                                sx={(theme) => ({ color: theme.palette.severity[finding.severity].text })}
+                            >
                                 {finding.label}
                             </Typography>
                             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 400 }}>
@@ -66,17 +90,20 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                                     label={name}
                                     size="small"
                                     onClick={() => onThreadClick(name)}
-                                    sx={{
-                                        fontSize: '0.6rem',
-                                        height: 20,
-                                        cursor: 'pointer',
-                                        bgcolor: 'white',
-                                        border: `1px solid ${finding.color}`,
-                                        color: finding.color,
-                                        fontFamily: 'monospace',
-                                        fontWeight: 600,
-                                        maxWidth: 180,
-                                        '&:hover': { opacity: 0.75 },
+                                    sx={(theme) => {
+                                        const tokens = theme.palette.severity[finding.severity];
+                                        return {
+                                            fontSize: '0.6rem',
+                                            height: 20,
+                                            cursor: 'pointer',
+                                            bgcolor: theme.palette.background.paper,
+                                            border: `1px solid ${tokens.border}`,
+                                            color: tokens.text,
+                                            fontFamily: 'monospace',
+                                            fontWeight: 600,
+                                            maxWidth: 180,
+                                            '&:hover': { opacity: 0.75 },
+                                        };
                                     }}
                                 />
                             ))}
@@ -84,7 +111,12 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                                 <Chip
                                     label={`+${finding.affectedThreads.length - 8} more`}
                                     size="small"
-                                    sx={{ fontSize: '0.6rem', height: 20, bgcolor: '#f5f5f5', color: '#666' }}
+                                    sx={(theme) => ({
+                                        fontSize: '0.6rem',
+                                        height: 20,
+                                        bgcolor: theme.palette.surface.inset,
+                                        color: theme.palette.text.secondary,
+                                    })}
                                 />
                             )}
                         </Box>

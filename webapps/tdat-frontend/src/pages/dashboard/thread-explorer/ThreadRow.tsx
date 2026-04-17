@@ -44,14 +44,28 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
     }));
 
     return (
-        <Paper sx={{ mb: 2, overflow: 'hidden', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)', bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.06)' } }}>
+        <Paper
+            sx={(theme) => ({
+                mb: 2,
+                overflow: 'hidden',
+                borderRadius: 3,
+                border: `1px solid ${theme.palette.surface.border}`,
+                bgcolor: theme.palette.surface.translucent,
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'box-shadow 0.2s',
+                '&:hover': {
+                    boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.06)',
+                },
+            })}
+        >
             <Box
-                sx={{
+                sx={(theme) => ({
                     p: 2,
                     cursor: 'pointer',
-                    bgcolor: open ? 'rgba(249,250,251,0.6)' : 'transparent',
+                    bgcolor: open ? theme.palette.surface.muted : 'transparent',
                     transition: 'background-color 0.2s',
-                }}
+                })}
                 onClick={() => setOpen(!open)}
             >
                 <Grid container spacing={2} alignItems="center">
@@ -67,7 +81,13 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                     </Grid>
 
                     <Grid size={{ xs: 3.25 }}>
-                        <Typography variant="subtitle2" fontWeight="bold" color="primary" noWrap title={thread.name}>
+                        <Typography
+                            variant="subtitle2"
+                            fontWeight="bold"
+                            noWrap
+                            title={thread.name}
+                            sx={(theme) => ({ color: theme.palette.accent.link })}
+                        >
                             {thread.name}
                         </Typography>
                     </Grid>
@@ -77,13 +97,21 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                     </Grid>
 
                     <Grid size={{ xs: 1.5 }}>
-                        <Typography variant="body2" color="warning.main" fontWeight="bold">
+                        <Typography
+                            variant="body2"
+                            fontWeight="bold"
+                            sx={(theme) => ({ color: theme.palette.state.waiting.text })}
+                        >
                             {stats.avgCpu.toFixed(2)}%
                         </Typography>
                     </Grid>
 
                     <Grid size={{ xs: 1.5 }}>
-                        <Typography variant="body2" color="error.main" fontWeight="bold">
+                        <Typography
+                            variant="body2"
+                            fontWeight="bold"
+                            sx={(theme) => ({ color: theme.palette.state.blocked.text })}
+                        >
                             {stats.maxCpu.toFixed(2)}%
                         </Typography>
                     </Grid>
@@ -97,9 +125,17 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
             </Box>
 
             <Collapse in={open} timeout="auto" unmountOnExit>
-                <Box sx={{ p: 3, borderTop: '1px solid #eee' }}>
+                <Box sx={(theme) => ({ p: 3, borderTop: `1px solid ${theme.palette.surface.border}` })}>
                     <Typography variant="h6" gutterBottom fontSize="1rem">Thread State Across Dumps</Typography>
-                    <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff' }}>
+                    <Paper
+                        variant="outlined"
+                        sx={(theme) => ({
+                            p: 2,
+                            mb: 4,
+                            bgcolor: theme.palette.background.paper,
+                            borderColor: theme.palette.surface.border,
+                        })}
+                    >
                         <LineChart
                             height={250}
                             margin={{ left: 120, right: 80, top: 30, bottom: 50 }}
@@ -124,7 +160,22 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                                 showMark: true,
                                 valueFormatter: (value: number | null) => value === null ? '' : getStateLabel(value),
                             }]}
-                            sx={{ '.MuiChartsAxis-left .MuiChartsAxis-tickLabel': { fontWeight: 'bold', fontSize: '0.70rem', fill: '#555' } }}
+                            sx={(theme) => ({
+                                '.MuiChartsAxis-left .MuiChartsAxis-tickLabel': {
+                                    fontWeight: 'bold',
+                                    fontSize: '0.70rem',
+                                    fill: theme.palette.text.secondary,
+                                },
+                                '.MuiChartsAxis-bottom .MuiChartsAxis-tickLabel': {
+                                    fill: theme.palette.text.secondary,
+                                },
+                                '.MuiChartsAxis-line, .MuiChartsAxis-tick': {
+                                    stroke: theme.palette.surface.border,
+                                },
+                                '.MuiChartsGrid-line': {
+                                    stroke: theme.palette.surface.border,
+                                },
+                            })}
                         />
                     </Paper>
                     <Typography variant="h6" gutterBottom fontSize="1rem">Snapshot Details</Typography>

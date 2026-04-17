@@ -8,17 +8,17 @@ interface PreLoaderProps {
 const PreLoader = ({ isLoading = true, message }: PreLoaderProps) => {
   return (
     <Box
-      sx={{
+      sx={(theme) => ({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
         gap: 2,
-        background: '#0d1117',
-      }}
+        background: theme.palette.mode === 'dark' ? '#0a0d12' : '#0d1117',
+      })}
     >
-      {isLoading && <CircularProgress sx={{ color: '#ff6d00' }} size={36} />}
+      {isLoading && <CircularProgress sx={(theme) => ({ color: theme.palette.brand.main })} size={36} />}
       {message && (
         <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)' }}>
           {message}

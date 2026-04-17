@@ -12,8 +12,11 @@ import { useLocation } from 'react-router-dom';
 import { useAuthContext } from '@asgardeo/auth-react';
 import '@fontsource-variable/inter/index.css';
 
-import logo from '@assets/wso2-logo_black.png';
+import logoLight from '@assets/wso2-logo_black.png';
+import logoDark from '@assets/wso2-logo_white.png';
 import { useExportReport } from '@hooks/useExportReport';
+import ThemeToggle from './ThemeToggle';
+import { useTheme } from '@mui/material';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -22,6 +25,8 @@ interface HeaderProps {
 
 const Header = ({ toggleSidebar }: HeaderProps) => {
   const { signOut } = useAuthContext();
+  const theme = useTheme();
+  const logo = theme.palette.mode === 'dark' ? logoDark : logoLight;
   const location = useLocation();
   const isUploadPage = location.pathname === '/';
   const { exportReport, isExporting, exported, hasData } = useExportReport();
@@ -31,13 +36,14 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
     <AppBar
       position="sticky"
       elevation={0}
-      sx={{
-        bgcolor: 'rgba(255,255,255,0.65)',
+      sx={(theme) => ({
+        bgcolor: theme.palette.surface.headerBg,
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        zIndex: (theme) => theme.zIndex.drawer + 1,
-        borderBottom: '1px solid rgba(0,0,0,0.06)',
-      }}
+        zIndex: theme.zIndex.drawer + 1,
+        borderBottom: `1px solid ${theme.palette.surface.border}`,
+        color: theme.palette.text.primary,
+      })}
     >
       <Toolbar>
         {!isUploadPage && (
@@ -45,18 +51,35 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
             edge="start"
             aria-label="open drawer"
             onClick={toggleSidebar}
-            sx={{ mr: 1, color: '#4b5563', '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' } }}
+            sx={(theme) => ({
+              mr: 1,
+              color: theme.palette.text.secondary,
+              '&:hover': { bgcolor: theme.palette.surface.hoverBg },
+            })}
           >
             <MenuIcon />
           </IconButton>
         )}
 
-        <img src={logo} alt="WSO2_Logo" height="40" style={{ marginRight: '2px', borderRadius: '6px' }} />
+        <img
+          src={logo}
+          alt="WSO2_Logo"
+          height="40"
+          style={{ marginRight: '2px', borderRadius: '6px' }}
+        />
         <Typography
           variant="h6"
           noWrap
           component="div"
-          sx={{ fontFamily: 'inherit', flexGrow: 1, fontWeight: 700, display: 'flex', alignItems: 'center', color: '#0d1117', letterSpacing: '-0.01em' }}
+          sx={(theme) => ({
+            fontFamily: 'inherit',
+            flexGrow: 1,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            color: theme.palette.text.primary,
+            letterSpacing: '-0.01em',
+          })}
         >
           Thread Dump Analyzer
         </Typography>
@@ -68,34 +91,43 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
             disabled={!hasData || isExporting}
             onClick={exportReport}
             startIcon={exported
-              ? <CheckIcon sx={{ fontSize: '18px !important', color: '#16a34a' }} />
+              ? <CheckIcon sx={(theme) => ({ fontSize: '18px !important', color: theme.palette.severity.success.main })} />
               : <FileDownloadOutlinedIcon sx={{ fontSize: '18px !important' }} />}
-            sx={{
+            sx={(theme) => ({
               mr: 1,
               borderRadius: 2,
-              borderColor: exported ? 'rgba(187,247,208,0.7)' : 'rgba(0,0,0,0.12)',
-              bgcolor: exported ? 'rgba(240,253,244,0.7)' : 'transparent',
-              color: exported ? '#16a34a' : '#4b5563',
+              borderColor: exported ? theme.palette.severity.success.border : theme.palette.surface.borderStrong,
+              bgcolor: exported ? theme.palette.severity.success.bg : 'transparent',
+              color: exported ? theme.palette.severity.success.text : theme.palette.text.secondary,
               fontSize: '0.8rem',
               px: 2,
-              '&:hover': { borderColor: exported ? 'rgba(187,247,208,0.9)' : 'rgba(0,0,0,0.25)', bgcolor: exported ? 'rgba(240,253,244,0.8)' : 'rgba(0,0,0,0.03)' },
+              '&:hover': {
+                borderColor: exported ? theme.palette.severity.success.border : theme.palette.text.secondary,
+                bgcolor: exported ? theme.palette.severity.success.bg : theme.palette.surface.hoverBg,
+              },
               '&.Mui-disabled': { opacity: 0.4 },
-            }}
+            })}
           >
             {exported ? 'Exported' : 'Export Report'}
           </Button>
         )}
 
+        <ThemeToggle />
+
         <IconButton
           onClick={(e) => setSettingsAnchor(e.currentTarget)}
-          sx={{
-            color: '#4b5563',
-            border: '1px solid rgba(0,0,0,0.12)',
+          sx={(theme) => ({
+            ml: 1,
+            color: theme.palette.text.secondary,
+            border: `1px solid ${theme.palette.surface.borderStrong}`,
             borderRadius: 2,
             width: 36,
             height: 36,
-            '&:hover': { bgcolor: 'rgba(0,0,0,0.04)', borderColor: 'rgba(0,0,0,0.25)' },
-          }}
+            '&:hover': {
+              bgcolor: theme.palette.surface.hoverBg,
+              borderColor: theme.palette.text.secondary,
+            },
+          })}
         >
           <SettingsOutlinedIcon sx={{ fontSize: 20 }} />
         </IconButton>
@@ -105,13 +137,27 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
           onClose={() => setSettingsAnchor(null)}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-          slotProps={{ paper: { sx: { mt: 0.5, minWidth: 160, borderRadius: 2, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } } }}
+          slotProps={{
+            paper: {
+              sx: (theme) => ({
+                mt: 0.5,
+                minWidth: 160,
+                borderRadius: 2,
+                border: `1px solid ${theme.palette.surface.border}`,
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '0 4px 18px rgba(0,0,0,0.5)'
+                  : '0 4px 12px rgba(0,0,0,0.08)',
+              }),
+            },
+          }}
         >
           <MenuItem
             onClick={() => { setSettingsAnchor(null); signOut(); }}
             sx={{ fontSize: '0.85rem', py: 1 }}
           >
-            <ListItemIcon><LogoutIcon sx={{ fontSize: 18, color: '#6b7280' }} /></ListItemIcon>
+            <ListItemIcon>
+              <LogoutIcon sx={(theme) => ({ fontSize: 18, color: theme.palette.text.secondary })} />
+            </ListItemIcon>
             <ListItemText slotProps={{ primary: { sx: { fontSize: '0.85rem' } } }}>Logout</ListItemText>
           </MenuItem>
         </Menu>

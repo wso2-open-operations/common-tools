@@ -129,11 +129,26 @@ const ThreadExplorer: React.FC = () => {
         <Box sx={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
             {/* Thread Pool Sidebar */}
-            <Paper sx={{ width: 280, flexShrink: 0, bgcolor: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(12px)', borderRadius: 0, borderRight: '1px solid rgba(0,0,0,0.06)', overflowY: 'auto' }}>
-                <Box p={2} borderBottom="1px solid rgba(0,0,0,0.06)">
+            <Paper
+                sx={(theme) => ({
+                    width: 280,
+                    flexShrink: 0,
+                    bgcolor: theme.palette.surface.sidebarBg,
+                    backdropFilter: 'blur(12px)',
+                    borderRadius: 0,
+                    borderRight: `1px solid ${theme.palette.surface.border}`,
+                    overflowY: 'auto',
+                })}
+            >
+                <Box sx={(theme) => ({ p: 2, borderBottom: `1px solid ${theme.palette.surface.border}` })}>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                        <LayersOutlinedIcon fontSize="small" sx={{ color: '#6b7280' }} />
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem' }}>Thread Groupings</Typography>
+                        <LayersOutlinedIcon fontSize="small" sx={(theme) => ({ color: theme.palette.text.secondary })} />
+                        <Typography
+                            variant="subtitle1"
+                            sx={(theme) => ({ fontWeight: 700, color: theme.palette.text.primary, fontSize: '0.9rem' })}
+                        >
+                            Thread Groupings
+                        </Typography>
                     </Stack>
                 </Box>
                 <List component="nav" sx={{ p: 1 }}>
@@ -149,19 +164,31 @@ const ThreadExplorer: React.FC = () => {
                                 <ListItemButton
                                     selected={isSelected}
                                     onClick={() => handlePoolChange(pool)}
-                                    sx={{
-                                        mb: 0.5, borderRadius: 2, alignItems: 'flex-start',
-                                        bgcolor: isSelected ? '#fff7ed' : 'transparent',
-                                        borderLeft: isSelected ? '3px solid #ff6d00' : '3px solid transparent',
-                                        '&.Mui-selected': { bgcolor: '#fff7ed', color: '#ea580c' },
-                                        '&:hover': { bgcolor: isSelected ? '#fff7ed' : '#f3f4f6' },
-                                    }}
+                                    sx={(theme) => ({
+                                        mb: 0.5,
+                                        borderRadius: 2,
+                                        alignItems: 'flex-start',
+                                        bgcolor: isSelected ? theme.palette.brand.softBg : 'transparent',
+                                        borderLeft: `3px solid ${isSelected ? theme.palette.brand.main : 'transparent'}`,
+                                        '&.Mui-selected': { bgcolor: theme.palette.brand.softBg, color: theme.palette.brand.softText },
+                                        '&:hover': { bgcolor: isSelected ? theme.palette.brand.softBg : theme.palette.surface.hoverBg },
+                                    })}
                                 >
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
-                                        <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: isSelected ? 600 : 500, color: isSelected ? '#ea580c' : '#374151' }}>
+                                        <Typography
+                                            variant="body2"
+                                            sx={(theme) => ({
+                                                fontSize: '0.85rem',
+                                                fontWeight: isSelected ? 600 : 500,
+                                                color: isSelected ? theme.palette.brand.softText : theme.palette.text.primary,
+                                            })}
+                                        >
                                             {pool}
                                         </Typography>
-                                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={(theme) => ({ color: theme.palette.text.disabled })}
+                                        >
                                             {threadsByPool[pool].length} threads
                                         </Typography>
                                     </Box>
@@ -176,14 +203,32 @@ const ThreadExplorer: React.FC = () => {
             <Box sx={{ flexGrow: 1, p: 4, overflowY: 'auto' }}>
 
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
-                    <Box sx={{ flex: 1, mr: 3, p: 2.5, bgcolor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', borderLeft: '3px solid #ff6d00', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                        <Typography variant="h5" sx={{ fontWeight: 700, color: '#111827' }} gutterBottom>{selectedPool}</Typography>
+                    <Box
+                        sx={(theme) => ({
+                            flex: 1,
+                            mr: 3,
+                            p: 2.5,
+                            bgcolor: theme.palette.surface.translucent,
+                            backdropFilter: 'blur(8px)',
+                            borderLeft: `3px solid ${theme.palette.brand.main}`,
+                            borderRadius: 3,
+                            border: `1px solid ${theme.palette.surface.border}`,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        })}
+                    >
+                        <Typography
+                            variant="h5"
+                            sx={(theme) => ({ fontWeight: 700, color: theme.palette.text.primary })}
+                            gutterBottom
+                        >
+                            {selectedPool}
+                        </Typography>
                         {selectedPool && data.thread_pools?.[selectedPool] && (
                             <Box mb={1}>
                                 <Typography variant="body2" color="text.primary" gutterBottom>
                                     <strong>Description:</strong> {data.thread_pools[selectedPool].description}
                                 </Typography>
-                                <Typography variant="body2" color="text.info" sx={{ mt: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                                     <strong>Expected behavior:</strong> {data.thread_pools[selectedPool].expected_behavior}
                                 </Typography>
                             </Box>
@@ -195,13 +240,36 @@ const ThreadExplorer: React.FC = () => {
                         placeholder="Search by Thread ID or Name..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#9ca3af' }} /></InputAdornment> } }}
-                        sx={{ width: 350, bgcolor: 'rgba(255,255,255,0.8)', borderRadius: 2.5, flexShrink: 0, '& .MuiOutlinedInput-root': { borderRadius: 2.5 }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.08)' } }}
+                        slotProps={{
+                            input: {
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon sx={(theme) => ({ color: theme.palette.text.disabled })} />
+                                    </InputAdornment>
+                                ),
+                            },
+                        }}
+                        sx={(theme) => ({
+                            width: 350,
+                            bgcolor: theme.palette.surface.translucent,
+                            borderRadius: 2.5,
+                            flexShrink: 0,
+                            '& .MuiOutlinedInput-root': { borderRadius: 2.5 },
+                            '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.surface.border },
+                        })}
                     />
                 </Box>
 
                 {/* Sort Header */}
-                <Paper sx={{ p: 2, mb: 2, bgcolor: 'rgba(249,250,251,0.6)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)' }}>
+                <Paper
+                    sx={(theme) => ({
+                        p: 2,
+                        mb: 2,
+                        bgcolor: theme.palette.surface.muted,
+                        borderRadius: 3,
+                        border: `1px solid ${theme.palette.surface.border}`,
+                    })}
+                >
                     <Grid container spacing={2}>
                         {([
                             { key: 'id' as SortableKeys, label: 'THREAD ID', size: 2.5, pl: 5 as number | undefined },
@@ -244,7 +312,12 @@ const ThreadExplorer: React.FC = () => {
                             size="small"
                             value={rowsPerPage}
                             onChange={(e: SelectChangeEvent<number>) => setRowsPerPage(Number(e.target.value))}
-                            sx={{ bgcolor: '#fff', height: 32, borderRadius: 2, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.08)' } }}
+                            sx={(theme) => ({
+                                bgcolor: theme.palette.surface.muted,
+                                height: 32,
+                                borderRadius: 2,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.surface.border },
+                            })}
                         >
                             {[10, 25, 50, 100].map(n => <MenuItem key={n} value={n}>{n}</MenuItem>)}
                         </Select>
@@ -257,7 +330,13 @@ const ThreadExplorer: React.FC = () => {
                             showFirstButton
                             showLastButton
                             shape="rounded"
-                            sx={{ '& .MuiPaginationItem-root.Mui-selected': { bgcolor: '#ff6d00', color: 'white' } }}
+                            sx={(theme) => ({
+                                '& .MuiPaginationItem-root.Mui-selected': {
+                                    bgcolor: theme.palette.brand.main,
+                                    color: theme.palette.brand.contrast,
+                                    '&:hover': { bgcolor: theme.palette.brand.hover },
+                                },
+                            })}
                         />
                     )}
                 </Box>

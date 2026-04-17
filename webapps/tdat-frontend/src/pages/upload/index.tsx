@@ -96,18 +96,17 @@ function UploadPage() {
     };
 
     return (
-        <Box sx={{
-            minHeight: '100vh',
-            background: `
-                radial-gradient(ellipse at 18% 8%, rgba(196,181,243,0.22) 0%, transparent 55%),
-                radial-gradient(ellipse at 72% 55%, rgba(255,197,150,0.18) 0%, transparent 55%),
-                #f5f6fa`,
-        }}>
+        <Box sx={(theme) => ({ minHeight: '100vh', background: theme.palette.surface.pageGradient })}>
             <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
             <Container maxWidth="lg" sx={{ py: 5 }}>
                 <Box sx={{ mb: 4 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#111827', mb: 0.5 }}>Start New Analysis Session</Typography>
-                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                    <Typography
+                        variant="h5"
+                        sx={(theme) => ({ fontWeight: 700, color: theme.palette.text.primary, mb: 0.5 })}
+                    >
+                        Start New Analysis Session
+                    </Typography>
+                    <Typography variant="body2" sx={(theme) => ({ color: theme.palette.text.secondary })}>
                         Upload thread dump files and their corresponding Thread Usage metrics to begin analysis
                     </Typography>
                 </Box>
@@ -145,7 +144,17 @@ function UploadPage() {
 
                 {/* File Pairing Overview */}
                 {(dumps.length > 0 || usages.length > 0) && (
-                    <Paper sx={{ p: 3, mb: 3, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                    <Paper
+                        sx={(theme) => ({
+                            p: 3,
+                            mb: 3,
+                            border: `1px solid ${theme.palette.surface.border}`,
+                            borderRadius: 3,
+                            backgroundColor: theme.palette.surface.translucent,
+                            backdropFilter: 'blur(8px)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        })}
+                    >
                         <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                             <Typography variant="subtitle1" fontWeight="bold">Paired Files</Typography>
                             {usages.length > 0 && (
@@ -175,13 +184,17 @@ function UploadPage() {
                                     display="flex"
                                     alignItems="center"
                                     p={1.5}
-                                    sx={{
-                                        backgroundColor: !pair.matched ? '#fff8e1' : 'white',
-                                        border: !pair.matched ? '1px solid #ffe082' : '1px solid #f0f0f0',
+                                    sx={(theme) => ({
+                                        backgroundColor: !pair.matched ? theme.palette.severity.medium.bg : theme.palette.background.paper,
+                                        border: `1px solid ${!pair.matched ? theme.palette.severity.medium.border : theme.palette.surface.border}`,
                                         borderRadius: 1,
-                                    }}
+                                    })}
                                 >
-                                    <Box flex={1} borderRight="1px solid #f0f0f0" pr={2}>
+                                    <Box
+                                        flex={1}
+                                        pr={2}
+                                        sx={(theme) => ({ borderRight: `1px solid ${theme.palette.surface.border}` })}
+                                    >
                                         <Typography variant="caption" color="text.secondary" display="block">Thread Dump</Typography>
                                         <Typography variant="body2" color={pair.dump ? 'text.primary' : 'error.main'} fontWeight="500">
                                             {pair.dump ? pair.dump.name : 'No matching Thread Dump'}
@@ -195,10 +208,10 @@ function UploadPage() {
                                     </Box>
                                     <Box display="flex" alignItems="center" pl={1} sx={{ minWidth: 32 }}>
                                         {pair.matched ? (
-                                            <CheckCircleOutlineIcon fontSize="small" sx={{ color: 'success.main' }} />
+                                            <CheckCircleOutlineIcon fontSize="small" sx={(theme) => ({ color: theme.palette.severity.success.main })} />
                                         ) : (
                                             <Tooltip title={pair.warning || 'Files could not be matched'} arrow>
-                                                <WarningAmberIcon fontSize="small" sx={{ color: '#f9a825' }} />
+                                                <WarningAmberIcon fontSize="small" sx={(theme) => ({ color: theme.palette.severity.medium.main })} />
                                             </Tooltip>
                                         )}
                                     </Box>
@@ -215,15 +228,24 @@ function UploadPage() {
                         size="large"
                         onClick={handleAnalyzeClick}
                         disabled={isPending || dumps.length === 0}
-                        sx={{
-                            px: 5, py: 1.25, backgroundColor: '#ff6d00', color: 'white !important',
-                            borderRadius: 2.5, fontWeight: 600, fontSize: '0.9rem',
-                            boxShadow: '0 4px 14px rgba(255,109,0,0.3)',
-                            '&:hover': { backgroundColor: '#e65100', boxShadow: '0 6px 20px rgba(255,109,0,0.35)' },
-                            '&.Mui-disabled': { bgcolor: '#d1d5db', color: '#9ca3af !important', boxShadow: 'none' },
-                        }}
+                        sx={(theme) => ({
+                            px: 5,
+                            py: 1.25,
+                            backgroundColor: theme.palette.brand.main,
+                            color: `${theme.palette.brand.contrast} !important`,
+                            borderRadius: 2.5,
+                            fontWeight: 600,
+                            fontSize: '0.9rem',
+                            boxShadow: theme.palette.brand.shadow,
+                            '&:hover': { backgroundColor: theme.palette.brand.hover, boxShadow: theme.palette.brand.shadow },
+                            '&.Mui-disabled': {
+                                bgcolor: theme.palette.action.disabledBackground,
+                                color: `${theme.palette.text.disabled} !important`,
+                                boxShadow: 'none',
+                            },
+                        })}
                     >
-                        {isPending ? <CircularProgress size={24} color="inherit" /> : 'Analyze Session'}
+                        {isPending ? <CircularProgress size={24} color="inherit" /> : 'Analyze'}
                     </Button>
                 </Box>
 

@@ -1,30 +1,37 @@
 import React from 'react';
 import { Chip } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 
-const COLOR_MAP: Record<string, { bg: string; text: string }> = {
-    RUNNABLE: { bg: '#f0fdf4', text: '#16a34a' },
-    BLOCKED: { bg: '#fef2f2', text: '#dc2626' },
-    WAITING: { bg: '#fff7ed', text: '#ea580c' },
-    TIMED_WAITING: { bg: '#fefce8', text: '#ca8a04' },
-    NEW: { bg: '#eff6ff', text: '#2563eb' },
-    TERMINATED: { bg: '#f3f4f6', text: '#6b7280' },
+type StateKey = 'runnable' | 'blocked' | 'waiting' | 'timedWaiting' | 'new' | 'terminated' | 'na';
+
+const STATE_KEY_MAP: Record<string, StateKey> = {
+    RUNNABLE: 'runnable',
+    BLOCKED: 'blocked',
+    WAITING: 'waiting',
+    TIMED_WAITING: 'timedWaiting',
+    NEW: 'new',
+    TERMINATED: 'terminated',
 };
 
 const ThreadStateChip: React.FC<{ state: string }> = ({ state }) => {
-    const c = COLOR_MAP[state] ?? { bg: '#f3f4f6', text: '#6b7280' };
+    const key = STATE_KEY_MAP[state] ?? 'na';
+
     return (
         <Chip
             label={state}
             size="small"
-            sx={{
-                backgroundColor: c.bg,
-                color: c.text,
-                fontWeight: 700,
-                fontSize: '0.65rem',
-                height: 22,
-                borderRadius: 1.5,
-                letterSpacing: '0.04em',
-                flexShrink: 0,
+            sx={(theme: Theme) => {
+                const tokens = theme.palette.state[key];
+                return {
+                    backgroundColor: tokens.bg,
+                    color: tokens.text,
+                    fontWeight: 700,
+                    fontSize: '0.65rem',
+                    height: 22,
+                    borderRadius: 1.5,
+                    letterSpacing: '0.04em',
+                    flexShrink: 0,
+                };
             }}
         />
     );

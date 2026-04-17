@@ -4,17 +4,20 @@ const Footer = () => {
   return (
     <Box
       component="footer"
-      sx={{
+      sx={(theme) => ({
         py: 2,
         mt: 'auto',
-        borderTop: '1px solid rgba(0,0,0,0.06)',
+        borderTop: `1px solid ${theme.palette.surface.border}`,
         textAlign: 'center',
-        bgcolor: 'rgba(255,255,255,0.5)',
+        bgcolor: theme.palette.surface.footerBg,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-      }}
+      })}
     >
-      <Typography variant="caption" sx={{ color: '#8b949e', fontSize: '0.7rem' }}>
+      <Typography
+        variant="caption"
+        sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: '0.7rem' })}
+      >
         Thread Dump Analyzer Tool &copy; {new Date().getFullYear()}
       </Typography>
     </Box>

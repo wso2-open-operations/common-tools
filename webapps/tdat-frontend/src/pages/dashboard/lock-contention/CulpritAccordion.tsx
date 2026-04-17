@@ -18,19 +18,19 @@ const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClic
         <Accordion
             disableGutters
             elevation={0}
-            sx={{
+            sx={(theme) => ({
                 mb: 1.5,
-                border: '1px solid rgba(0,0,0,0.06)',
+                border: `1px solid ${theme.palette.surface.border}`,
                 borderRadius: '12px !important',
-                bgcolor: 'rgba(255,255,255,0.8)',
+                bgcolor: theme.palette.surface.translucent,
                 backdropFilter: 'blur(8px)',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 '&:before': { display: 'none' },
                 '&.Mui-expanded': { mb: 1.5 },
-            }}
+            })}
         >
             <AccordionSummary
-                expandIcon={<ExpandMoreIcon sx={{ color: '#aaa' }} />}
+                expandIcon={<ExpandMoreIcon sx={(theme) => ({ color: theme.palette.text.disabled })} />}
                 sx={{
                     px: 2,
                     minHeight: 48,
@@ -45,18 +45,18 @@ const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClic
                 <Typography
                     variant="body2"
                     onClick={(e) => { e.stopPropagation(); onThreadClick(entry.thread.name); }}
-                    sx={{
+                    sx={(theme) => ({
                         fontFamily: 'monospace',
                         fontWeight: 700,
                         fontSize: '0.85rem',
-                        color: '#1565c0',
+                        color: theme.palette.accent.link,
                         cursor: 'pointer',
                         '&:hover': { textDecoration: 'underline' },
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                         maxWidth: { xs: '100%', sm: 320, md: 480 },
-                    }}
+                    })}
                     title={entry.thread.name}
                 >
                     {entry.thread.name}
@@ -64,11 +64,32 @@ const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClic
                 <ThreadStateChip state={entry.snapshot.state} />
 
                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#e65100', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                    <Typography
+                        variant="caption"
+                        sx={(theme) => ({
+                            fontWeight: 700,
+                            color: theme.palette.accent.owner,
+                            fontSize: '0.75rem',
+                            whiteSpace: 'nowrap',
+                        })}
+                    >
                         Holding {monitorCount} Monitor{monitorCount !== 1 ? 's' : ''}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: '#ccc', mx: 0.25 }}>|</Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#c62828', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                    <Typography
+                        variant="caption"
+                        sx={(theme) => ({ color: theme.palette.text.disabled, mx: 0.25 })}
+                    >
+                        |
+                    </Typography>
+                    <Typography
+                        variant="caption"
+                        sx={(theme) => ({
+                            fontWeight: 700,
+                            color: theme.palette.severity.critical.text,
+                            fontSize: '0.75rem',
+                            whiteSpace: 'nowrap',
+                        })}
+                    >
                         Blocking {victimCount} Thread{victimCount !== 1 ? 's' : ''}
                     </Typography>
                 </Box>

@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Box, Grid } from '@mui/material';
+import { Box, Grid, useTheme } from '@mui/material';
 import { useAnalysisData } from '@context/AnalysisContext';
 import type { Thread, ThreadSnapshot, AIInsights } from '@/types/api';
 import { useNavigateToThread } from '@hooks/useNavigateToThread';
-import { STATE_ORDER, STATE_COLORS } from './constants';
+import { STATE_ORDER, stateColors } from './constants';
 import type { DashboardSummary, ThreadCluster, LongRunningThread, HighCpuThread } from './types';
 import SummaryCards from './components/SummaryCards';
 import StateDistributionCard from './components/StateDistributionCard';
@@ -36,6 +36,7 @@ function getClusterKey(stackTrace: string[]): string {
 
 const DashboardHome: React.FC = () => {
     const { data } = useAnalysisData();
+    const theme = useTheme();
     const navigateToThread = useNavigateToThread();
     const [selectedDump, setSelectedDump] = useState<string>('');
     const [activityTab, setActivityTab] = useState(0);
@@ -106,11 +107,12 @@ const DashboardHome: React.FC = () => {
         return counts;
     }, [selectedSnapshots]);
 
+    const colors = useMemo(() => stateColors(theme), [theme]);
     const pieData = useMemo(() =>
         STATE_ORDER
             .filter(s => (stateDistribution[s] ?? 0) > 0)
-            .map((s, idx) => ({ id: idx, value: stateDistribution[s] ?? 0, color: STATE_COLORS[s], label: s })),
-        [stateDistribution]
+            .map((s, idx) => ({ id: idx, value: stateDistribution[s] ?? 0, color: colors[s], label: s })),
+        [stateDistribution, colors]
     );
 
     const longRunningThreads = useMemo((): LongRunningThread[] =>
@@ -163,19 +165,19 @@ const DashboardHome: React.FC = () => {
     }, [selectedSnapshots]);
 
     const keyFindings = useMemo(() => {
-        type FindingItem = { label: string; description: string; color: string; bgColor: string; affectedThreads: string[] };
+        type FindingItem = { label: string; description: string; severity: 'critical' | 'high' | 'medium' | 'info'; affectedThreads: string[] };
         const findings: FindingItem[] = [];
 
         const deadlocked = threads.filter(t => t.snapshots.some(s => s.issues?.some(i => i.toLowerCase().includes('deadlock'))));
-        if (deadlocked.length > 0) findings.push({ label: 'Deadlock Detected', description: 'Threads are permanently blocked waiting on each other\'s locks. The JVM cannot self-recover — a restart is likely required.', color: '#c62828', bgColor: '#ffebee', affectedThreads: deadlocked.map(t => t.name) });
+        if (deadlocked.length > 0) findings.push({ label: 'Deadlock Detected', description: 'Threads are permanently blocked waiting on each other\'s locks. The JVM cannot self-recover — a restart is likely required.', severity: 'critical', affectedThreads: deadlocked.map(t => t.name) });
 
         const deadlockedSet = new Set(deadlocked.map(t => t.name));
         const critical = threads.filter(t => !deadlockedSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'CRITICAL'));
-        if (critical.length > 0) findings.push({ label: 'Critical Risk', description: 'Threads flagged at the highest severity — extreme CPU consumption, sudden blockage spikes, or stuck I/O threads causing active service degradation.', color: '#e53935', bgColor: '#fff5f5', affectedThreads: critical.map(t => t.name) });
+        if (critical.length > 0) findings.push({ label: 'Critical Risk', description: 'Threads flagged at the highest severity — extreme CPU consumption, sudden blockage spikes, or stuck I/O threads causing active service degradation.', severity: 'critical', affectedThreads: critical.map(t => t.name) });
 
         const criticalSet = new Set([...deadlocked, ...critical].map(t => t.name));
         const high = threads.filter(t => !criticalSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'HIGH'));
-        if (high.length > 0) findings.push({ label: 'High Risk', description: 'Threads with significant performance issues such as prolonged lock waits, database/JDBC stalls, HTTP worker saturation, or GC pressure.', color: '#ef6c00', bgColor: '#fff3e0', affectedThreads: high.map(t => t.name) });
+        if (high.length > 0) findings.push({ label: 'High Risk', description: 'Threads with significant performance issues such as prolonged lock waits, database/JDBC stalls, HTTP worker saturation, or GC pressure.', severity: 'high', affectedThreads: high.map(t => t.name) });
 
         if (dumpNames.length > 0) {
             const lastDump = dumpNames[dumpNames.length - 1];
@@ -183,7 +185,7 @@ const DashboardHome: React.FC = () => {
                 const snap = t.snapshots.find(s => s.dump_name === lastDump);
                 return snap?.state === 'BLOCKED' && !criticalSet.has(t.name) && !high.map(x => x.name).includes(t.name);
             });
-            if (blocked.length > 0) findings.push({ label: 'Blocked Threads', description: 'Threads waiting to acquire a monitor lock currently held by another thread in the latest snapshot. Indicates contention on a shared resource.', color: '#f57c00', bgColor: '#fff8e1', affectedThreads: blocked.map(t => t.name) });
+            if (blocked.length > 0) findings.push({ label: 'Blocked Threads', description: 'Threads waiting to acquire a monitor lock currently held by another thread in the latest snapshot. Indicates contention on a shared resource.', severity: 'medium', affectedThreads: blocked.map(t => t.name) });
         }
 
         return findings;

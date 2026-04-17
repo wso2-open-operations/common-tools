@@ -1,14 +1,15 @@
 import React from 'react';
-import { Box, Chip, Typography } from '@mui/material';
+import { Box, Chip, Typography, useTheme } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ThreadStateChip from '@component/ui/ThreadStateChip';
 import type { BlockedThreadInfo } from '../../../utils/lockContentionAnalysis';
 
-function getWaitSeverity(ms: number): { bg: string; color: string } {
-    if (ms >= 60_000) return { bg: '#fef2f2', color: '#dc2626' };
-    if (ms >= 10_000) return { bg: '#fff7ed', color: '#ea580c' };
-    if (ms >= 1_000) return { bg: '#fefce8', color: '#ca8a04' };
-    return { bg: '#f0fdf4', color: '#16a34a' };
+function getWaitSeverity(ms: number, theme: Theme): { bg: string; color: string } {
+    if (ms >= 60_000) return { bg: theme.palette.severity.critical.bg, color: theme.palette.severity.critical.text };
+    if (ms >= 10_000) return { bg: theme.palette.severity.high.bg, color: theme.palette.severity.high.text };
+    if (ms >= 1_000) return { bg: theme.palette.severity.medium.bg, color: theme.palette.severity.medium.text };
+    return { bg: theme.palette.severity.success.bg, color: theme.palette.severity.success.text };
 }
 
 function formatWaitTime(ms: number): string {
@@ -23,19 +24,20 @@ interface VictimRowProps {
 }
 
 const VictimRow: React.FC<VictimRowProps> = ({ victim, onThreadClick }) => {
+    const theme = useTheme();
     const hasWaitTime = victim.waitTimeMs > 0;
-    const severity = hasWaitTime ? getWaitSeverity(victim.waitTimeMs) : null;
+    const severity = hasWaitTime ? getWaitSeverity(victim.waitTimeMs, theme) : null;
 
     return (
         <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 0.75 }}>
             <Typography
                 variant="body2"
                 onClick={() => onThreadClick(victim.thread.name)}
-                sx={{
+                sx={(theme) => ({
                     fontFamily: 'monospace',
                     fontWeight: 600,
                     fontSize: '0.8rem',
-                    color: '#1565c0',
+                    color: theme.palette.accent.link,
                     cursor: 'pointer',
                     flex: 1,
                     minWidth: 0,
@@ -43,7 +45,7 @@ const VictimRow: React.FC<VictimRowProps> = ({ victim, onThreadClick }) => {
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     '&:hover': { textDecoration: 'underline' },
-                }}
+                })}
             >
                 {victim.thread.name}
             </Typography>
