@@ -1,35 +1,10 @@
 import React from 'react';
 import { Box, Paper, Typography } from '@mui/material';
+import { parseBlocks, renderBlocks } from '@component/ui/aiMarkdown';
 import type { AIInsights } from '@/types/api';
 
 interface ExecutiveSummaryCardProps {
     aiInsights: AIInsights | undefined;
-}
-
-function renderFormattedText(text: string): React.ReactNode {
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    return (
-        <Box>
-            {lines.map((line, i) => {
-                const parts = line.split('**');
-                return (
-                    <Typography
-                        key={i}
-                        variant="caption"
-                        color="text.secondary"
-                        display="block"
-                        sx={{ lineHeight: 1.7, mb: 0.5 }}
-                    >
-                        {parts.map((part, j) =>
-                            j % 2 === 1
-                                ? <strong key={j}>{part}</strong>
-                                : part
-                        )}
-                    </Typography>
-                );
-            })}
-        </Box>
-    );
 }
 
 const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights }) => (
@@ -38,6 +13,8 @@ const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights 
             p: 2.5,
             borderRadius: 3,
             height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
             bgcolor: theme.palette.surface.translucent,
             backdropFilter: 'blur(8px)',
             border: `1px solid ${theme.palette.surface.border}`,
@@ -51,25 +28,20 @@ const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights 
             High-level synthesis of the most critical findings from this thread dump analysis
         </Typography>
 
-        {!aiInsights ? (
-            <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                Executive summary unavailable — ensure GROQ_API_KEY is set and a valid dump was uploaded.
-            </Typography>
-        ) : (
-            <Box
-                sx={(theme) => ({
-                    borderLeft: `3px solid ${theme.palette.severity.summary.border}`,
-                    backgroundColor: theme.palette.severity.summary.bg,
-                    p: 2,
-                    borderRadius: '0 8px 8px 0',
-                })}
-            >
-                {aiInsights.executive_summary
-                    ? renderFormattedText(aiInsights.executive_summary)
+        <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {!aiInsights ? (
+                <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                    Executive summary unavailable — ensure GROQ_API_KEY is set and a valid dump was uploaded.
+                </Typography>
+            ) : (
+                aiInsights.executive_summary
+                    ? renderBlocks(parseBlocks(aiInsights.executive_summary), {
+                        highlightBoldParagraphs: true,
+                        emphasizeFirstParagraph: true,
+                    })
                     : <Typography variant="caption" color="text.disabled" fontStyle="italic">—</Typography>
-                }
-            </Box>
-        )}
+            )}
+        </Box>
     </Paper>
 );
 
