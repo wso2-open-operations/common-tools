@@ -3,18 +3,16 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import {
     Box, Typography, Button, Chip, Paper, Container,
-    Alert, CircularProgress, Snackbar, Alert as MuiAlert, Tooltip,
+    Alert, CircularProgress, Snackbar, Alert as MuiAlert, Tooltip, Backdrop,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAnalyzeThreads } from '@hooks/useAnalyzeThreads';
-import { useAnalysisData } from '@context/AnalysisContext';
 import { extractFileKey, type PairedFile } from '../../utils/uploadValidation';
 import UploadCard from './components/UploadCard';
 import Header from '@src/layout/header';
 
 function UploadPage() {
     const navigate = useNavigate();
-    const { setAnalysisData } = useAnalysisData();
 
     useEffect(() => {
         document.title = 'New Session | TDAT';
@@ -63,27 +61,38 @@ function UploadPage() {
 
     const hasWarnings = pairedFiles.some(p => !p.matched);
 
-    const { mutate, isPending, error } = useAnalyzeThreads();
+    const { mutation, query } = useAnalyzeThreads();
+    const isUploading = mutation.isPending;
+    const isPolling = query.isFetching || (query.data?.status === 'pending' || query.data?.status === 'running');
+    const isBusy = isUploading || isPolling;
+
+    const loadingLabel = isUploading
+        ? 'Uploading Files...'
+        : 'Analyzing Threads (This may take a minute)...';
+
+    useEffect(() => {
+        if (query.data?.status === 'completed' && query.data.result) {
+            const result = query.data.result;
+            if (result.errors && result.errors.length > 0) {
+                setErrorMsg(`Invalid file(s) uploaded: ${result.errors.join(' | ')}. Please ensure you upload proper thread dumps.`);
+                return;
+            }
+            if (!result.threads || result.threads.length === 0) {
+                setErrorMsg('Invalid file(s) uploaded: No threads were found in the provided files. Please re-upload proper thread dumps.');
+                return;
+            }
+            navigate('/dashboard');
+        }
+        if (query.data?.status === 'failed') {
+            setErrorMsg('Analysis failed: the server could not process the uploaded files.');
+        }
+    }, [query.data?.status]);
 
     const handleAnalyzeClick = () => {
         if (dumps.length === 0) return;
-        mutate(
+        mutation.mutate(
             { dumps: sortedDumps, usages: sortedUsages },
-            {
-                onSuccess: (data) => {
-                    if (data.errors && data.errors.length > 0) {
-                        setErrorMsg(`Invalid file(s) uploaded: ${data.errors.join(' | ')}. Please ensure you upload proper thread dumps.`);
-                        return;
-                    }
-                    if (!data.threads || data.threads.length === 0) {
-                        setErrorMsg('Invalid file(s) uploaded: No threads were found in the provided files. Please re-upload proper thread dumps.');
-                        return;
-                    }
-                    setAnalysisData(data);
-                    navigate('/dashboard');
-                },
-                onError: (err) => setErrorMsg(`Analysis failed: ${err.message}`),
-            }
+            { onError: (err) => setErrorMsg(`Upload failed: ${err.message}`) }
         );
     };
 
@@ -111,7 +120,7 @@ function UploadPage() {
                     </Typography>
                 </Box>
 
-                {error && <Alert severity="error" sx={{ mb: 3 }}>Analysis failed: {error.message}</Alert>}
+                {mutation.error && <Alert severity="error" sx={{ mb: 3 }}>Upload failed: {mutation.error.message}</Alert>}
 
                 <Box sx={{ display: 'flex', gap: 3, mb: 0 }}>
                     <Box sx={{ flex: 1 }}>
@@ -227,7 +236,7 @@ function UploadPage() {
                         variant="contained"
                         size="large"
                         onClick={handleAnalyzeClick}
-                        disabled={isPending || dumps.length === 0}
+                        disabled={isBusy || dumps.length === 0}
                         sx={(theme) => ({
                             px: 5,
                             py: 1.25,
@@ -245,9 +254,16 @@ function UploadPage() {
                             },
                         })}
                     >
-                        {isPending ? <CircularProgress size={24} color="inherit" /> : 'Analyze'}
+                        {isBusy ? <CircularProgress size={24} color="inherit" /> : 'Analyze'}
                     </Button>
                 </Box>
+
+                <Backdrop open={isBusy} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, flexDirection: 'column', gap: 2 }}>
+                    <CircularProgress color="inherit" sx={{ color: '#F14E23' }} />
+                    <Typography variant="body1" sx={{ color: 'common.white', fontWeight: 500 }}>
+                        {loadingLabel}
+                    </Typography>
+                </Backdrop>
 
                 <Snackbar open={!!errorMsg} autoHideDuration={4000} onClose={() => setErrorMsg(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
                     <MuiAlert onClose={() => setErrorMsg(null)} severity="error" sx={{ width: '100%' }}>

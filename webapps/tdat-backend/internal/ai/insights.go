@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -43,6 +44,9 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 			{Role: openai.ChatMessageRoleUser, Content: prompt},
 		},
 		MaxTokens: 1024,
+		ResponseFormat: &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Groq API error: %w", err)
@@ -53,48 +57,16 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 	}
 
 	raw := strings.TrimSpace(resp.Choices[0].Message.Content)
-	executive, patterns, recommendations := parseThreeSections(raw)
+
+	var insights AIInsights
+	if err := json.Unmarshal([]byte(raw), &insights); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON insights: %w (raw=%s)", err, raw)
+	}
+
 	log.Printf("AI insights generated — executive:%d patterns:%d recommendations:%d chars",
-		len(executive), len(patterns), len(recommendations))
+		len(insights.ExecutiveSummary), len(insights.KeyFindings), len(insights.RecommendedActions))
 
-	return &AIInsights{
-		ExecutiveSummary:   executive,
-		KeyFindings:        patterns,
-		RecommendedActions: recommendations,
-	}, nil
-}
-
-// parseThreeSections splits the model response on the three expected section headers.
-func parseThreeSections(text string) (executive, patterns, recommendations string) {
-	const (
-		hExec    = "Executive Summary:"
-		hPattern = "Key Findings:"
-		hRec     = "Recommended Actions:"
-	)
-	execIdx := strings.Index(text, hExec)
-	patIdx := strings.Index(text, hPattern)
-	recIdx := strings.Index(text, hRec)
-
-	extract := func(start, labelLen, end int) string {
-		if start < 0 {
-			return ""
-		}
-		s := start + labelLen
-		if end > s {
-			return strings.TrimSpace(text[s:end])
-		}
-		return strings.TrimSpace(text[s:])
-	}
-
-	executive = extract(execIdx, len(hExec), patIdx)
-	patterns = extract(patIdx, len(hPattern), recIdx)
-	recommendations = extract(recIdx, len(hRec), len(text))
-
-	// Fallback: if parsing failed (model ignored format), use the full text as executive summary
-	if executive == "" && patterns == "" && recommendations == "" {
-		executive = text
-	}
-	return
+	return &insights, nil
 }
 
 // buildPrompt constructs the user message with a concise view of all threads.
@@ -140,8 +112,9 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 			}
 		}
 
-		// Only include threads with something noteworthy
-		if worst.RiskLevel == "normal" && len(worst.Issues) == 0 {
+		// Aggressively drop low-signal threads: INFO (standalone/ungrouped) and normal
+		// threads carry no actionable content but consume large amounts of tokens.
+		if worst.RiskLevel == "INFO" || worst.RiskLevel == "normal" {
 			continue
 		}
 
@@ -179,22 +152,31 @@ func riskRank(level string) int {
 	}
 }
 
-const systemPrompt = `You are an expert WSO2 / Java Performance Engineer reviewing thread dumps for products like WSO2 IS, APIM, and ESB. 
-You must respond with EXACTLY three sections. Each section must start with its exact label on its own line followed by a colon. 
+const systemPrompt = `You are an expert WSO2 / Java Performance Engineer reviewing thread dumps for products like WSO2 IS, APIM, and ESB.
 
-CRITICAL RULE: Use highly structured, easy-to-read formatting. Use bullet points and bold text for scannability. Do not write giant walls of text.
+You MUST respond with a single valid JSON object and nothing else. No prose, no markdown code fences, no commentary outside the JSON. The JSON object must have EXACTLY these three string keys:
 
-Executive Summary:
-Provide 3-5 concise sentences on the overall JVM health. Explicitly state:
-- If a Java-level deadlock was detected.
-- If there is severe thread pool saturation (e.g., Tomcat HTTP workers or PassThrough message processors).
-- The overall severity of the issue (Critical, Warning, Normal).
+{
+  "executive_summary": "...",
+  "pattern_recognition": "...",
+  "recommended_actions": "..."
+}
 
-Key Findings:
-Use a bulleted list. For every issue found, you MUST explicitly state WHAT the issue is and WHERE it is happening. Focus specifically on WSO2 bottlenecks:
-- WHAT: Lock contention, DB connection exhaustion, slow LDAP responses, OAuth token validation bottlenecks, or idle starvation.
-- WHERE: Cite specific thread names (e.g., 'http-nio-*', 'PassThroughMessageProcessor-*') and specific WSO2/Java packages (e.g., 'org.wso2.carbon.identity.oauth2.*', 'javax.naming.*', 'org.apache.tomcat.jdbc.pool.*').
-Example format: "- **Database Pool Exhaustion:** 45 HTTP worker threads are blocked waiting for connections in 'org.apache.tomcat.jdbc.pool.ConnectionPool.borrowConnection'."
+Content requirements for each key (values are plain strings; use "\n" for line breaks and "-" / "1." markers inside the string for bullet/numbered lists):
 
-Recommended Actions:
-Use a numbered list of 2-4 highly specific, actionable remediation steps. Tailor these to WSO2 (e.g., tuning 'master-datasources.xml', increasing Tomcat 'maxThreads', enabling caching in 'identity.xml', or adding DB indexes).`
+executive_summary:
+  3-5 concise sentences on overall JVM health. Explicitly state:
+  - If a Java-level deadlock was detected.
+  - If there is severe thread pool saturation (e.g., Tomcat HTTP workers or PassThrough message processors).
+  - The overall severity (Critical, Warning, Normal).
+
+pattern_recognition:
+  A bulleted list (using "-" markers inside the string). For every issue found, explicitly state WHAT the issue is and WHERE. Focus on WSO2 bottlenecks:
+  - WHAT: Lock contention, DB connection exhaustion, slow LDAP responses, OAuth token validation bottlenecks, idle starvation.
+  - WHERE: Cite specific thread names (e.g., "http-nio-*", "PassThroughMessageProcessor-*") and specific WSO2/Java packages (e.g., "org.wso2.carbon.identity.oauth2.*", "javax.naming.*", "org.apache.tomcat.jdbc.pool.*").
+  Example item: "- **Database Pool Exhaustion:** 45 HTTP worker threads are blocked waiting for connections in 'org.apache.tomcat.jdbc.pool.ConnectionPool.borrowConnection'."
+
+recommended_actions:
+  A numbered list (using "1.", "2.", ... inside the string) of 2-4 highly specific, actionable remediation steps. Tailor to WSO2 (e.g., tuning 'master-datasources.xml', increasing Tomcat 'maxThreads', enabling caching in 'identity.xml', or adding DB indexes).
+
+Return ONLY the JSON object. Do not wrap it in markdown. Do not add any text before or after.`

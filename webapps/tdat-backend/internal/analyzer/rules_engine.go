@@ -103,14 +103,16 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		go func(threadChunk []parser.Thread) {
 			defer wg.Done()
 
+			// One engine per worker — GruleEngine itself is stateless, so it is
+			// safe to reuse across threads in this chunk as long as each thread
+			// gets its own KnowledgeBase clone below.
+			workerEngine := engine.NewGruleEngine()
+
 			for j := range threadChunk {
 				t := &threadChunk[j]
 
 				// Get a fresh KnowledgeBase clone so Retract() doesn't break other threads
 				kb, _ := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
-
-				// Get a fresh Engine to prevent working memory accumulation
-				workerEngine := engine.NewGruleEngine()
 
 				dataCtx := ast.NewDataContext()
 				_ = dataCtx.Add("t", t)

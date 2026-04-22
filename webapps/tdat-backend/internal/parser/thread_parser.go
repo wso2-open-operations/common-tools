@@ -20,14 +20,15 @@ type Thread struct {
 	ElapsedTime   float64  `json:"elapsed_time_s"`
 	CPUTime       float64  `json:"cpu_time_ms"`
 	CPUPercentage float64  `json:"cpu_percent"`
+	Analyzed      bool     `json:"analyzed"`
 
 	// Fields for Rules Engine
-	RiskLevel           string   `json:"risk_level"` // "CRITICAL", "HIGH", "MEDIUM", "INFO"
-	Issues              []string `json:"issues"`
-	Recommendation      string   `json:"recommendation"`
-	IsDeadlocked        bool     `json:"is_deadlocked,omitempty"`
-	WaitingToLockAddress string  `json:"waiting_to_lock_address,omitempty"`
-	LockContentionCount  int     `json:"lock_contention_count,omitempty"`
+	RiskLevel            string   `json:"risk_level"` // "CRITICAL", "HIGH", "MEDIUM", "INFO"
+	Issues               []string `json:"issues"`
+	Recommendation       string   `json:"recommendation"`
+	IsDeadlocked         bool     `json:"is_deadlocked,omitempty"`
+	WaitingToLockAddress string   `json:"waiting_to_lock_address,omitempty"`
+	LockContentionCount  int      `json:"lock_contention_count,omitempty"`
 }
 
 // AddIssue appends an issue string — called by Grule rules.
@@ -75,12 +76,12 @@ type ThreadUsage struct {
 
 // GlobalStats holds aggregate data for Global Rules
 type GlobalStats struct {
-	TotalThreads             int
-	BlockedCount             int
-	BlockedPercentage        float64
+	TotalThreads              int
+	BlockedCount              int
+	BlockedPercentage         float64
 	PreviousBlockedPercentage float64 // set externally for temporal spike detection
-	ThreadCountGrowth        float64  // set externally for temporal leak detection
-	IsUsageDataProvided      bool
+	ThreadCountGrowth         float64 // set externally for temporal leak detection
+	IsUsageDataProvided       bool
 }
 
 var (

@@ -1,31 +1,24 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
-	"sync"
 	"tdat-backend/internal/ai"
 	"tdat-backend/internal/analyzer"
-	"tdat-backend/internal/parser"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 // Top-level JSON response format for a structured analysis
 type AggregatedAnalysisResponse struct {
-	SessionID   string                             `json:"session_id"`
-	Timestamp   string                             `json:"timestamp"`
-	Threads     []analyzer.AnalyzedThread          `json:"threads"`
+	SessionID   string                       `json:"session_id"`
+	Timestamp   string                       `json:"timestamp"`
+	Threads     []analyzer.AnalyzedThread    `json:"threads"`
 	ThreadPools map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
-	AIInsights  *ai.AIInsights                     `json:"ai_insights,omitempty"`
-	Errors      []string                           `json:"errors,omitempty"`
+	AIInsights  *ai.AIInsights               `json:"ai_insights,omitempty"`
+	Errors      []string                     `json:"errors,omitempty"`
 }
 
 // Start HTTP server
@@ -48,13 +41,23 @@ func main() {
 		log.Fatalf("Failed to initialize thread enricher: %v", err)
 	}
 
+	// In-memory registry of asynchronous analysis jobs
+	jobStore := NewJobStore()
+
 	// Create a new ServeMux
 	mux := http.NewServeMux()
 
-	// Register your routes on the mux
+	// Register routes
 	mux.HandleFunc("GET /{$}", serveHTML)
-	mux.HandleFunc("POST /api/v1/analyze", func(w http.ResponseWriter, r *http.Request) {
-		parseHandler(w, r, engine, enricher)
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	mux.HandleFunc("POST /api/v1/analyze/jobs", func(w http.ResponseWriter, r *http.Request) {
+		analyzeJobsHandler(w, r, jobStore, engine, enricher)
+	})
+	mux.HandleFunc("GET /api/v1/analyze/jobs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		jobStatusHandler(w, r, jobStore)
 	})
 
 	// Configure robust CORS
@@ -72,151 +75,6 @@ func main() {
 	fmt.Println("Server started at http://localhost:8080")
 	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatal(err)
-	}
-}
-
-// Request Handler Logic
-
-func parseHandler(w http.ResponseWriter, r *http.Request, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) {
-
-	// Parse Multipart Form (Limit upload size to 100MB)
-	if err := r.ParseMultipartForm(100 << 20); err != nil {
-		http.Error(w, "Files too large. Limit is 100MB.", http.StatusBadRequest)
-		return
-	}
-
-	// Retrieve file headers from the form data
-	dumpHeaders := r.MultipartForm.File["thread_dumps"]
-	usageHeaders := r.MultipartForm.File["thread_usages"]
-
-	if len(dumpHeaders) == 0 {
-		http.Error(w, "No thread dumps uploaded", http.StatusBadRequest)
-		return
-	}
-
-	var parsedFiles []analyzer.ParsedFile
-	var errorMessages []string
-
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	// Process each uploaded thread dump file concurrently
-	for i, dumpHeader := range dumpHeaders {
-		wg.Add(1)
-
-		// Launch a new goroutine for each file
-		go func(index int, dHeader *multipart.FileHeader) {
-			defer wg.Done()
-
-			// Open Thread Dump
-			dumpFile, err := dHeader.Open()
-			if err != nil {
-				mu.Lock()
-				errorMessages = append(errorMessages, fmt.Sprintf("Failed to open dump %s: %v", dHeader.Filename, err))
-				mu.Unlock()
-				return
-			}
-
-			// Open corresponding Usage File if it exists
-			var usageFile multipart.File
-			if index < len(usageHeaders) {
-				usageHeader := usageHeaders[index]
-				if uFile, err := usageHeader.Open(); err == nil {
-					// Validate that the file contains valid thread usage data
-					usages, _ := parser.ParseThreadUsage(uFile)
-					if len(usages) == 0 {
-						uFile.Close()
-						mu.Lock()
-						errorMessages = append(errorMessages, fmt.Sprintf("Invalid file. No valid thread usage data found in %s", usageHeader.Filename))
-						mu.Unlock()
-						return
-					}
-					// Reset reader to beginning for actual processing
-					uFile.Seek(0, io.SeekStart)
-					usageFile = uFile
-				}
-			}
-
-			// Parse Raw Data & Correlate with Usage
-			threads, err := parser.ProcessAndCorrelate(dumpFile, usageFile)
-
-			// Close file handles immediately after reading
-			dumpFile.Close()
-			if usageFile != nil {
-				usageFile.Close()
-			}
-
-			if err != nil {
-				mu.Lock()
-				errorMessages = append(errorMessages, fmt.Sprintf("Failed to parse %s: %v", dHeader.Filename, err))
-				mu.Unlock()
-				return
-			}
-
-			// Check if threads exist in uploaded files
-			if len(threads) == 0 {
-				mu.Lock()
-				errorMessages = append(errorMessages, fmt.Sprintf("Invalid Files. No threads found in %s", dHeader.Filename))
-				mu.Unlock()
-				return
-			}
-
-			// Enrichment with Regex Matching - Categorizes threads into pools based on YAML config.
-			enricher.Enrich(threads)
-
-			/* Analysis of Rules Engine */
-
-			// Check if usage data was provided for CPU inference logic
-			usageDataProvided := (usageFile != nil)
-			if err := eng.AnalyzeThreads(threads, usageDataProvided); err != nil {
-				// Log rule engine errors but continue processing other files.
-				log.Printf("Rule engine error on file %s: %v", dHeader.Filename, err)
-
-				mu.Lock()
-				errorMessages = append(errorMessages, fmt.Sprintf("Rule analysis failed for %s: %v", dHeader.Filename, err))
-				mu.Unlock()
-			}
-
-			// Collect processed data for later aggregation
-			mu.Lock()
-			parsedFiles = append(parsedFiles, analyzer.ParsedFile{
-				FileName: dHeader.Filename,
-				Threads:  threads,
-			})
-			mu.Unlock()
-
-		}(i, dumpHeader)
-	}
-
-	// Wait for all goroutines to finish processing before moving to aggregation
-	wg.Wait()
-
-	// Pivots data from a file-centric view to a thread-centric history view.
-	aggregatedThreads := analyzer.AggregateThreads(parsedFiles)
-
-	// Call Claude AI for an executive summary of the uploaded dumps
-	usageUploaded := len(usageHeaders) > 0
-	aiInsights, err := ai.GetInsights(aggregatedThreads, usageUploaded)
-	if err != nil {
-		log.Printf("AI insights error: %v", err)
-		errorMessages = append(errorMessages, fmt.Sprintf("AI insights unavailable: %v", err))
-	}
-
-	// Construct Final Response Object
-	response := AggregatedAnalysisResponse{
-		SessionID:   uuid.New().String(),
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Threads:     aggregatedThreads,
-		ThreadPools: enricher.PoolMetadata(),
-		AIInsights:  aiInsights,
-		Errors:      errorMessages,
-	}
-
-	// Send JSON Response
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode JSON response: %v", err)
 	}
 }
 
@@ -274,6 +132,8 @@ func serveHTML(w http.ResponseWriter, r *http.Request) {
 			</div>
 		</div>
 		<script>
+			const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 			document.getElementById('upload-form').addEventListener('submit', async function(e) {
 				e.preventDefault();
 				const btn = document.getElementById('submit-btn');
@@ -287,8 +147,17 @@ func serveHTML(w http.ResponseWriter, r *http.Request) {
 				for (const f of document.getElementById('thread_usages').files) form.append('thread_usages', f);
 
 				try {
-					const res = await fetch('/api/v1/analyze', { method: 'POST', body: form });
-					const data = await res.json();
+					const submitRes = await fetch('/api/v1/analyze/jobs', { method: 'POST', body: form });
+					const { job_id } = await submitRes.json();
+
+					let data;
+					while (true) {
+						await sleep(1000);
+						const pollRes = await fetch('/api/v1/analyze/jobs/' + job_id);
+						const job = await pollRes.json();
+						if (job.status === 'completed') { data = job.result; break; }
+						if (job.status === 'failed') throw new Error(job.error || 'job failed');
+					}
 
 					if (data.ai_insights && data.ai_insights.executive_summary) {
 						document.getElementById('summary-text').textContent = data.ai_insights.executive_summary;

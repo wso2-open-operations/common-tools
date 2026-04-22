@@ -68,7 +68,7 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                         </Box>
 
                         {/* Description */}
-                        <Typography variant="caption" display="block" mb={0.75} sx={{ color: 'text.secondary', lineHeight: 1.5 }}>
+                        <Typography variant="caption" display="block" mb={0.75} sx={{ color: 'text.secondary', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                             {finding.description}
                         </Typography>
 

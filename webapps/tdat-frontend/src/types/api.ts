@@ -29,6 +29,15 @@ export interface AIInsights {
   recommended_actions: string;
 }
 
+export interface JobInitResponse {
+  job_id: string;
+}
+
+export interface JobStatusResponse {
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: AnalysisResponse;
+}
+
 export interface AnalysisResponse {
   session_id: string;
   timestamp: string;

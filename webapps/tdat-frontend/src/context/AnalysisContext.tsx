@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import localforage from 'localforage';
 import type { AnalysisResponse } from '@/types/api';
+import PreLoader from '@component/common/PreLoader';
 
 interface AnalysisContextType {
   data: AnalysisResponse | null;
@@ -12,35 +14,31 @@ const AnalysisContext = createContext<AnalysisContextType | undefined>(undefined
 const STORAGE_KEY = 'tdat_analysis_session';
 
 export const AnalysisProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Initialize state by loading from localStorage
-  const [data, setData] = useState<AnalysisResponse | null>(() => {
-    try {
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      return savedData ? JSON.parse(savedData) : null;
-    } catch (error) {
-      console.error("Failed to load session from storage:", error);
-      return null;
-    }
-  });
+  const [data, setData] = useState<AnalysisResponse | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
-  // Wrapper to save data to both State and LocalStorage
+  useEffect(() => {
+    localforage.getItem<AnalysisResponse>(STORAGE_KEY)
+      .then((saved) => setData(saved ?? null))
+      .catch((error) => console.error('Failed to load session from storage:', error))
+      .finally(() => setHydrated(true));
+  }, []);
+
   const setAnalysisData = (newData: AnalysisResponse) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
-      setData(newData);
-    } catch (error) {
-      console.error("Storage quota exceeded or error:", error);
-      // Fallback: Set state anyway so it works for this session at least
-      setData(newData); 
-      alert("Warning: File is too large to save for refresh. Data will be lost if you reload.");
-    }
+    setData(newData);
+    localforage.setItem(STORAGE_KEY, newData)
+      .catch((error) => console.error('Failed to persist session to storage:', error));
   };
 
-  // Wrapper to clear session
   const clearSession = () => {
-    localStorage.removeItem(STORAGE_KEY);
     setData(null);
+    localforage.removeItem(STORAGE_KEY)
+      .catch((error) => console.error('Failed to clear session from storage:', error));
   };
+
+  if (!hydrated) {
+    return <PreLoader />;
+  }
 
   return (
     <AnalysisContext.Provider value={{ data, setAnalysisData, clearSession }}>

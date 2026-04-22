@@ -28,7 +28,7 @@ const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights 
             High-level synthesis of the most critical findings from this thread dump analysis
         </Typography>
 
-        <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, whiteSpace: 'pre-wrap' }}>
             {!aiInsights ? (
                 <Typography variant="caption" color="text.disabled" fontStyle="italic">
                     Executive summary unavailable — ensure GROQ_API_KEY is set and a valid dump was uploaded.

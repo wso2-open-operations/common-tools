@@ -55,7 +55,7 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => {
                         </Typography>
                     </Box>
 
-                    <Box mb={2}>
+                    <Box mb={2} sx={{ whiteSpace: 'pre-wrap' }}>
                         {aiInsights.pattern_recognition
                             ? renderBlocks(parseBlocks(aiInsights.pattern_recognition), {
                                 listIcon: infoIcon,
@@ -78,13 +78,15 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => {
                         </Typography>
                     </Box>
 
-                    {aiInsights.recommended_actions
-                        ? renderBlocks(parseBlocks(aiInsights.recommended_actions), {
-                            listIcon: lightbulbIcon,
-                            onThreadClick: navigateToThread,
-                        })
-                        : <Typography variant="caption" color="text.disabled" fontStyle="italic">—</Typography>
-                    }
+                    <Box sx={{ whiteSpace: 'pre-wrap' }}>
+                        {aiInsights.recommended_actions
+                            ? renderBlocks(parseBlocks(aiInsights.recommended_actions), {
+                                listIcon: lightbulbIcon,
+                                onThreadClick: navigateToThread,
+                            })
+                            : <Typography variant="caption" color="text.disabled" fontStyle="italic">—</Typography>
+                        }
+                    </Box>
                 </>
             )}
         </Paper>
