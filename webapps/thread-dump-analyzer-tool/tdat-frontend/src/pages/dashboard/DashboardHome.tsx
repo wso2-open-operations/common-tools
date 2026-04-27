@@ -85,13 +85,18 @@ const DashboardHome: React.FC = () => {
         return parseFloat(((currCount - prevCount) / prevCount * 100).toFixed(1));
     }, [threads, dumpNames]);
 
+    const criticalIssues = useMemo((): number =>
+        threads.filter(t => t.snapshots.some(s => s.risk_level === 'CRITICAL')).length,
+        [threads]
+    );
+
     const summary: DashboardSummary = useMemo(() => ({
         threadCount: latestDumpCount,
-        criticalIssues: latestSnapshots.filter(s => s.state === 'BLOCKED').length,
+        criticalIssues,
         blockedThreads: latestSnapshots.filter(s => s.state === 'BLOCKED').length,
         healthScore: computeHealthScore(latestSnapshots),
         trendPercent,
-    }), [latestSnapshots, latestDumpCount, trendPercent]);
+    }), [latestSnapshots, latestDumpCount, trendPercent, criticalIssues]);
 
     // Snapshots for the currently selected dump
     const selectedSnapshots = useMemo((): Array<{ thread: Thread; snapshot: ThreadSnapshot }> => {
