@@ -86,7 +86,7 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                             fontWeight="bold"
                             noWrap
                             title={thread.name}
-                            sx={(theme) => ({ color: theme.palette.accent.link })}
+                            sx={(theme) => ({ color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary })}
                         >
                             {thread.name}
                         </Typography>

@@ -1,14 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     Box, Paper, Typography, Tooltip,
-    List, ListItemButton,
+    List, ListItemButton, Checkbox,
     Container, Stack, TableSortLabel, Pagination,
-    TextField, InputAdornment, Select, MenuItem, type SelectChangeEvent
+    TextField, InputAdornment, Select, MenuItem, type SelectChangeEvent,
+    Accordion, AccordionSummary, AccordionDetails, Divider
 } from '@mui/material';
 import { useLocation } from 'react-router-dom';
 import Grid from '@mui/material/Grid';
 import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 import SearchIcon from '@mui/icons-material/Search';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 import { useAnalysisData } from '@context/AnalysisContext';
 import type { Thread } from '@/types/api';
@@ -23,7 +25,8 @@ const ThreadExplorer: React.FC = () => {
     const { data } = useAnalysisData();
     const location = useLocation();
 
-    const [selectedPool, setSelectedPool] = useState<string | null>(null);
+    const [selectedPools, setSelectedPools] = useState<string[]>([]);
+    const [hasInitialized, setHasInitialized] = useState(false);
     const [searchQuery, setSearchQuery] = useState(location.state?.searchThread || '');
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState<number>(10);
@@ -47,19 +50,25 @@ const ThreadExplorer: React.FC = () => {
         return groups;
     }, [data]);
 
-    // Auto-select pool, honouring incoming navigation state
+    // Auto-select pools, honouring incoming navigation state
     useEffect(() => {
-        if (location.state?.searchThread && Object.keys(threadsByPool).length > 0 && !selectedPool) {
+        if (hasInitialized) return;
+        const poolKeys = Object.keys(threadsByPool);
+        if (poolKeys.length === 0) return;
+
+        if (location.state?.searchThread) {
             const targetThread = data?.threads.find(t => t.name === location.state.searchThread);
-            setSelectedPool(targetThread?.thread_pool || 'Uncategorized');
+            const pool = targetThread?.thread_pool || 'Uncategorized';
+            setSelectedPools([pool]);
             window.history.replaceState({}, document.title);
-        } else if (!selectedPool && Object.keys(threadsByPool).length > 0) {
-            setSelectedPool(Object.keys(threadsByPool)[0]);
+        } else {
+            setSelectedPools(poolKeys);
         }
-    }, [threadsByPool, selectedPool, location.state, data]);
+        setHasInitialized(true);
+    }, [threadsByPool, location.state, data, hasInitialized]);
 
     // Reset pagination on filter/pool change
-    useEffect(() => { setPage(1); }, [selectedPool, searchQuery, rowsPerPage]);
+    useEffect(() => { setPage(1); }, [selectedPools, searchQuery, rowsPerPage]);
 
     const handleRequestSort = (property: SortableKeys) => {
         const isAsc = orderBy === property && order === 'asc';
@@ -68,9 +77,9 @@ const ThreadExplorer: React.FC = () => {
     };
 
     const filteredAndSortedThreads = useMemo(() => {
-        if (!selectedPool || !threadsByPool[selectedPool]) return [];
+        if (selectedPools.length === 0) return [];
 
-        let current = threadsByPool[selectedPool];
+        let current: Thread[] = selectedPools.flatMap(pool => threadsByPool[pool] || []);
 
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
@@ -104,7 +113,7 @@ const ThreadExplorer: React.FC = () => {
             }
             return 0;
         });
-    }, [threadsByPool, selectedPool, order, orderBy, searchQuery]);
+    }, [threadsByPool, selectedPools, order, orderBy, searchQuery]);
 
     const totalPages = Math.ceil(filteredAndSortedThreads.length / rowsPerPage);
     const paginatedThreads = useMemo(() => {
@@ -123,7 +132,25 @@ const ThreadExplorer: React.FC = () => {
 
     const createSortHandler = (property: SortableKeys) => () => handleRequestSort(property);
 
-    const handlePoolChange = (pool: string) => { setSelectedPool(pool); setSearchQuery(''); };
+    const poolKeys = Object.keys(threadsByPool);
+    const allSelected = poolKeys.length > 0 && selectedPools.length === poolKeys.length;
+
+    const togglePool = (pool: string) => {
+        setSelectedPools(prev =>
+            prev.includes(pool) ? prev.filter(p => p !== pool) : [...prev, pool]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        setSelectedPools(allSelected ? [] : poolKeys);
+    };
+
+    const headerTitle = (() => {
+        if (selectedPools.length === 0) return 'No pools selected';
+        if (selectedPools.length === 1) return selectedPools[0];
+        if (selectedPools.length <= 3) return selectedPools.join(', ');
+        return `Showing ${selectedPools.length} Selected Pools`;
+    })();
 
     return (
         <Box sx={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -152,8 +179,38 @@ const ThreadExplorer: React.FC = () => {
                     </Stack>
                 </Box>
                 <List component="nav" sx={{ p: 1 }}>
-                    {Object.keys(threadsByPool).map((pool) => {
-                        const isSelected = selectedPool === pool;
+                    <ListItemButton
+                        onClick={toggleSelectAll}
+                        sx={(theme) => ({
+                            mb: 0.5,
+                            borderRadius: 2,
+                            alignItems: 'center',
+                            '&:hover': { bgcolor: theme.palette.surface.hoverBg },
+                        })}
+                    >
+                        <Checkbox
+                            edge="start"
+                            size="small"
+                            checked={allSelected}
+                            indeterminate={selectedPools.length > 0 && !allSelected}
+                            tabIndex={-1}
+                            disableRipple
+                            sx={{ p: 0.5, mr: 1 }}
+                        />
+                        <Typography
+                            variant="body2"
+                            sx={(theme) => ({
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                color: theme.palette.text.primary,
+                            })}
+                        >
+                            {allSelected ? 'Deselect All' : 'Select All'}
+                        </Typography>
+                    </ListItemButton>
+                    <Divider sx={{ my: 0.5 }} />
+                    {poolKeys.map((pool) => {
+                        const isSelected = selectedPools.includes(pool);
                         return (
                             <Tooltip
                                 title={""}
@@ -163,7 +220,7 @@ const ThreadExplorer: React.FC = () => {
                             >
                                 <ListItemButton
                                     selected={isSelected}
-                                    onClick={() => handlePoolChange(pool)}
+                                    onClick={() => togglePool(pool)}
                                     sx={(theme) => ({
                                         mb: 0.5,
                                         borderRadius: 2,
@@ -174,6 +231,14 @@ const ThreadExplorer: React.FC = () => {
                                         '&:hover': { bgcolor: isSelected ? theme.palette.brand.softBg : theme.palette.surface.hoverBg },
                                     })}
                                 >
+                                    <Checkbox
+                                        edge="start"
+                                        size="small"
+                                        checked={isSelected}
+                                        tabIndex={-1}
+                                        disableRipple
+                                        sx={{ p: 0.5, mr: 1, mt: '-2px' }}
+                                    />
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
                                         <Typography
                                             variant="body2"
@@ -202,11 +267,9 @@ const ThreadExplorer: React.FC = () => {
             {/* Main Content */}
             <Box sx={{ flexGrow: 1, p: 4, overflowY: 'auto' }}>
 
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
+                <Box mb={3}>
                     <Box
                         sx={(theme) => ({
-                            flex: 1,
-                            mr: 3,
                             p: 2.5,
                             bgcolor: theme.palette.surface.translucent,
                             backdropFilter: 'blur(8px)',
@@ -221,20 +284,70 @@ const ThreadExplorer: React.FC = () => {
                             sx={(theme) => ({ fontWeight: 700, color: theme.palette.text.primary })}
                             gutterBottom
                         >
-                            {selectedPool}
+                            {headerTitle}
                         </Typography>
-                        {selectedPool && data.thread_pools?.[selectedPool] && (
+
+                        {selectedPools.length === 1 && data.thread_pools?.[selectedPools[0]] && (
                             <Box mb={1}>
                                 <Typography variant="body2" color="text.primary" gutterBottom>
-                                    <strong>Description:</strong> {data.thread_pools[selectedPool].description}
+                                    <strong>Description:</strong> {data.thread_pools[selectedPools[0]].description}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                    <strong>Expected behavior:</strong> {data.thread_pools[selectedPool].expected_behavior}
+                                    <strong>Expected behavior:</strong> {data.thread_pools[selectedPools[0]].expected_behavior}
                                 </Typography>
                             </Box>
                         )}
+
+                        {selectedPools.length > 1 && (
+                            <Box mb={1} mt={1}>
+                                {selectedPools.map(pool => {
+                                    const info = data.thread_pools?.[pool];
+                                    if (!info) return null;
+                                    return (
+                                        <Accordion
+                                            key={pool}
+                                            disableGutters
+                                            elevation={0}
+                                            sx={(theme) => ({
+                                                bgcolor: 'transparent',
+                                                border: `1px solid ${theme.palette.surface.border}`,
+                                                borderRadius: 2,
+                                                mb: 1,
+                                                '&:before': { display: 'none' },
+                                                '&.Mui-expanded': { margin: 0, mb: 1 },
+                                            })}
+                                        >
+                                            <AccordionSummary
+                                                expandIcon={<ExpandMoreIcon fontSize="small" />}
+                                                sx={{ minHeight: 40, '& .MuiAccordionSummary-content': { my: 0.5 } }}
+                                            >
+                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                    {pool}
+                                                </Typography>
+                                                <Typography variant="caption" sx={{ ml: 1, color: 'text.disabled', alignSelf: 'center' }}>
+                                                    ({threadsByPool[pool]?.length || 0} threads)
+                                                </Typography>
+                                            </AccordionSummary>
+                                            <AccordionDetails sx={{ pt: 0 }}>
+                                                <Typography variant="body2" color="text.primary" gutterBottom>
+                                                    <strong>Description:</strong> {info.description}
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                    <strong>Expected behavior:</strong> {info.expected_behavior}
+                                                </Typography>
+                                            </AccordionDetails>
+                                        </Accordion>
+                                    );
+                                })}
+                            </Box>
+                        )}
+
                         <Typography variant="body2" color="text.secondary">Showing {filteredAndSortedThreads.length} thread(s)</Typography>
                     </Box>
+                </Box>
+
+                {/* Table Toolbar */}
+                <Box display="flex" justifyContent="flex-end" mb={2}>
                     <TextField
                         size="small"
                         placeholder="Search by Thread ID or Name..."

@@ -107,7 +107,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
                             }}
                         />
                     ) : (
-                        <Typography variant="caption" sx={(theme) => ({ fontSize: '0.7rem', color: theme.palette.text.disabled })}>
+                        <Typography variant="caption" sx={(theme) => ({ fontSize: '0.7rem', color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary })}>
                             Single snapshot
                         </Typography>
                     )}

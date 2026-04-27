@@ -64,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
               <Typography
                 variant="caption"
                 sx={(theme) => ({
-                  color: theme.palette.text.disabled,
+                  color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                   fontWeight: 600,
                   fontSize: '0.65rem',
                   letterSpacing: '0.08em',

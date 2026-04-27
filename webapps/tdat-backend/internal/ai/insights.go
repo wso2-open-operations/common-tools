@@ -9,22 +9,27 @@ import (
 	"strings"
 	"tdat-backend/internal/analyzer"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-// AIInsights holds the three-section analysis produced by Groq.
+// AIInsights holds the three-section analysis produced by the AI model.
 type AIInsights struct {
 	ExecutiveSummary   string `json:"executive_summary"`
 	KeyFindings        string `json:"pattern_recognition"`
 	RecommendedActions string `json:"recommended_actions"`
 }
 
-// GetInsights calls Groq to produce a plain-English executive summary of the thread dumps.
+// GetInsights calls the Anthropic API to produce a plain-English executive summary of the thread dumps.
 // usageProvided indicates whether thread usage/CPU files were uploaded alongside the dumps.
 func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsights, error) {
-	apiKey := os.Getenv("GROQ_API_KEY")
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
-		return nil, fmt.Errorf("GROQ_API_KEY not set")
+		return &AIInsights{
+			ExecutiveSummary:   "AI insights unavailable: no API key configured.",
+			KeyFindings:        "Set the API Key to enable AI-powered analysis.",
+			RecommendedActions: "Configure API key and re-analyze.",
+		}, nil
 	}
 
 	if len(threads) == 0 {
@@ -33,30 +38,38 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 
 	prompt := buildPrompt(threads, usageProvided)
 
-	cfg := openai.DefaultConfig(apiKey)
-	cfg.BaseURL = "https://api.groq.com/openai/v1"
-	client := openai.NewClientWithConfig(cfg)
+	// Call Anthropic API
+	client := anthropic.NewClient(option.WithAPIKey(apiKey))
 
-	resp, err := client.CreateChatCompletion(context.Background(), openai.ChatCompletionRequest{
-		Model: "llama-3.3-70b-versatile",
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
-			{Role: openai.ChatMessageRoleUser, Content: prompt},
-		},
+	// Using Claude 4.5
+	resp, err := client.Messages.New(context.Background(), anthropic.MessageNewParams{
+		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 1024,
-		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+		System: []anthropic.TextBlockParam{
+			{Text: systemPrompt},
+		},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Groq API error: %w", err)
+		return nil, fmt.Errorf("Anthropic API error: %w", err)
 	}
 
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("empty response from Groq")
+	if len(resp.Content) == 0 || resp.Content[0].Type != "text" {
+		return nil, fmt.Errorf("empty response from Anthropic")
 	}
 
-	raw := strings.TrimSpace(resp.Choices[0].Message.Content)
+	raw := strings.TrimSpace(resp.Content[0].Text)
+
+	// Strip markdown code fences if present (Anthropic models sometimes wrap JSON in ```json ... ```)
+	if strings.HasPrefix(raw, "```") {
+		if idx := strings.Index(raw, "\n"); idx != -1 {
+			raw = raw[idx+1:]
+		}
+		raw = strings.TrimSuffix(strings.TrimRight(raw, "\n"), "```")
+		raw = strings.TrimSpace(raw)
+	}
 
 	var insights AIInsights
 	if err := json.Unmarshal([]byte(raw), &insights); err != nil {
@@ -96,7 +109,7 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 	}
 	fmt.Fprintf(&sb, "\n")
 
-	// Cap threads sent to Claude to avoid token limits
+	// Cap threads sent to avoid token limits
 	const maxThreads = 40
 	sent := threads
 	if len(sent) > maxThreads {

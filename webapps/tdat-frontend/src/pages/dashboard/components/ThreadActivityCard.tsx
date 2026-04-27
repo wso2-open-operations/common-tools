@@ -94,7 +94,7 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                                             sx={(theme) => ({
                                                 fontFamily: 'monospace',
                                                 fontSize: '0.75rem',
-                                                color: theme.palette.accent.link,
+                                                color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap',
@@ -152,7 +152,7 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                                             sx={(theme) => ({
                                                 fontFamily: 'monospace',
                                                 fontSize: '0.78rem',
-                                                color: theme.palette.accent.link,
+                                                color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                                                 fontWeight: 500,
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
@@ -224,7 +224,7 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                                             sx={(theme) => ({
                                                 fontFamily: 'monospace',
                                                 fontSize: '0.78rem',
-                                                color: theme.palette.accent.link,
+                                                color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                                                 fontWeight: 500,
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',

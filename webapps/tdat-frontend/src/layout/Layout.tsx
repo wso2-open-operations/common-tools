@@ -18,7 +18,7 @@ const Layout = () => {
 
   useEffect(() => {
     const page = PAGE_TITLES[pathname];
-    if (page) document.title = `${page} | TDAT`;
+    if (page) document.title = `${page} | WSO2 TDAT`;
   }, [pathname]);
 
   return (

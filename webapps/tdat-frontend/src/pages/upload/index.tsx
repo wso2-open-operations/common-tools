@@ -15,7 +15,7 @@ function UploadPage() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        document.title = 'New Session | TDAT';
+        document.title = 'New Session | WSO2 TDAT';
     }, []);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);

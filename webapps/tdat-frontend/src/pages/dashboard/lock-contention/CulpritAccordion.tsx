@@ -49,7 +49,7 @@ const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClic
                         fontFamily: 'monospace',
                         fontWeight: 700,
                         fontSize: '0.85rem',
-                        color: theme.palette.accent.link,
+                        color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                         cursor: 'pointer',
                         '&:hover': { textDecoration: 'underline' },
                         overflow: 'hidden',

@@ -37,7 +37,7 @@ const VictimRow: React.FC<VictimRowProps> = ({ victim, onThreadClick }) => {
                     fontFamily: 'monospace',
                     fontWeight: 600,
                     fontSize: '0.8rem',
-                    color: theme.palette.accent.link,
+                    color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                     cursor: 'pointer',
                     flex: 1,
                     minWidth: 0,
