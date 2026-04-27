@@ -47,9 +47,10 @@ const cardSx: SxProps<Theme> = (theme) => ({
 
 interface SummaryCardsProps {
     summary: DashboardSummary;
+    onBlockedClick?: () => void;
 }
 
-const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
+const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, onBlockedClick }) => {
     const theme = useTheme();
     const healthTier = getHealthTier(summary.healthScore);
     const healthMeta = getHealthMeta(healthTier, theme);
@@ -174,7 +175,33 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
 
             {/* Blocked Threads */}
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Paper sx={cardSx}>
+                <Paper
+                    onClick={onBlockedClick && summary.blockedThreads > 0 ? onBlockedClick : undefined}
+                    role={onBlockedClick && summary.blockedThreads > 0 ? 'button' : undefined}
+                    tabIndex={onBlockedClick && summary.blockedThreads > 0 ? 0 : undefined}
+                    onKeyDown={(e) => {
+                        if (onBlockedClick && summary.blockedThreads > 0 && (e.key === 'Enter' || e.key === ' ')) {
+                            e.preventDefault();
+                            onBlockedClick();
+                        }
+                    }}
+                    sx={[
+                        cardSx,
+                        !!onBlockedClick && summary.blockedThreads > 0 && ((theme) => ({
+                            cursor: 'pointer',
+                            '&:hover': {
+                                boxShadow: theme.palette.mode === 'dark'
+                                    ? '0 6px 18px rgba(0,0,0,0.55)'
+                                    : '0 4px 14px rgba(0,0,0,0.08)',
+                                borderColor: theme.palette.state.blocked.main,
+                            },
+                            '&:focus-visible': {
+                                outline: `2px solid ${theme.palette.state.blocked.main}`,
+                                outlineOffset: 2,
+                            },
+                        })),
+                    ]}
+                >
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                         <Typography variant="caption" sx={(theme) => ({ fontWeight: 500, fontSize: '0.75rem', color: theme.palette.text.secondary })}>
                             Blocked Threads

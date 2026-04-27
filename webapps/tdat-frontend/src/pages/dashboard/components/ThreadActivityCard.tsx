@@ -26,22 +26,26 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
     const thSx = tableHeadCellSx(theme);
 
     return (
-        <Paper
-            sx={(theme) => ({
-                borderRadius: 3,
-                overflow: 'hidden',
-                bgcolor: theme.palette.surface.translucent,
-                backdropFilter: 'blur(8px)',
-                border: `1px solid ${theme.palette.surface.border}`,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            })}
-        >
+        <>
+            <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+                Thread Activity
+            </Typography>
+            <Paper
+                sx={(theme) => ({
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    bgcolor: theme.palette.surface.translucent,
+                    backdropFilter: 'blur(8px)',
+                    border: `1px solid ${theme.palette.surface.border}`,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                })}
+            >
             <Box sx={(theme) => ({ borderBottom: `1px solid ${theme.palette.surface.border}` })}>
                 <Tabs
                     value={activityTab}
                     onChange={(_, v) => onTabChange(v)}
+                    variant="fullWidth"
                     sx={(theme) => ({
-                        px: 2,
                         minHeight: 46,
                         '& .MuiTab-root': {
                             minHeight: 46,
@@ -95,10 +99,7 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                                                 fontFamily: 'monospace',
                                                 fontSize: '0.75rem',
                                                 color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                                maxWidth: 440,
+                                                wordBreak: 'break-word',
                                             })}
                                         >
                                             {cluster.clusterName}
@@ -154,10 +155,7 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                                                 fontSize: '0.78rem',
                                                 color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                                                 fontWeight: 500,
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                                maxWidth: 520,
+                                                wordBreak: 'break-word',
                                             })}
                                         >
                                             {t.threadName}
@@ -226,10 +224,7 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                                                 fontSize: '0.78rem',
                                                 color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                                                 fontWeight: 500,
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                                maxWidth: 520,
+                                                wordBreak: 'break-word',
                                             })}
                                         >
                                             {t.threadName}
@@ -275,7 +270,8 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                     </Table>
                 </TableContainer>
             )}
-        </Paper>
+            </Paper>
+        </>
     );
 };
 

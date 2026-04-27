@@ -1,104 +1,95 @@
-import { useState } from 'react';
-import {
-  IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Tooltip,
-} from '@mui/material';
+import { Box, Tooltip } from '@mui/material';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
-import SettingsBrightnessOutlinedIcon from '@mui/icons-material/SettingsBrightnessOutlined';
-import CheckIcon from '@mui/icons-material/Check';
 import { useColorMode } from '@context/ColorModeContext';
-import type { ColorModePreference } from '@src/theme';
 
-const OPTIONS: Array<{
-  value: ColorModePreference;
-  label: string;
-  icon: React.ReactNode;
-}> = [
-  { value: 'light', label: 'Light', icon: <LightModeOutlinedIcon sx={{ fontSize: 18 }} /> },
-  { value: 'dark', label: 'Dark', icon: <DarkModeOutlinedIcon sx={{ fontSize: 18 }} /> },
-  { value: 'system', label: 'System', icon: <SettingsBrightnessOutlinedIcon sx={{ fontSize: 18 }} /> },
-];
+const TRACK_WIDTH = 60;
+const TRACK_HEIGHT = 30;
+const THUMB_SIZE = 24;
+const THUMB_INSET = (TRACK_HEIGHT - THUMB_SIZE) / 2;
 
 const ThemeToggle = () => {
-  const { preference, resolvedMode, setPreference } = useColorMode();
-  const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+  const { mode, toggleMode } = useColorMode();
+  const isDark = mode === 'dark';
 
-  const handleSelect = (value: ColorModePreference) => {
-    setPreference(value);
-    setAnchor(null);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleMode();
+    }
   };
 
-  const ActiveIcon = resolvedMode === 'dark'
-    ? <DarkModeOutlinedIcon sx={{ fontSize: 20 }} />
-    : <LightModeOutlinedIcon sx={{ fontSize: 20 }} />;
-
   return (
-    <>
-      <Tooltip title="Appearance" arrow>
-        <IconButton
-          onClick={(e) => setAnchor(e.currentTarget)}
-          aria-label="Change theme"
-          sx={(theme) => ({
-            color: theme.palette.text.secondary,
-            border: `1px solid ${theme.palette.surface.borderStrong}`,
-            borderRadius: 2,
-            width: 36,
-            height: 36,
-            '&:hover': {
-              bgcolor: theme.palette.surface.hoverBg,
-              borderColor: theme.palette.text.secondary,
-            },
-          })}
-        >
-          {ActiveIcon}
-        </IconButton>
-      </Tooltip>
-      <Menu
-        anchorEl={anchor}
-        open={Boolean(anchor)}
-        onClose={() => setAnchor(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{
-          paper: {
-            sx: (theme) => ({
-              mt: 0.5,
-              minWidth: 160,
-              borderRadius: 2,
-              border: `1px solid ${theme.palette.surface.border}`,
-              boxShadow: theme.palette.mode === 'dark'
-                ? '0 4px 18px rgba(0,0,0,0.5)'
-                : '0 4px 12px rgba(0,0,0,0.08)',
-            }),
+    <Tooltip title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} arrow>
+      <Box
+        role="switch"
+        aria-checked={isDark}
+        aria-label="Toggle dark mode"
+        tabIndex={0}
+        onClick={toggleMode}
+        onKeyDown={handleKeyDown}
+        sx={(theme) => ({
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: TRACK_WIDTH,
+          height: TRACK_HEIGHT,
+          px: '7px',
+          borderRadius: TRACK_HEIGHT / 2,
+          border: `1px solid ${theme.palette.surface.borderStrong}`,
+          bgcolor: theme.palette.surface.inset,
+          cursor: 'pointer',
+          transition: 'background-color 0.2s ease, border-color 0.2s ease',
+          '&:hover': {
+            borderColor: theme.palette.text.secondary,
           },
-        }}
-      >
-        {OPTIONS.map(({ value, label, icon }) => {
-          const isActive = preference === value;
-          return (
-            <MenuItem
-              key={value}
-              onClick={() => handleSelect(value)}
-              sx={{ fontSize: '0.85rem', py: 1, gap: 1 }}
-            >
-              <ListItemIcon sx={(theme) => ({ color: theme.palette.text.secondary, minWidth: '28px !important' })}>
-                {icon}
-              </ListItemIcon>
-              <ListItemText
-                slotProps={{ primary: { sx: { fontSize: '0.85rem', fontWeight: isActive ? 600 : 400 } } }}
-              >
-                {label}
-              </ListItemText>
-              {isActive && (
-                <CheckIcon
-                  sx={(theme) => ({ fontSize: 16, color: theme.palette.brand.main, ml: 'auto' })}
-                />
-              )}
-            </MenuItem>
-          );
+          '&:focus-visible': {
+            outline: `2px solid ${theme.palette.brand.main}`,
+            outlineOffset: 2,
+          },
         })}
-      </Menu>
-    </>
+      >
+        {/* Sliding thumb */}
+        <Box
+          sx={(theme) => ({
+            position: 'absolute',
+            top: THUMB_INSET,
+            left: isDark ? `calc(100% - ${THUMB_SIZE + THUMB_INSET}px)` : THUMB_INSET,
+            width: THUMB_SIZE,
+            height: THUMB_SIZE,
+            borderRadius: '50%',
+            bgcolor: theme.palette.background.paper,
+            boxShadow: theme.palette.mode === 'dark'
+              ? '0 2px 6px rgba(0,0,0,0.6)'
+              : '0 2px 6px rgba(0,0,0,0.18)',
+            transition: 'left 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+          })}
+        />
+
+        {/* Sun icon (left) */}
+        <LightModeOutlinedIcon
+          sx={(theme) => ({
+            position: 'relative',
+            zIndex: 1,
+            fontSize: 16,
+            color: !isDark ? theme.palette.warning.main : theme.palette.text.disabled,
+            transition: 'color 0.22s ease',
+          })}
+        />
+
+        {/* Moon icon (right) */}
+        <DarkModeOutlinedIcon
+          sx={(theme) => ({
+            position: 'relative',
+            zIndex: 1,
+            fontSize: 15,
+            color: isDark ? theme.palette.brand.main : theme.palette.text.disabled,
+            transition: 'color 0.22s ease',
+          })}
+        />
+      </Box>
+    </Tooltip>
   );
 };
 

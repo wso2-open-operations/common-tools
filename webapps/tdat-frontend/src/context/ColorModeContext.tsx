@@ -3,33 +3,28 @@ import {
   type ReactNode,
 } from 'react';
 import { ThemeProvider, CssBaseline } from '@mui/material';
-import { themeSettings, type ColorModePreference, type ThemeMode } from '@src/theme';
+import { themeSettings, type ThemeMode } from '@src/theme';
 
 const STORAGE_KEY = 'tdat-theme';
 
-function isValidPreference(value: unknown): value is ColorModePreference {
-  return value === 'light' || value === 'dark' || value === 'system';
+function isValidMode(value: unknown): value is ThemeMode {
+  return value === 'light' || value === 'dark';
 }
 
-function readStoredPreference(): ColorModePreference {
-  if (typeof window === 'undefined') return 'system';
+function readStoredMode(): ThemeMode {
+  if (typeof window === 'undefined') return 'light';
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    return isValidPreference(stored) ? stored : 'system';
+    return isValidMode(stored) ? stored : 'light';
   } catch {
-    return 'system';
+    return 'light';
   }
 }
 
-function getSystemMode(): ThemeMode {
-  if (typeof window === 'undefined' || !window.matchMedia) return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 interface ColorModeContextValue {
-  preference: ColorModePreference;
-  resolvedMode: ThemeMode;
-  setPreference: (value: ColorModePreference) => void;
+  mode: ThemeMode;
+  toggleMode: () => void;
+  setMode: (value: ThemeMode) => void;
 }
 
 const ColorModeContext = createContext<ColorModeContextValue | undefined>(undefined);
@@ -39,19 +34,10 @@ interface ColorModeProviderProps {
 }
 
 export const ColorModeProvider = ({ children }: ColorModeProviderProps) => {
-  const [preference, setPreferenceState] = useState<ColorModePreference>(readStoredPreference);
-  const [systemMode, setSystemMode] = useState<ThemeMode>(getSystemMode);
+  const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
 
-  useEffect(() => {
-    if (!window.matchMedia) return;
-    const mql = window.matchMedia('(prefers-color-scheme: dark)');
-    const listener = (e: MediaQueryListEvent) => setSystemMode(e.matches ? 'dark' : 'light');
-    mql.addEventListener('change', listener);
-    return () => mql.removeEventListener('change', listener);
-  }, []);
-
-  const setPreference = useCallback((value: ColorModePreference) => {
-    setPreferenceState(value);
+  const setMode = useCallback((value: ThemeMode) => {
+    setModeState(value);
     try {
       window.localStorage.setItem(STORAGE_KEY, value);
     } catch {
@@ -59,21 +45,31 @@ export const ColorModeProvider = ({ children }: ColorModeProviderProps) => {
     }
   }, []);
 
-  const resolvedMode: ThemeMode = preference === 'system' ? systemMode : preference;
+  const toggleMode = useCallback(() => {
+    setModeState(prev => {
+      const next: ThemeMode = prev === 'dark' ? 'light' : 'dark';
+      try {
+        window.localStorage.setItem(STORAGE_KEY, next);
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
 
-  const theme = useMemo(() => themeSettings(resolvedMode), [resolvedMode]);
+  const theme = useMemo(() => themeSettings(mode), [mode]);
 
   const value = useMemo<ColorModeContextValue>(
-    () => ({ preference, resolvedMode, setPreference }),
-    [preference, resolvedMode, setPreference],
+    () => ({ mode, toggleMode, setMode }),
+    [mode, toggleMode, setMode],
   );
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      document.documentElement.dataset.theme = resolvedMode;
-      document.documentElement.style.colorScheme = resolvedMode;
+      document.documentElement.dataset.theme = mode;
+      document.documentElement.style.colorScheme = mode;
     }
-  }, [resolvedMode]);
+  }, [mode]);
 
   return (
     <ColorModeContext.Provider value={value}>

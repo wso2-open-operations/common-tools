@@ -2,7 +2,6 @@ import { createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 
 export type ThemeMode = 'light' | 'dark';
-export type ColorModePreference = 'light' | 'dark' | 'system';
 
 // ─── Custom palette token augmentation ───────────────────────────────────────
 
@@ -95,8 +94,8 @@ const tokens = (mode: ThemeMode) => {
       sidebarBg: isDark ? 'rgba(13,13,13,0.6)' : 'rgba(255,255,255,0.55)',
       footerBg: isDark ? 'rgba(13,13,13,0.55)' : 'rgba(255,255,255,0.5)',
       pageGradient: isDark
-        ? `radial-gradient(ellipse at 18% 8%, rgba(255,103,0,0.10) 0%, transparent 55%),
-           radial-gradient(ellipse at 72% 55%, rgba(92,209,255,0.08) 0%, transparent 55%),
+        ? `radial-gradient(ellipse at 18% 8%, rgba(255,103,0,0.18) 0%, transparent 55%),
+           radial-gradient(ellipse at 72% 55%, rgba(92,209,255,0.16) 0%, transparent 55%),
            #0D0D0D`
         : `radial-gradient(ellipse at 18% 8%, rgba(183,228,252,0.22) 0%, transparent 55%),
            radial-gradient(ellipse at 72% 55%, rgba(255,103,0,0.18) 0%, transparent 55%),

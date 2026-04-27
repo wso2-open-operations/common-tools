@@ -158,7 +158,7 @@ function formatMetrics(
         kvLine('Health Score', `${healthScore} / 100`),
         kvLine('Blocked Threads', blockedCount > 0 ? `${blockedCount}  ⚠` : String(blockedCount)),
         kvLine('Deadlock Cycles', deadlockCycles > 0 ? `${deadlockCycles}  ⚠` : String(deadlockCycles)),
-        kvLine('Critical Issues', criticalCount),
+        kvLine('CRITICAL Risk Threads', criticalCount > 0 ? `${criticalCount}  ⚠` : String(criticalCount)),
         ...(maxWaitTimeMs > 0 ? [kvLine('Max Wait Time', `${formatWaitTime(maxWaitTimeMs)}  ${waitSeverityTag(maxWaitTimeMs)}`)] : []),
         '',
         '  State Distribution:',
@@ -184,7 +184,7 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
         findings.push({
             severity: 'CRITICAL',
             label: 'Deadlock Detected',
-            description: 'Threads are permanently blocked waiting on each other\'s locks.',
+            description: 'Threads are permanently blocked waiting on each other\'s locks. The JVM cannot self-recover — a restart is likely required.',
             affected: deadlocked.map(t => t.name),
         });
     }
@@ -196,8 +196,8 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
     if (critical.length > 0) {
         findings.push({
             severity: 'CRITICAL',
-            label: 'Critical Risk Threads',
-            description: 'Extreme CPU consumption, sudden blockage spikes, or stuck I/O threads.',
+            label: 'Critical Risk',
+            description: 'Threads flagged at the highest severity — extreme CPU consumption, sudden blockage spikes, or stuck I/O threads causing active service degradation.',
             affected: critical.map(t => t.name),
         });
     }
@@ -209,8 +209,8 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
     if (high.length > 0) {
         findings.push({
             severity: 'WARNING',
-            label: 'High Risk Threads',
-            description: 'Prolonged lock waits, JDBC stalls, HTTP worker saturation, or GC pressure.',
+            label: 'High Risk',
+            description: 'Threads with significant performance issues such as prolonged lock waits, database/JDBC stalls, HTTP worker saturation, or GC pressure.',
             affected: high.map(t => t.name),
         });
     }
@@ -225,7 +225,7 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
             findings.push({
                 severity: 'WARNING',
                 label: 'Blocked Threads',
-                description: 'Threads waiting to acquire a monitor lock in the latest snapshot.',
+                description: 'Threads waiting to acquire a monitor lock currently held by another thread in the latest snapshot. Indicates contention on a shared resource.',
                 affected: blocked.map(t => t.name),
             });
         }

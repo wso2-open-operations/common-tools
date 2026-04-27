@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     Box, Paper, Typography, Tooltip,
-    List, ListItemButton, Checkbox,
+    List, ListItemButton, Checkbox, Chip,
     Container, Stack, TableSortLabel, Pagination,
     TextField, InputAdornment, Select, MenuItem, type SelectChangeEvent,
     Accordion, AccordionSummary, AccordionDetails, Divider
@@ -28,6 +28,10 @@ const ThreadExplorer: React.FC = () => {
     const [selectedPools, setSelectedPools] = useState<string[]>([]);
     const [hasInitialized, setHasInitialized] = useState(false);
     const [searchQuery, setSearchQuery] = useState(location.state?.searchThread || '');
+    
+    // Captures the incoming filter (e.g., 'BLOCKED') from Dashboard navigation
+    const [stateFilter, setStateFilter] = useState<string | null>(location.state?.stateFilter || null);
+    
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState<number>(10);
     const [order, setOrder] = useState<Order>('asc');
@@ -68,7 +72,7 @@ const ThreadExplorer: React.FC = () => {
     }, [threadsByPool, location.state, data, hasInitialized]);
 
     // Reset pagination on filter/pool change
-    useEffect(() => { setPage(1); }, [selectedPools, searchQuery, rowsPerPage]);
+    useEffect(() => { setPage(1); }, [selectedPools, searchQuery, stateFilter, rowsPerPage]);
 
     const handleRequestSort = (property: SortableKeys) => {
         const isAsc = orderBy === property && order === 'asc';
@@ -81,6 +85,16 @@ const ThreadExplorer: React.FC = () => {
 
         let current: Thread[] = selectedPools.flatMap(pool => threadsByPool[pool] || []);
 
+        // Apply the state filter (e.g., only show BLOCKED threads)
+        if (stateFilter) {
+            current = current.filter(t => {
+                const snaps = t.snapshots;
+                const lastState = snaps.length > 0 ? snaps[snaps.length - 1].state : 'N/A';
+                return lastState === stateFilter;
+            });
+        }
+
+        // Apply search query filter
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             current = current.filter(t => t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q));
@@ -113,7 +127,7 @@ const ThreadExplorer: React.FC = () => {
             }
             return 0;
         });
-    }, [threadsByPool, selectedPools, order, orderBy, searchQuery]);
+    }, [threadsByPool, selectedPools, order, orderBy, searchQuery, stateFilter]); // Added stateFilter to dependencies
 
     const totalPages = Math.ceil(filteredAndSortedThreads.length / rowsPerPage);
     const paginatedThreads = useMemo(() => {
@@ -347,7 +361,20 @@ const ThreadExplorer: React.FC = () => {
                 </Box>
 
                 {/* Table Toolbar */}
-                <Box display="flex" justifyContent="flex-end" mb={2}>
+                <Box display="flex" justifyContent="flex-end" alignItems="center" gap={2} mb={2}>
+                    {/* Clearable Active Filter Chip */}
+                    {stateFilter && (
+                        <Chip
+                            label={`State: ${stateFilter}`}
+                            onDelete={() => setStateFilter(null)}
+                            sx={(theme) => ({
+                                bgcolor: theme.palette.brand.softBg,
+                                color: theme.palette.brand.softText,
+                                border: `1px solid ${theme.palette.brand.main}`,
+                                fontWeight: 600
+                            })}
+                        />
+                    )}
                     <TextField
                         size="small"
                         placeholder="Search by Thread ID or Name..."
@@ -413,7 +440,7 @@ const ThreadExplorer: React.FC = () => {
                 ) : (
                     <Box textAlign="center" py={5}>
                         <img src={notFound} alt="No Threads matched" style={{ marginBottom: 30, width: '40%' }} />
-                        <Typography variant="h6" color="text.secondary">No threads match your search query.</Typography>
+                        <Typography variant="h6" color="text.secondary">No threads match your filters.</Typography>
                     </Box>
                 )}
 

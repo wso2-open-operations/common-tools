@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Grid, useTheme } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { useAnalysisData } from '@context/AnalysisContext';
 import type { Thread, ThreadSnapshot, AIInsights } from '@/types/api';
 import { useNavigateToThread } from '@hooks/useNavigateToThread';
@@ -37,9 +38,14 @@ function getClusterKey(stackTrace: string[]): string {
 const DashboardHome: React.FC = () => {
     const { data } = useAnalysisData();
     const theme = useTheme();
+    const navigate = useNavigate();
     const navigateToThread = useNavigateToThread();
     const [selectedDump, setSelectedDump] = useState<string>('');
     const [activityTab, setActivityTab] = useState(0);
+
+    const handleBlockedClick = () => {
+        navigate('/thread-explorer', { state: { stateFilter: 'BLOCKED' } });
+    };
 
     const threads: Thread[] = data?.threads ?? [];
     const aiInsights: AIInsights | undefined = data?.ai_insights;
@@ -197,7 +203,7 @@ const DashboardHome: React.FC = () => {
 
                 {/* Row 1: Top Stat Cards */}
                 <Grid size={{ xs: 12 }}>
-                    <SummaryCards summary={summary} />
+                    <SummaryCards summary={summary} onBlockedClick={handleBlockedClick} />
                 </Grid>
 
                 {/* Row 2: Left main content */}
