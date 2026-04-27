@@ -86,7 +86,9 @@ const UploadCard: React.FC<UploadCardProps> = ({
                     label={required ? 'Required' : 'Optional'}
                     size="small"
                     sx={(theme) => ({
-                        backgroundColor: isPrimary ? theme.palette.brand.main : theme.palette.text.secondary,
+                        backgroundColor: isPrimary
+                            ? theme.palette.brand.main
+                            : (theme.palette.mode === 'dark' ? '#565656' : theme.palette.text.secondary),
                         color: theme.palette.brand.contrast,
                         fontWeight: 'bold',
                         fontSize: '0.65rem',

@@ -75,12 +75,19 @@ POST /api/v1/analyze/jobs
 
 ### Rule Engine
 
-20 Grule DSL rules in `internal/rules/rules.grl`, applied concurrently per thread. Each thread is matched by at most one rule (highest salience wins). Key detections:
+26 Grule DSL rules in `internal/rules/rules.grl`, applied concurrently per thread. Each thread is matched by at most one rule (highest salience wins). Rules gate on `t.Analyzed == false` and set `t.Analyzed = true` in `then` — no `Retract()` is used (it would thrash working memory).
+
+Two unambiguous findings are flagged **natively by the parser** before rules run, since they arrive as JVM summary blocks or single-number signals rather than per-thread state:
+
+- **Deadlocks** — threads listed in the `Found X Java-level deadlock` summary block are tagged `CRITICAL` directly in `ParseThread`.
+- **Runaway CPU** — threads with `CPUPercentage >= 100.0` after correlation are tagged `CRITICAL` in `ProcessAndCorrelate`.
+
+Both also set `Analyzed = true` so the rule engine skips them. The corresponding rules (`DeadlockDetection`, `ThreadStarvation`) remain as defensive backups.
 
 | Risk | Examples |
 |---|---|
-| CRITICAL | Deadlock, thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O |
-| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3+ threads on same monitor), GC activity |
+| CRITICAL | Deadlock (parser), runaway CPU ≥100% (parser), thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O, PassThrough starvation on backend I/O, DB connection pool exhaustion |
+| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3+ on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
 | MEDIUM | Idle threads (>10s), native/socket block with 0% CPU, recursive lock, thread leak |
 | INFO | Threads not belonging to any known pool |
 
@@ -110,4 +117,27 @@ Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineer
 ```bash
 go build -o tdat-backend    # Build binary
 go mod tidy                 # Sync dependencies
+```
+
+## File Structure
+
+```
+tdat-backend/
+├── main.go                          HTTP server, route wiring, AggregatedAnalysisResponse
+├── jobs.go                          Job/JobStore, async handlers, runAnalysis pipeline
+├── go.mod / go.sum                  Go module definition and dependency lock
+├── .env                             ANTHROPIC_API_KEY (loaded via godotenv)
+├── config/
+│   └── thread_pools.yaml            Thread pool name/regex/description definitions
+└── internal/
+    ├── parser/
+    │   └── thread_parser.go         Regex parsers, ProcessAndCorrelate, native deadlock + runaway-CPU pre-classification
+    ├── analyzer/
+    │   ├── enricher.go              ThreadEnricher: loads YAML, classifies threads into pools
+    │   ├── rules_engine.go          Grule integration, GlobalStats, AnalyzeThreads
+    │   └── aggregator.go            AggregateThreads: file-centric → thread-centric pivot
+    ├── rules/
+    │   └── rules.grl                26 Grule DSL rules (deadlock, high CPU, lock contention, DB pool, LDAP, OAuth, Hazelcast, etc.)
+    └── ai/
+        └── insights.go              Anthropic API call (claude-haiku-4-5), prompt build, JSON response parse
 ```

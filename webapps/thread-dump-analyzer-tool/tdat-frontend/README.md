@@ -72,3 +72,83 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 | `localforage` | IndexedDB-backed session persistence |
 | `react-router-dom` v7 | Client-side routing |
 | Vite 7 | Build tool and dev server |
+
+## File Structure
+
+```
+tdat-frontend/
+├── index.html                              Vite entry HTML
+├── package.json                            Dependencies and scripts
+├── vite.config.ts                          Vite + path-alias configuration
+├── tsconfig.json / tsconfig.app.json / tsconfig.node.json   TypeScript project refs
+├── public/
+│   ├── config.js                           Runtime API URL injection (window.configs.apiUrl)
+│   ├── favicon.ico
+│   └── WSO2-Pulse-Orange.png               App logo
+└── src/
+    ├── main.tsx                            React root — wraps App in AuthProvider
+    ├── App.tsx                             Provider composition (ColorMode → QueryClient → Analysis → AppHandler)
+    ├── App.css / index.css                 Global styles
+    ├── theme.ts                            MUI theme factory (themeSettings(mode))
+    ├── app/
+    │   └── AppHandler.tsx                  Auth gate: PreLoader → LoginScreen → Router
+    ├── api/
+    │   └── analyze.ts                      uploadThreadDumps, getJobStatus
+    ├── component/
+    │   ├── common/
+    │   │   └── PreLoader.tsx               Full-screen loading spinner
+    │   └── ui/
+    │       ├── aiMarkdown.tsx              AI markdown renderer (bold, lists, thread links)
+    │       ├── LoginScreen.tsx             Asgardeo sign-in landing
+    │       ├── StackTraceViewer.tsx        Stack trace code block with state chip + CPU info
+    │       └── ThreadStateChip.tsx         RUNNABLE/BLOCKED/WAITING/etc. chip
+    ├── config/
+    │   └── authConfig.ts                   Asgardeo client config
+    ├── context/
+    │   ├── AnalysisContext.tsx             Session state, persisted to IndexedDB via localforage
+    │   └── ColorModeContext.tsx            Light/dark theme context, persisted to localStorage
+    ├── hooks/
+    │   ├── useAnalyzeThreads.ts            Upload mutation + 3s polling query
+    │   ├── useExportReport.ts              Generate and download text report
+    │   └── useNavigateToThread.ts          Navigate to thread-explorer with search state
+    ├── layout/
+    │   ├── Layout.tsx                      Dashboard shell (Header + Sidebar + Outlet + Footer)
+    │   ├── header/index.tsx                AppBar (logo, title, theme toggle, export, logout)
+    │   ├── header/ThemeToggle.tsx          Light/dark/system theme dropdown
+    │   ├── sidebar/index.tsx               Collapsible nav drawer
+    │   └── footer/index.tsx                Copyright footer
+    ├── pages/
+    │   ├── upload/
+    │   │   ├── index.tsx                   Upload page (file pairing, analyze trigger, phase backdrop)
+    │   │   └── components/
+    │   │       └── UploadCard.tsx          Drag-drop card with file list and validation
+    │   └── dashboard/
+    │       ├── DashboardHome.tsx           Layout composition for summary view
+    │       ├── ThreadExplorer.tsx          Pool sidebar + sort/filter/paginate
+    │       ├── LockContention.tsx          Contention page (uses lock-contention sub-components)
+    │       ├── types.ts                    DashboardSummary, ThreadCluster, LongRunningThread
+    │       ├── constants.ts                STATE_COLORS, STATE_ORDER, thSx
+    │       ├── components/                 DashboardHome panels
+    │       │   ├── SummaryCards.tsx
+    │       │   ├── StateDistributionCard.tsx
+    │       │   ├── KeyFindingsCard.tsx
+    │       │   ├── ThreadActivityCard.tsx
+    │       │   ├── AIInsightsCard.tsx
+    │       │   └── ExecutiveSummaryCard.tsx
+    │       ├── lock-contention/            LockContention sub-components
+    │       │   ├── CulpritAccordion.tsx
+    │       │   ├── MonitorSection.tsx
+    │       │   ├── VictimRow.tsx
+    │       │   ├── LockChainView.tsx       Deadlock cycle arrow diagram
+    │       │   └── OrphanedLockCard.tsx
+    │       └── thread-explorer/
+    │           └── ThreadRow.tsx           Expandable row with state chart + snapshot details
+    ├── utils/
+    │   ├── lockParsing.ts                  Regex constants, findWaitingLock, findHeldLocks
+    │   ├── lockContentionAnalysis.ts       deriveCulpritCentricData, detectDeadlocks
+    │   ├── reportFormatter.ts              Plain-text report from AnalysisResponse
+    │   └── uploadValidation.ts             validateFiles, extractFileKey, PairedFile type
+    └── types/
+        ├── api.ts                          JobInitResponse, JobStatusResponse, AnalysisResponse, etc.
+        └── global.d.ts                     Window.configs augmentation
+```

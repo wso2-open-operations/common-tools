@@ -148,6 +148,7 @@ const ThreadRow: React.FC<ThreadRowProps> = ({ thread, stats }) => {
                             }]}
                             yAxis={[{
                                 min: 0.5, max: 4.5,
+                                width: 110,
                                 valueFormatter: (value: number | null) => value === null ? '' : getStateLabel(value),
                                 tickInterval: [1, 2, 3, 4],
                             }]}

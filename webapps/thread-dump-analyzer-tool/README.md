@@ -79,19 +79,25 @@ When multiple dump files are uploaded, TDAT correlates threads across snapshots 
 
 ## Features
 
-### Rule Engine (20 rules)
+### Rule Engine (26 rules)
 
-Rules are defined in `tdat-backend/internal/rules/rules.grl` using the Grule DSL. Each thread is matched by the highest-salience rule that fires, then marked as analyzed so no second rule re-fires on it. Key rules:
+Rules are defined in `tdat-backend/internal/rules/rules.grl` using the Grule DSL. Each thread is matched by the highest-salience rule that fires, then marked as analyzed so no second rule re-fires on it (no `Retract()` is used — gating on `Analyzed` avoids working-memory thrashing). Two unambiguous findings — JVM-reported deadlocks and runaway threads at ≥100% CPU — are pre-flagged directly by the parser before rules run. Key rules:
 
-- **Deadlock detection** — threads flagged in the JVM deadlock summary section (salience 100)
-- **WSO2 I/O stuck** — PassThrough threads with RUNNABLE state but 0% CPU stuck on socket I/O (salience 95)
-- **Thread starvation** — single thread consuming >95% CPU (salience 86)
+- **Deadlock detection** — threads flagged in the JVM deadlock summary section (salience 100; parser pre-flags as CRITICAL)
+- **PassThrough starvation** — `PassThroughMessageProcessor-` threads blocked on backend I/O via NIO reactor or socket read (salience 96)
+- **WSO2 I/O stuck** — PassThrough threads RUNNABLE with 0% CPU stuck on socket I/O (salience 95)
+- **DB connection pool exhaustion** — threads parked in `ConnectionPool.borrowConnection` (salience 92)
 - **High global blockage** — >25% of all threads BLOCKED system-wide (salience 88)
-- **High CPU** — RUNNABLE threads with >30% CPU usage (salience 80)
+- **Thread starvation** — single thread consuming >95% CPU (salience 86; parser pre-flags ≥100% as runaway)
 - **Database waits** — threads in JDBC/Hibernate calls for >5s (salience 85)
-- **Lock contention** — 3+ threads waiting on the same monitor address (salience 83)
-- **HTTP bottleneck** — Tomcat HTTP/HTTPS workers busy or blocked for >5s (salience 76)
 - **GC detection** — threads waiting in GC-related stack frames (salience 85)
+- **High CPU** — RUNNABLE threads with >30% CPU usage (salience 80)
+- **LDAP / user store timeouts** — threads in `javax.naming` / `com.sun.jndi.ldap` / WSO2 LDAP user store (salience 78)
+- **OAuth2 token bottleneck** — BLOCKED/WAITING in `org.wso2.carbon.identity.oauth2` (salience 77)
+- **HTTP bottleneck** — Tomcat HTTP/HTTPS workers busy or blocked for >5s (salience 76)
+- **Hazelcast cache contention** — threads blocked on `com.hazelcast` or `org.wso2.carbon.caching` (salience 71)
+- **Lock contention** — 3+ threads waiting on the same monitor address (salience 83)
+- **Severe lock contention (generic)** — fallback for any BLOCKED thread waiting on a monitor (salience 65)
 
 ### Thread Pool Classification
 

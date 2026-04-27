@@ -41,6 +41,11 @@ func (t *Thread) NameContains(s string) bool {
 	return strings.Contains(strings.ToLower(t.Name), strings.ToLower(s))
 }
 
+// NameStartsWith reports whether the thread name has the given prefix (case-sensitive).
+func (t *Thread) NameStartsWith(prefix string) bool {
+	return strings.HasPrefix(t.Name, prefix)
+}
+
 // StackTraceCount returns how many stack frames contain keyword.
 func (t *Thread) StackTraceCount(keyword string) int {
 	count := 0
@@ -233,10 +238,17 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 		threads = append(threads, *currentThread)
 	}
 
-	// Mark threads that appear in the deadlock summary section
+	// Mark threads that appear in the deadlock summary section.
+	// Deadlocks are JVM-reported summary blocks, not per-thread states — flag them
+	// as CRITICAL during extraction so the result is correct even before rules run.
+	// Setting Analyzed = true prevents the rules engine from re-firing on the same finding.
 	for i := range threads {
 		if deadlockedNames[threads[i].Name] {
 			threads[i].IsDeadlocked = true
+			threads[i].RiskLevel = "CRITICAL"
+			threads[i].AddIssue("Deadlock Detected: Thread is part of a JVM-reported monitor lock cycle.")
+			threads[i].Recommendation = "Investigate application locking logic immediately. A JVM restart is usually required to clear the deadlock."
+			threads[i].Analyzed = true
 		}
 	}
 
@@ -351,6 +363,21 @@ func ProcessAndCorrelate(dumpReader, usageReader io.Reader) ([]Thread, error) {
 					}
 				}
 			}
+		}
+	}
+
+	// Flag runaway-CPU threads (>= 100%) as CRITICAL natively.
+	// These are unambiguous infinite-loop / busy-spin signals and don't need rule inference.
+	for i := range threads {
+		t := &threads[i]
+		if t.Analyzed {
+			continue
+		}
+		if t.CPUPercentage >= 100.0 {
+			t.RiskLevel = "CRITICAL"
+			t.AddIssue(fmt.Sprintf("Runaway CPU Thread: thread is consuming %.1f%% CPU (likely infinite loop or busy-spin).", t.CPUPercentage))
+			t.Recommendation = "Inspect the stack trace immediately for infinite loops, busy-waiting, or runaway computation. Consider thread.yield()/sleep where appropriate."
+			t.Analyzed = true
 		}
 	}
 

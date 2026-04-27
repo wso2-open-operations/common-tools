@@ -232,3 +232,75 @@ rule StandaloneThread "Thread does not belong to any known thread pool" salience
         t.AddIssue("Standalone Thread: this thread does not belong to any configured thread pool");
         t.Analyzed = true;
 }
+
+// Rule 21: Database Connection Pool Exhaustion
+// Thread is parked inside Tomcat JDBC pool's borrowConnection — the pool is empty and no connections can be handed out.
+rule DBConnectionPoolExhaustion "Thread waiting for a JDBC connection (pool exhausted)" salience 92 {
+    when
+        t.Analyzed == false && (t.State == "WAITING" || t.State == "TIMED_WAITING") && t.HasInStackTrace("org.apache.tomcat.jdbc.pool.ConnectionPool.borrowConnection")
+    then
+        t.RiskLevel = "CRITICAL";
+        t.AddIssue("Stuck waiting for a Database Connection (Pool Exhaustion)");
+        t.Recommendation = "JDBC connection pool is exhausted. Increase maxActive, shorten query times, or fix connection leaks (close ResultSet/Statement/Connection in finally blocks).";
+        t.Analyzed = true;
+}
+
+// Rule 22: PassThrough Message Processor Starvation
+// PassThrough HTTP worker is blocked on backend I/O via the NIO reactor or socket read — backend is slow or unresponsive.
+rule PassThroughStarvation "PassThrough HTTP worker stuck on backend I/O" salience 96 {
+    when
+        t.Analyzed == false && t.NameStartsWith("PassThroughMessageProcessor-") && (t.HasInStackTrace("org.apache.http.impl.nio.reactor") || t.HasInStackTrace("java.net.SocketInputStream.read"))
+    then
+        t.RiskLevel = "CRITICAL";
+        t.AddIssue("PassThrough HTTP worker is blocked on backend I/O");
+        t.Recommendation = "Backend service is slow or unresponsive. Investigate backend latency, network connectivity, and HTTP connection timeouts on the PassThrough transport.";
+        t.Analyzed = true;
+}
+
+// Rule 23: LDAP / User Store Timeouts
+// Thread is delayed by a slow JNDI/LDAP/Active Directory user store lookup.
+rule LDAPUserStoreTimeout "Thread delayed by slow LDAP/AD user store" salience 78 {
+    when
+        t.Analyzed == false && (t.HasInStackTrace("javax.naming") || t.HasInStackTrace("com.sun.jndi.ldap") || t.HasInStackTrace("org.wso2.carbon.user.core.ldap"))
+    then
+        t.RiskLevel = "HIGH";
+        t.AddIssue("Thread delayed by slow LDAP/Active Directory response");
+        t.Recommendation = "Check LDAP/AD server health, network latency, and user store connection timeouts. Consider tuning connection pool sizes for LDAP user stores.";
+        t.Analyzed = true;
+}
+
+// Rule 24: OAuth Token Validation Bottleneck
+// Thread is BLOCKED or WAITING inside the WSO2 OAuth2 token validation/issuance flow.
+rule OAuth2TokenBottleneck "Thread stuck during OAuth2 token validation/issuance" salience 77 {
+    when
+        t.Analyzed == false && (t.State == "BLOCKED" || t.State == "WAITING") && t.HasInStackTrace("org.wso2.carbon.identity.oauth2")
+    then
+        t.RiskLevel = "HIGH";
+        t.AddIssue("Stuck during OAuth2 token validation/issuance");
+        t.Recommendation = "OAuth2 flow is contended — check token persistence DB, token cache hit rates, and any custom OAuthEventListener/grant-type handlers on the critical path.";
+        t.Analyzed = true;
+}
+
+// Rule 25: Distributed Cache Contention (Hazelcast)
+// Thread is blocked on Hazelcast distributed cache synchronization or WSO2 caching layer.
+rule HazelcastCacheContention "Thread blocked on Hazelcast distributed cache" salience 71 {
+    when
+        t.Analyzed == false && (t.HasInStackTrace("com.hazelcast") || t.HasInStackTrace("org.wso2.carbon.caching"))
+    then
+        t.RiskLevel = "HIGH";
+        t.AddIssue("Thread blocked on Hazelcast distributed cache synchronization");
+        t.Recommendation = "Investigate cluster health and network latency between Hazelcast members. High cache contention may indicate hot keys, oversized cache entries, or split-brain.";
+        t.Analyzed = true;
+}
+
+// Rule 26: Severe Lock Contention (Generic)
+// Generic catch-all for BLOCKED threads waiting on a monitor lock — fires only when no more specific rule matched.
+rule SevereLockContention "Thread BLOCKED waiting for a monitor lock" salience 65 {
+    when
+        t.Analyzed == false && t.State == "BLOCKED" && t.WaitingToLockAddress != ""
+    then
+        t.RiskLevel = "HIGH";
+        t.AddIssue("Thread is BLOCKED waiting for a monitor lock");
+        t.Recommendation = "Identify the thread holding the monitor at " + t.WaitingToLockAddress + " and inspect its stack to determine why the lock is being held.";
+        t.Analyzed = true;
+}
