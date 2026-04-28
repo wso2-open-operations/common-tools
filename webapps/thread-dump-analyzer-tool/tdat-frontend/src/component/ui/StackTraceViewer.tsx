@@ -65,8 +65,7 @@ const StackTraceViewer: React.FC<Props> = ({ snapshot, index, dumpName }) => {
             >
                 <pre style={{ margin: 0 }}>
                     {snapshot.stack_trace && snapshot.stack_trace.length > 0
-                        ? snapshot.stack_trace.join('
-')
+                        ? snapshot.stack_trace.join('\n')
                         : 'No stack trace available.'}
                 </pre>
             </Paper>

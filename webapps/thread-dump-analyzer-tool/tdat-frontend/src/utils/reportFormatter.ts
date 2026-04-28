@@ -70,8 +70,7 @@ interface TableColumn {
 }
 
 function formatTable(columns: TableColumn[], rows: string[][]): string {
-    if (rows.length === 0) return '  (none)
-';
+    if (rows.length === 0) return '  (none)\n';
 
     const widths = columns.map((col, i) => {
         const contentMax = Math.max(
@@ -99,9 +98,7 @@ function formatTable(columns: TableColumn[], rows: string[][]): string {
         border,
         ...rows.map(row => fmtRow(row)),
         border,
-    ].join('
-') + '
-';
+    ].join('\n') + '\n';
 }
 
 // ─── Computation (mirrors DashboardHome) ────────────────────────────────────
@@ -154,8 +151,7 @@ function formatHeader(sessionId: string, timestamp: string): string {
         `  Generated:   ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`,
         `  Session:     ${sessionId}`,
         `  Snapshot:    ${timestamp}`,
-    ].join('
-');
+    ].join('\n');
 }
 
 function formatExecutiveSummary(aiInsights?: AIInsights): string {
@@ -194,8 +190,7 @@ function formatMetrics(
     ];
     return `${header}
 
-${lines.join('
-')}`;
+${lines.join('\n')}`;
 }
 
 function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
@@ -271,11 +266,8 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
             `  [${f.severity}] ${f.label}`,
             `    ${f.description}`,
             `    Affected (${f.affected.length}): ${affectedPreview}${overflow}`,
-        ].join('
-');
-    }).join('
-
-');
+        ].join('\n');
+    }).join('\n\n');
 
     return `${header}
 
@@ -289,17 +281,13 @@ function formatAIInsights(aiInsights?: AIInsights): string {
         ? `  --- Pattern Recognition ---
 
 ${aiInsights.pattern_recognition.trim()}`
-        : '  --- Pattern Recognition ---
-
-  No specific patterns detected.';
+        : '  --- Pattern Recognition ---\n\n  No specific patterns detected.';
 
     const actions = aiInsights?.recommended_actions?.trim()
         ? `  --- Recommended Actions ---
 
 ${aiInsights.recommended_actions.trim()}`
-        : '  --- Recommended Actions ---
-
-  No specific recommendations available.';
+        : '  --- Recommended Actions ---\n\n  No specific recommendations available.';
 
     return `${header}
 
@@ -443,8 +431,7 @@ function formatLockContention(threads: Thread[]): string {
     sections.push(`  --- Lock Owners (${culprits.length} owner${culprits.length !== 1 ? 's' : ''}, ${totalBlocked} blocked) ---`);
 
     if (culprits.length === 0) {
-        sections.push('
-  No lock owners identified.');
+        sections.push('\n  No lock owners identified.');
     } else {
         culprits.forEach(entry => {
             sections.push(`
@@ -489,8 +476,7 @@ function formatLockContention(threads: Thread[]): string {
 
     return `${header}
 
-${sections.join('
-')}`;
+${sections.join('\n')}`;
 }
 
 function formatFooter(): string {
@@ -552,7 +538,5 @@ export function generateReport(data: AnalysisResponse): string {
         formatHighCpu(snapshots),
         formatLockContention(threads),
         formatFooter(),
-    ].join('
-
-');
+    ].join('\n\n');
 }

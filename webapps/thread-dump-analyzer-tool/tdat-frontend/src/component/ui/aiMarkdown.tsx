@@ -88,8 +88,7 @@ function sanitize(raw: string): string {
 
 // Splits raw AI text into typed blocks: headings, bullet lists, ordered lists, paragraphs.
 export function parseBlocks(raw: string): ParsedBlock[] {
-    const lines = sanitize(raw).split('
-').map(l => l.trim()).filter(Boolean);
+    const lines = sanitize(raw).split('\n').map(l => l.trim()).filter(Boolean);
     const blocks: ParsedBlock[] = [];
     let bulletBuf: string[] = [];
     let orderedBuf: string[] = [];
