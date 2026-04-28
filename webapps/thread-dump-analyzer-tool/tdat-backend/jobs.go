@@ -1,3 +1,19 @@
+// Copyright (c) 2025 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 package main
 
 import (
@@ -5,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"sync"
@@ -136,7 +151,6 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore,
 
 		defer func() {
 			if rec := recover(); rec != nil {
-				log.Printf("job %s panicked: %v", jobID, rec)
 				store.Update(jobID, func(j *Job) {
 					j.Status = JobFailed
 					j.Error = fmt.Sprintf("internal error: %v", rec)
@@ -153,9 +167,7 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore,
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	if err := json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID}); err != nil {
-		log.Printf("Failed to encode job_id response: %v", err)
-	}
+	json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID})
 }
 
 // jobStatusHandler returns the current Job record, including Result once the
@@ -172,9 +184,7 @@ func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *JobStore) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(job); err != nil {
-		log.Printf("Failed to encode job response: %v", err)
-	}
+	json.NewEncoder(w).Encode(job)
 }
 
 // runAnalysis runs the full parsing/enrichment/Grule/AI pipeline over
@@ -195,8 +205,9 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 				u := usages[index]
 				parsed, _ := parser.ParseThreadUsage(bytes.NewReader(u.Data))
 				if len(parsed) == 0 {
+					msg := fmt.Sprintf("Invalid file. No valid thread usage data found in %s", u.FileName)
 					mu.Lock()
-					errorMessages = append(errorMessages, fmt.Sprintf("Invalid file. No valid thread usage data found in %s", u.FileName))
+					errorMessages = append(errorMessages, msg)
 					mu.Unlock()
 					return
 				}
@@ -205,15 +216,17 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 
 			threads, err := parser.ProcessAndCorrelate(bytes.NewReader(d.Data), usageReader)
 			if err != nil {
+				msg := fmt.Sprintf("Failed to parse %s: %v", d.FileName, err)
 				mu.Lock()
-				errorMessages = append(errorMessages, fmt.Sprintf("Failed to parse %s: %v", d.FileName, err))
+				errorMessages = append(errorMessages, msg)
 				mu.Unlock()
 				return
 			}
 
 			if len(threads) == 0 {
+				msg := fmt.Sprintf("Invalid Files. No threads found in %s", d.FileName)
 				mu.Lock()
-				errorMessages = append(errorMessages, fmt.Sprintf("Invalid Files. No threads found in %s", d.FileName))
+				errorMessages = append(errorMessages, msg)
 				mu.Unlock()
 				return
 			}
@@ -222,9 +235,9 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 
 			usageDataProvided := (usageReader != nil)
 			if err := eng.AnalyzeThreads(threads, usageDataProvided); err != nil {
-				log.Printf("Rule engine error on file %s: %v", d.FileName, err)
+				msg := fmt.Sprintf("Rule analysis failed for %s: %v", d.FileName, err)
 				mu.Lock()
-				errorMessages = append(errorMessages, fmt.Sprintf("Rule analysis failed for %s: %v", d.FileName, err))
+				errorMessages = append(errorMessages, msg)
 				mu.Unlock()
 			}
 
@@ -244,8 +257,8 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 	usageUploaded := len(usages) > 0
 	aiInsights, err := ai.GetInsights(aggregatedThreads, usageUploaded)
 	if err != nil {
-		log.Printf("AI insights error: %v", err)
-		errorMessages = append(errorMessages, fmt.Sprintf("AI insights unavailable: %v", err))
+		msg := fmt.Sprintf("AI insights unavailable: %v", err)
+		errorMessages = append(errorMessages, msg)
 	}
 
 	return &AggregatedAnalysisResponse{

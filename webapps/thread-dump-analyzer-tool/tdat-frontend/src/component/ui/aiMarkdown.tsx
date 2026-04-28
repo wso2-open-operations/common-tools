@@ -1,8 +1,24 @@
+// Copyright (c) 2025 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 import React from 'react';
 import { Box, List, ListItem, ListItemIcon, Typography } from '@mui/material';
 
 // Matches Thread-N and multi-segment hyphenated identifiers like http-nio-8080-exec-5
-const THREAD_RE_SOURCE = '\\b(Thread-\\d+|[A-Za-z][\\w]*(?:-[\\w]+){2,}-\\d+)\\b';
+const THREAD_RE_SOURCE = '\b(Thread-\d+|[A-Za-z][\w]*(?:-[\w]+){2,}-\d+)\b';
 
 export type ParsedBlock =
     | { type: 'bullets'; items: string[] }
@@ -66,13 +82,14 @@ export function renderInline(text: string, onThreadClick?: (name: string) => voi
 // following text — before line splitting so they never reach the renderer as literal characters.
 function sanitize(raw: string): string {
     return raw
-        .replace(/^[ \t]*#{1,6}[ \t]*/gm, '')  // leading hashes on any line
+        .replace(/^[ 	]*#{1,6}[ 	]*/gm, '')  // leading hashes on any line
         .replace(/#{1,6}/g, '');                 // any remaining stray hash sequences
 }
 
 // Splits raw AI text into typed blocks: headings, bullet lists, ordered lists, paragraphs.
 export function parseBlocks(raw: string): ParsedBlock[] {
-    const lines = sanitize(raw).split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = sanitize(raw).split('
+').map(l => l.trim()).filter(Boolean);
     const blocks: ParsedBlock[] = [];
     let bulletBuf: string[] = [];
     let orderedBuf: string[] = [];

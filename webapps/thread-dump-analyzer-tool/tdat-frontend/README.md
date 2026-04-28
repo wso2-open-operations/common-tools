@@ -81,6 +81,8 @@ tdat-frontend/
 ├── package.json                            Dependencies and scripts
 ├── vite.config.ts                          Vite + path-alias configuration
 ├── tsconfig.json / tsconfig.app.json / tsconfig.node.json   TypeScript project refs
+├── .prettierignore                         Prettier exclusion patterns
+├── prettier.config.cjs                     Prettier formatting configuration
 ├── public/
 │   ├── config.js                           Runtime API URL injection (window.configs.apiUrl)
 │   ├── favicon.ico
@@ -152,3 +154,22 @@ tdat-frontend/
         ├── api.ts                          JobInitResponse, JobStatusResponse, AnalysisResponse, etc.
         └── global.d.ts                     Window.configs augmentation
 ```
+
+## Code Formatting
+
+This project uses **Prettier** for consistent code formatting. Configuration is defined in `prettier.config.cjs`.
+
+```bash
+pnpm format    # (if configured) — auto-format all TypeScript/TSX files
+```
+
+## License
+
+This project is licensed under the **Apache License 2.0**. See the main repository for the complete LICENSE file.
+
+```
+Copyright (c) 2025 WSO2 LLC. (https://www.wso2.com).
+Licensed under the Apache License, Version 2.0.
+```
+
+All source files (`*.tsx`, `*.ts`) include the Apache 2.0 license header at the top of the file.

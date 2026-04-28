@@ -1,3 +1,19 @@
+// Copyright (c) 2025 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 import type { AnalysisResponse, Thread, ThreadSnapshot, AIInsights } from '@/types/api';
 import { deriveCulpritCentricData } from './lockContentionAnalysis';
 
@@ -21,7 +37,9 @@ function truncate(text: string, maxLen: number): string {
 }
 
 function sectionHeader(title: string): string {
-    return `${DIVIDER}\n  ${title}\n${DIVIDER}`;
+    return `${DIVIDER}
+  ${title}
+${DIVIDER}`;
 }
 
 function formatDuration(seconds: number): string {
@@ -52,7 +70,8 @@ interface TableColumn {
 }
 
 function formatTable(columns: TableColumn[], rows: string[][]): string {
-    if (rows.length === 0) return '  (none)\n';
+    if (rows.length === 0) return '  (none)
+';
 
     const widths = columns.map((col, i) => {
         const contentMax = Math.max(
@@ -80,7 +99,9 @@ function formatTable(columns: TableColumn[], rows: string[][]): string {
         border,
         ...rows.map(row => fmtRow(row)),
         border,
-    ].join('\n') + '\n';
+    ].join('
+') + '
+';
 }
 
 // ─── Computation (mirrors DashboardHome) ────────────────────────────────────
@@ -133,14 +154,17 @@ function formatHeader(sessionId: string, timestamp: string): string {
         `  Generated:   ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`,
         `  Session:     ${sessionId}`,
         `  Snapshot:    ${timestamp}`,
-    ].join('\n');
+    ].join('
+');
 }
 
 function formatExecutiveSummary(aiInsights?: AIInsights): string {
     const header = sectionHeader('EXECUTIVE SUMMARY');
     const body = aiInsights?.executive_summary?.trim()
         || 'No executive summary available.';
-    return `${header}\n\n${body}`;
+    return `${header}
+
+${body}`;
 }
 
 function formatMetrics(
@@ -168,7 +192,10 @@ function formatMetrics(
                 `    ${state.padEnd(18)} ${String(count).padStart(5)}  (${((count / threadCount) * 100).toFixed(1)}%)`,
             ),
     ];
-    return `${header}\n\n${lines.join('\n')}`;
+    return `${header}
+
+${lines.join('
+')}`;
 }
 
 function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
@@ -232,7 +259,9 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
     }
 
     if (findings.length === 0) {
-        return `${header}\n\n  No critical findings detected.`;
+        return `${header}
+
+  No critical findings detected.`;
     }
 
     const body = findings.map(f => {
@@ -242,24 +271,41 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
             `  [${f.severity}] ${f.label}`,
             `    ${f.description}`,
             `    Affected (${f.affected.length}): ${affectedPreview}${overflow}`,
-        ].join('\n');
-    }).join('\n\n');
+        ].join('
+');
+    }).join('
 
-    return `${header}\n\n${body}`;
+');
+
+    return `${header}
+
+${body}`;
 }
 
 function formatAIInsights(aiInsights?: AIInsights): string {
     const header = sectionHeader('AI INSIGHTS');
 
     const pattern = aiInsights?.pattern_recognition?.trim()
-        ? `  --- Pattern Recognition ---\n\n${aiInsights.pattern_recognition.trim()}`
-        : '  --- Pattern Recognition ---\n\n  No specific patterns detected.';
+        ? `  --- Pattern Recognition ---
+
+${aiInsights.pattern_recognition.trim()}`
+        : '  --- Pattern Recognition ---
+
+  No specific patterns detected.';
 
     const actions = aiInsights?.recommended_actions?.trim()
-        ? `  --- Recommended Actions ---\n\n${aiInsights.recommended_actions.trim()}`
-        : '  --- Recommended Actions ---\n\n  No specific recommendations available.';
+        ? `  --- Recommended Actions ---
 
-    return `${header}\n\n${pattern}\n\n${actions}`;
+${aiInsights.recommended_actions.trim()}`
+        : '  --- Recommended Actions ---
+
+  No specific recommendations available.';
+
+    return `${header}
+
+${pattern}
+
+${actions}`;
 }
 
 function formatThreadClusters(
@@ -302,7 +348,9 @@ function formatThreadClusters(
         c.dominantState,
     ]);
 
-    return `${header}\n\n${formatTable(columns, rows)}`;
+    return `${header}
+
+${formatTable(columns, rows)}`;
 }
 
 function formatLongRunning(
@@ -329,7 +377,9 @@ function formatLongRunning(
         formatDuration(snapshot.elapsed_time_s),
     ]);
 
-    return `${header}\n\n${formatTable(columns, rows)}`;
+    return `${header}
+
+${formatTable(columns, rows)}`;
 }
 
 function formatHighCpu(
@@ -358,7 +408,9 @@ function formatHighCpu(
         `${snapshot.cpu_time_ms}ms`,
     ]);
 
-    return `${header}\n\n${formatTable(columns, rows)}`;
+    return `${header}
+
+${formatTable(columns, rows)}`;
 }
 
 function formatLockContention(threads: Thread[]): string {
@@ -366,7 +418,9 @@ function formatLockContention(threads: Thread[]): string {
     const { culprits, orphanedLocks, deadlocks } = deriveCulpritCentricData(threads);
 
     if (culprits.length === 0 && orphanedLocks.length === 0 && deadlocks.length === 0) {
-        return `${header}\n\n  No lock contention detected.`;
+        return `${header}
+
+  No lock contention detected.`;
     }
 
     const sections: string[] = [];
@@ -375,7 +429,8 @@ function formatLockContention(threads: Thread[]): string {
     if (deadlocks.length > 0) {
         sections.push(`  [CRITICAL] ${deadlocks.length} Deadlock Cycle${deadlocks.length !== 1 ? 's' : ''} Detected`);
         deadlocks.forEach((cycle, i) => {
-            sections.push(`\n  Cycle ${i + 1}:`);
+            sections.push(`
+  Cycle ${i + 1}:`);
             cycle.threads.forEach(t => {
                 sections.push(`    "${t.thread.name}" waiting on <${t.waitingOnAddress}> (${t.lockClassName})`);
             });
@@ -388,14 +443,17 @@ function formatLockContention(threads: Thread[]): string {
     sections.push(`  --- Lock Owners (${culprits.length} owner${culprits.length !== 1 ? 's' : ''}, ${totalBlocked} blocked) ---`);
 
     if (culprits.length === 0) {
-        sections.push('\n  No lock owners identified.');
+        sections.push('
+  No lock owners identified.');
     } else {
         culprits.forEach(entry => {
-            sections.push(`\n  Owner: "${truncate(entry.thread.name, 60)}" [${entry.snapshot.state}]`);
+            sections.push(`
+  Owner: "${truncate(entry.thread.name, 60)}" [${entry.snapshot.state}]`);
             sections.push(`    Holding ${entry.heldLocks.length} monitor${entry.heldLocks.length !== 1 ? 's' : ''}, blocking ${entry.totalVictims} thread${entry.totalVictims !== 1 ? 's' : ''}`);
             entry.heldLocks.forEach(lock => {
                 const shortName = lock.className.split('.').pop() ?? lock.className;
-                sections.push(`\n    Monitor: ${shortName} <${lock.address}>`);
+                sections.push(`
+    Monitor: ${shortName} <${lock.address}>`);
                 lock.victims.forEach(v => {
                     const waitStr = v.waitTimeMs > 0
                         ? `  wait: ${formatWaitTime(v.waitTimeMs)} ${waitSeverityTag(v.waitTimeMs)}`
@@ -414,7 +472,8 @@ function formatLockContention(threads: Thread[]): string {
 
         orphanedLocks.forEach(lock => {
             const shortName = lock.className.split('.').pop() ?? lock.className;
-            sections.push(`\n  Monitor: ${shortName} <${lock.address}>`);
+            sections.push(`
+  Monitor: ${shortName} <${lock.address}>`);
             sections.push(`    ${lock.victims.length} blocked thread${lock.victims.length !== 1 ? 's' : ''}:`);
             lock.victims.slice(0, 10).forEach(v => {
                 const waitStr = v.waitTimeMs > 0
@@ -428,11 +487,16 @@ function formatLockContention(threads: Thread[]): string {
         });
     }
 
-    return `${header}\n\n${sections.join('\n')}`;
+    return `${header}
+
+${sections.join('
+')}`;
 }
 
 function formatFooter(): string {
-    return `${DIVIDER}\n${centerText('END OF REPORT')}\n${DIVIDER}`;
+    return `${DIVIDER}
+${centerText('END OF REPORT')}
+${DIVIDER}`;
 }
 
 // ─── Main Entry Point ───────────────────────────────────────────────────────
@@ -488,5 +552,7 @@ export function generateReport(data: AnalysisResponse): string {
         formatHighCpu(snapshots),
         formatLockContention(threads),
         formatFooter(),
-    ].join('\n\n');
+    ].join('
+
+');
 }

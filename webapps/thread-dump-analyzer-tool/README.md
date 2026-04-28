@@ -113,3 +113,13 @@ The frontend derives the full lock contention graph from raw thread snapshot dat
 ### AI Insights
 
 After rule analysis, the backend sends a summarized thread report (up to 40 non-INFO threads, top 3 stack frames each) to Anthropic's `claude-haiku-4-5-20251001` model. The system prompt is tailored for WSO2/Java performance engineering, instructing the model to cite specific thread names and packages. The response is structured JSON with `executive_summary`, `pattern_recognition`, and `recommended_actions`.
+
+## License
+
+This project is licensed under the **Apache License 2.0**. See LICENSE file for details.
+
+```
+Copyright (c) 2025 WSO2 LLC. (https://www.wso2.com).
+```
+
+All source files include the Apache 2.0 license header. You are free to use, modify, and distribute this software under the terms of the Apache License 2.0.

@@ -127,6 +127,7 @@ tdat-backend/
 ├── jobs.go                          Job/JobStore, async handlers, runAnalysis pipeline
 ├── go.mod / go.sum                  Go module definition and dependency lock
 ├── .env                             ANTHROPIC_API_KEY (loaded via godotenv)
+├── openapi.yaml                     OpenAPI 3.0 specification for REST API
 ├── config/
 │   └── thread_pools.yaml            Thread pool name/regex/description definitions
 └── internal/
@@ -141,3 +142,14 @@ tdat-backend/
     └── ai/
         └── insights.go              Anthropic API call (claude-haiku-4-5), prompt build, JSON response parse
 ```
+
+## License
+
+This project is licensed under the **Apache License 2.0**. See the main repository for the complete LICENSE file.
+
+```
+Copyright (c) 2025 WSO2 LLC. (https://www.wso2.com).
+Licensed under the Apache License, Version 2.0.
+```
+
+All source files (`*.go`) include the Apache 2.0 license header at the top of the file.
