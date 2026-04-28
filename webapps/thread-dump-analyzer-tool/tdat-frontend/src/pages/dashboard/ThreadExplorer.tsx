@@ -4,13 +4,14 @@ import {
     List, ListItemButton, Checkbox, Chip,
     Container, Stack, TableSortLabel, Pagination,
     TextField, InputAdornment, Select, MenuItem, type SelectChangeEvent,
-    Accordion, AccordionSummary, AccordionDetails, Divider
+    Accordion, AccordionSummary, AccordionDetails, Divider, Collapse, Button
 } from '@mui/material';
 import { useLocation } from 'react-router-dom';
 import Grid from '@mui/material/Grid';
 import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 import { useAnalysisData } from '@context/AnalysisContext';
 import type { Thread } from '@/types/api';
@@ -36,6 +37,7 @@ const ThreadExplorer: React.FC = () => {
     const [rowsPerPage, setRowsPerPage] = useState<number>(10);
     const [order, setOrder] = useState<Order>('asc');
     const [orderBy, setOrderBy] = useState<SortableKeys>('maxCpu');
+    const [showPoolDetails, setShowPoolDetails] = useState(false);
 
     // Group threads by pool, deduplicated by id
     const threadsByPool = useMemo(() => {
@@ -313,46 +315,88 @@ const ThreadExplorer: React.FC = () => {
                         )}
 
                         {selectedPools.length > 1 && (
-                            <Box mb={1} mt={1}>
-                                {selectedPools.map(pool => {
-                                    const info = data.thread_pools?.[pool];
-                                    if (!info) return null;
-                                    return (
-                                        <Accordion
-                                            key={pool}
-                                            disableGutters
-                                            elevation={0}
-                                            sx={(theme) => ({
-                                                bgcolor: 'transparent',
-                                                border: `1px solid ${theme.palette.surface.border}`,
-                                                borderRadius: 2,
-                                                mb: 1,
-                                                '&:before': { display: 'none' },
-                                                '&.Mui-expanded': { margin: 0, mb: 1 },
-                                            })}
-                                        >
-                                            <AccordionSummary
-                                                expandIcon={<ExpandMoreIcon fontSize="small" />}
-                                                sx={{ minHeight: 40, '& .MuiAccordionSummary-content': { my: 0.5 } }}
-                                            >
-                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                    {pool}
-                                                </Typography>
-                                                <Typography variant="caption" sx={{ ml: 1, color: 'text.disabled', alignSelf: 'center' }}>
-                                                    ({threadsByPool[pool]?.length || 0} threads)
-                                                </Typography>
-                                            </AccordionSummary>
-                                            <AccordionDetails sx={{ pt: 0 }}>
-                                                <Typography variant="body2" color="text.primary" gutterBottom>
-                                                    <strong>Description:</strong> {info.description}
-                                                </Typography>
-                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                                    <strong>Expected behavior:</strong> {info.expected_behavior}
-                                                </Typography>
-                                            </AccordionDetails>
-                                        </Accordion>
-                                    );
-                                })}
+                            <Box mt={1}>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
+                                    {selectedPools.map(pool => (
+                                        <Tooltip key={pool} title={`${threadsByPool[pool]?.length || 0} threads`} placement="top" arrow>
+                                            <Chip
+                                                label={pool}
+                                                size="small"
+                                                onClick={() => togglePool(pool)}
+                                                onDelete={() => togglePool(pool)}
+                                                sx={(theme) => ({
+                                                    maxWidth: 200,
+                                                    bgcolor: theme.palette.brand.softBg,
+                                                    color: theme.palette.brand.softText,
+                                                    border: `1px solid ${theme.palette.brand.main}`,
+                                                    fontWeight: 500,
+                                                    fontSize: '0.75rem',
+                                                    '& .MuiChip-deleteIcon': { color: theme.palette.brand.softText, fontSize: '0.9rem' },
+                                                })}
+                                            />
+                                        </Tooltip>
+                                    ))}
+                                </Box>
+                                {selectedPools.some(p => data.thread_pools?.[p]) && (
+                                    <Button
+                                        size="small"
+                                        startIcon={<InfoOutlinedIcon sx={{ fontSize: '0.9rem !important' }} />}
+                                        onClick={() => setShowPoolDetails(v => !v)}
+                                        sx={(theme) => ({
+                                            textTransform: 'none',
+                                            color: theme.palette.text.secondary,
+                                            fontSize: '0.78rem',
+                                            p: 0,
+                                            minWidth: 0,
+                                            '&:hover': { bgcolor: 'transparent', color: theme.palette.brand.main },
+                                        })}
+                                    >
+                                        {showPoolDetails ? 'Hide pool details' : 'Show pool details'}
+                                    </Button>
+                                )}
+                                <Collapse in={showPoolDetails}>
+                                    <Box mt={1.5}>
+                                        {selectedPools.map(pool => {
+                                            const info = data.thread_pools?.[pool];
+                                            if (!info) return null;
+                                            return (
+                                                <Accordion
+                                                    key={pool}
+                                                    disableGutters
+                                                    elevation={0}
+                                                    sx={(theme) => ({
+                                                        bgcolor: 'transparent',
+                                                        border: `1px solid ${theme.palette.surface.border}`,
+                                                        borderRadius: 2,
+                                                        mb: 1,
+                                                        '&:before': { display: 'none' },
+                                                        '&.Mui-expanded': { margin: 0, mb: 1 },
+                                                    })}
+                                                >
+                                                    <AccordionSummary
+                                                        expandIcon={<ExpandMoreIcon fontSize="small" />}
+                                                        sx={{ minHeight: 40, '& .MuiAccordionSummary-content': { my: 0.5 } }}
+                                                    >
+                                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                            {pool}
+                                                        </Typography>
+                                                        <Typography variant="caption" sx={{ ml: 1, color: 'text.disabled', alignSelf: 'center' }}>
+                                                            ({threadsByPool[pool]?.length || 0} threads)
+                                                        </Typography>
+                                                    </AccordionSummary>
+                                                    <AccordionDetails sx={{ pt: 0 }}>
+                                                        <Typography variant="body2" color="text.primary" gutterBottom>
+                                                            <strong>Description:</strong> {info.description}
+                                                        </Typography>
+                                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                            <strong>Expected behavior:</strong> {info.expected_behavior}
+                                                        </Typography>
+                                                    </AccordionDetails>
+                                                </Accordion>
+                                            );
+                                        })}
+                                    </Box>
+                                </Collapse>
                             </Box>
                         )}
 
