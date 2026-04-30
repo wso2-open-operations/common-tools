@@ -48,7 +48,7 @@ const ThreadExplorer: React.FC = () => {
     
     // Captures the incoming filter (e.g., 'BLOCKED') from Dashboard navigation
     const [stateFilter, setStateFilter] = useState<string | null>(location.state?.stateFilter || null);
-    
+
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState<number>(10);
     const [order, setOrder] = useState<Order>('asc');
@@ -80,8 +80,15 @@ const ThreadExplorer: React.FC = () => {
 
         if (location.state?.searchThread) {
             const targetThread = data?.threads.find(t => t.name === location.state.searchThread);
-            const pool = targetThread?.thread_pool || 'Uncategorized';
-            setSelectedPools([pool]);
+            // When the incoming searchThread is a thread name, narrow to its pool.
+            // When it's a method/stack-frame (e.g. from the Top Executing Method click),
+            // there's no exact name match — keep all pools selected so the search filter
+            // can match across the whole dataset.
+            if (targetThread) {
+                setSelectedPools([targetThread.thread_pool || 'Uncategorized']);
+            } else {
+                setSelectedPools(poolKeys);
+            }
             window.history.replaceState({}, document.title);
         } else {
             setSelectedPools(poolKeys);
@@ -112,10 +119,15 @@ const ThreadExplorer: React.FC = () => {
             });
         }
 
-        // Apply search query filter
+        // Apply search query filter — matches thread name/id or any stack-trace frame
+        // so the Dashboard "Top Executing Method" click can pre-filter by method name.
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
-            current = current.filter(t => t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q));
+            current = current.filter(t =>
+                t.name.toLowerCase().includes(q) ||
+                t.id.toLowerCase().includes(q) ||
+                t.snapshots.some(s => s.stack_trace.some(line => line.toLowerCase().includes(q)))
+            );
         }
 
         const withStats = current.map(thread => {
@@ -145,7 +157,7 @@ const ThreadExplorer: React.FC = () => {
             }
             return 0;
         });
-    }, [threadsByPool, selectedPools, order, orderBy, searchQuery, stateFilter]); // Added stateFilter to dependencies
+    }, [threadsByPool, selectedPools, order, orderBy, searchQuery, stateFilter]);
 
     const totalPages = Math.ceil(filteredAndSortedThreads.length / rowsPerPage);
     const paginatedThreads = useMemo(() => {

@@ -63,7 +63,7 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                     },
                 }}
             >
-                <LockOutlinedIcon sx={(theme) => ({ fontSize: 16, color: theme.palette.text.disabled, flexShrink: 0 })} />
+                <LockOutlinedIcon sx={(theme) => ({ fontSize: 16, color: theme.palette.text.secondary, flexShrink: 0 })} />
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
                     <Typography
                         variant="body2"

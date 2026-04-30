@@ -27,6 +27,7 @@ export interface ThreadCluster {
     count: number;
     dominantState: string;
     threadNames: string[];
+    category?: string;
 }
 
 export interface LongRunningThread {

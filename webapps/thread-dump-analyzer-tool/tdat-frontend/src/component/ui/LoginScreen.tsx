@@ -18,7 +18,7 @@ import { useEffect, useMemo } from 'react';
 import { Box, Container, Paper, Typography, Button, ThemeProvider, CssBaseline } from '@mui/material';
 import LoginIcon from '@mui/icons-material/Login';
 import { useAuthContext } from '@asgardeo/auth-react';
-import pulseOrange from '@assets/pulse-orange.svg';
+import pulseOrange from '@assets/WSO2-Pulse-Orange.webp';
 import { themeSettings } from '@src/theme';
 
 const LoginScreen = () => {

@@ -218,8 +218,8 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
     if (critical.length > 0) {
         findings.push({
             severity: 'CRITICAL',
-            label: 'Critical Risk',
-            description: 'Threads flagged at the highest severity — extreme CPU consumption, sudden blockage spikes, or stuck I/O threads causing active service degradation.',
+            label: 'Critical Risk Threads',
+            description: 'Threads flagged as CRITICAL risk by the analysis engine. Open in Thread Explorer to inspect the stack trace and recommendation.',
             affected: critical.map(t => t.name),
         });
     }
@@ -325,7 +325,7 @@ function formatThreadClusters(
     const columns: TableColumn[] = [
         { header: '#', maxWidth: 4, align: 'right' },
         { header: 'Count', maxWidth: 6, align: 'right' },
-        { header: 'Cluster', maxWidth: 48 },
+        { header: 'Top Executing Method', maxWidth: 48 },
         { header: 'State', maxWidth: 14 },
     ];
 

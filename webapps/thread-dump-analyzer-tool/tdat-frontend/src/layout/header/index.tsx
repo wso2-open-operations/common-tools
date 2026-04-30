@@ -28,8 +28,8 @@ import { useLocation } from 'react-router-dom';
 import { useAuthContext } from '@asgardeo/auth-react';
 import '@fontsource-variable/inter/index.css';
 
-import logoLight from '@assets/wso2-logo_black.png';
-import logoDark from '@assets/wso2-logo_white.png';
+import logoLight from '@assets/WSO2-Logo-Black.webp';
+import logoDark from '@assets/WSO2-Logo-White.webp';
 import { useExportReport } from '@hooks/useExportReport';
 import ThemeToggle from './ThemeToggle';
 import { useTheme } from '@mui/material';
@@ -80,11 +80,15 @@ const Header = ({ toggleSidebar }: HeaderProps) => {
         <img
           src={logo}
           alt="WSO2_Logo"
-          height="40"
-          style={{ marginRight: '2px', borderRadius: '6px' }}
+          style={{
+            height: '1.5rem',
+            marginLeft: '4px',
+            marginRight: '10px',
+            borderRadius: '6px',
+          }}
         />
         <Typography
-          variant="h6"
+          variant="h5"
           noWrap
           component="div"
           sx={(theme) => ({

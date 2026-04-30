@@ -138,6 +138,18 @@ rule ThreadLeak "Thread count growing >5% per dump" salience 72 {
         t.Analyzed = true;
 }
 
+// Rule 27: Critical Lock Contention
+// 20+ threads queued on the same monitor is a transport-level serialization failure, not just contention.
+rule CriticalLockContention "20+ threads competing for the same monitor lock" salience 84 {
+    when
+        t.Analyzed == false && t.LockContentionCount >= 20
+    then
+        t.RiskLevel = "CRITICAL";
+        t.AddIssue("Critical Lock Contention: " + t.LockContentionCount + " threads are serialized behind the same monitor lock — this is a transport-level throughput failure");
+        t.Recommendation = "Locate the thread holding the lock at " + t.WaitingToLockAddress + " and eliminate the bottleneck. If the lock protects a non-critical operation (e.g. advisory file locking), consider disabling it entirely. Replace synchronized blocks with concurrent data structures or lock striping where applicable.";
+        t.Analyzed = true;
+}
+
 // Rule 13: Long Wait on Monitor
 // Thread has been waiting to acquire a specific lock for an extended period.
 rule LongMonitorWait "Thread waiting to acquire a lock for > 10s" salience 84 {
@@ -147,6 +159,19 @@ rule LongMonitorWait "Thread waiting to acquire a lock for > 10s" salience 84 {
         t.RiskLevel = "HIGH";
         t.AddIssue("Long Monitor Wait: thread has been waiting to acquire a lock for over 10s");
         t.Recommendation = "Identify which thread holds the lock at the waiting address and inspect its stack for the root cause.";
+        t.Analyzed = true;
+}
+
+// Rule 28: Catastrophic Thread Count
+// When the JVM hosts 5000+ threads, each is a GC root — GC must scan all stacks on every collection cycle,
+// causing sustained high CPU even though individual threads are idle. Escalates NativeThreadIssue to CRITICAL.
+rule CatastrophicThreadCount "JVM thread count exceeds safe threshold — GC root explosion" salience 82 {
+    when
+        t.Analyzed == false && t.State == "RUNNABLE" && t.CPUPercentage == 0.0 && global.TotalThreads > 5000 && (t.HasInStackTrace("Native Method") || t.HasInStackTrace("SocketInputStream.read") || t.HasInStackTrace("FileInputStream.read") || t.HasInStackTrace("PlainSocketImpl"))
+    then
+        t.RiskLevel = "CRITICAL";
+        t.AddIssue("Catastrophic Thread Leak: JVM has " + global.TotalThreads + " live threads. Each is a GC root — GC must scan all stacks on every collection cycle, causing high CPU even though this thread is individually idle.");
+        t.Recommendation = "This is a thread leak. Identify and stop the source of unbounded thread creation (check VFS/SMB connections, NAS clients, or any connection pool that spawns per-connection threads without cleanup). Restart the JVM immediately to restore normal GC behavior.";
         t.Analyzed = true;
 }
 

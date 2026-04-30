@@ -32,7 +32,7 @@ const Footer = () => {
     >
       <Typography
         variant="caption"
-        sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: '0.7rem' })}
+        sx={(theme) => ({ color: theme.palette.text.secondary, fontSize: '0.7rem' })}
       >
         Thread Dump Analyzer Tool &copy; {new Date().getFullYear()}
       </Typography>

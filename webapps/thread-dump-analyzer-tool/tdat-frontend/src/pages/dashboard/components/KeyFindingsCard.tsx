@@ -14,12 +14,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Box,
     Paper,
     Typography,
     Chip,
+    Collapse,
+    Divider,
+    IconButton,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -29,6 +32,7 @@ import {
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'info';
 
@@ -44,10 +48,37 @@ interface KeyFindingsCardProps {
     onThreadClick: (name: string) => void;
 }
 
+const SEVERITY_ORDER: FindingSeverity[] = ['critical', 'high', 'medium', 'info'];
+
+const SEVERITY_TITLE: Record<FindingSeverity, string> = {
+    critical: 'Critical Risk',
+    high: 'High Risk',
+    medium: 'Medium Risk',
+    info: 'Informational',
+};
+
+const iconForSeverity = (severity: FindingSeverity) =>
+    severity === 'critical' ? ErrorOutlineIcon
+        : severity === 'info' ? InfoOutlinedIcon
+            : WarningAmberIcon;
+
 const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThreadClick }) => {
     const [selectedFinding, setSelectedFinding] = useState<FindingItem | null>(null);
+    const [expanded, setExpanded] = useState(true);
     const dialogOpen = selectedFinding !== null;
     const closeDialog = () => setSelectedFinding(null);
+
+    const groupedFindings = useMemo(() => {
+        const groups = new Map<FindingSeverity, FindingItem[]>();
+        keyFindings.forEach(f => {
+            const list = groups.get(f.severity) ?? [];
+            list.push(f);
+            groups.set(f.severity, list);
+        });
+        return SEVERITY_ORDER
+            .filter(sev => groups.has(sev))
+            .map(severity => ({ severity, findings: groups.get(severity)! }));
+    }, [keyFindings]);
 
     return (
         <>
@@ -63,29 +94,45 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 })}
             >
-                <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-                    Key Findings
-                </Typography>
-                <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-                    Critical issues and patterns detected by the analysis engine
-                </Typography>
+                <Box display="flex" alignItems="flex-start" justifyContent="space-between" gap={1}>
+                    <Box flex={1} minWidth={0}>
+                        <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                            Key Findings
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block" mb={expanded ? 2 : 0}>
+                            Critical issues and patterns detected by the analysis engine
+                            {!expanded && keyFindings.length > 0 && ` — ${keyFindings.length} ${keyFindings.length === 1 ? 'issue' : 'issues'}`}
+                        </Typography>
+                    </Box>
+                    <IconButton
+                        size="small"
+                        onClick={() => setExpanded(e => !e)}
+                        aria-label={expanded ? 'Collapse key findings' : 'Expand key findings'}
+                        aria-expanded={expanded}
+                        sx={{
+                            color: 'text.secondary',
+                            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s ease',
+                        }}
+                    >
+                        <ExpandMoreIcon fontSize="small" />
+                    </IconButton>
+                </Box>
+                <Collapse in={expanded} timeout="auto" unmountOnExit>
                 {keyFindings.length === 0 ? (
                     <Typography variant="caption" color="text.disabled" fontStyle="italic">
                         No critical issues detected in this analysis.
                     </Typography>
                 ) : (
-                    <Box display="flex" flexDirection="column" gap={1.5}>
-                        {keyFindings.map((finding, idx) => {
-                            const SeverityIcon =
-                                finding.severity === 'critical' ? ErrorOutlineIcon
-                                    : finding.severity === 'info' ? InfoOutlinedIcon
-                                        : WarningAmberIcon;
-                            const overflowCount = finding.affectedThreads.length - 8;
+                    <Box display="flex" flexDirection="column" gap={2}>
+                        {groupedFindings.map(({ severity, findings }) => {
+                            const SeverityIcon = iconForSeverity(severity);
+                            const totalThreads = findings.reduce((sum, f) => sum + f.affectedThreads.length, 0);
                             return (
                                 <Box
-                                    key={idx}
+                                    key={severity}
                                     sx={(theme) => {
-                                        const tokens = theme.palette.severity[finding.severity];
+                                        const tokens = theme.palette.severity[severity];
                                         const isDark = theme.palette.mode === 'dark';
                                         return {
                                             borderLeft: `4px solid ${tokens.main}`,
@@ -96,102 +143,123 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                                         };
                                     }}
                                 >
-                                    {/* Title row with icon */}
-                                    <Box display="flex" alignItems="center" gap={0.75} mb={0.5}>
+                                    {/* Band header */}
+                                    <Box display="flex" alignItems="center" gap={0.75} mb={1.25}>
                                         <SeverityIcon
                                             sx={(theme) => ({
-                                                fontSize: 16,
-                                                color: theme.palette.severity[finding.severity].main,
+                                                fontSize: 18,
+                                                color: theme.palette.severity[severity].main,
                                             })}
                                         />
                                         <Typography
                                             variant="caption"
                                             fontWeight={700}
-                                            sx={(theme) => ({ color: theme.palette.severity[finding.severity].text })}
+                                            sx={(theme) => ({
+                                                color: theme.palette.severity[severity].text,
+                                                fontSize: '0.75rem',
+                                                letterSpacing: '0.03em',
+                                                textTransform: 'uppercase',
+                                            })}
                                         >
-                                            {finding.label}
+                                            {SEVERITY_TITLE[severity]}
                                         </Typography>
                                         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 400 }}>
-                                            — {finding.affectedThreads.length} thread{finding.affectedThreads.length !== 1 ? 's' : ''} affected
+                                            — {findings.length} {findings.length === 1 ? 'issue' : 'issues'}, {totalThreads} thread{totalThreads !== 1 ? 's' : ''} affected
                                         </Typography>
                                     </Box>
 
-                                    {/* Description */}
-                                    <Typography variant="caption" display="block" mb={1} sx={{ color: 'text.secondary', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                                        {finding.description}
-                                    </Typography>
+                                    {/* Sub-findings */}
+                                    <Box display="flex" flexDirection="column" gap={1.25}>
+                                        {findings.map((finding, idx) => {
+                                            const overflowCount = finding.affectedThreads.length - 8;
+                                            return (
+                                                <Box key={finding.label}>
+                                                    {idx > 0 && (
+                                                        <Divider sx={(theme) => ({
+                                                            mb: 1.25,
+                                                            borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                                                        })} />
+                                                    )}
 
-                                    {/* Affected threads label */}
-                                    <Typography
-                                        variant="caption"
-                                        display="block"
-                                        mb={0.75}
-                                        sx={{
-                                            color: 'text.secondary',
-                                            fontSize: '0.65rem',
-                                            fontWeight: 600,
-                                            letterSpacing: '0.05em',
-                                            textTransform: 'uppercase',
-                                        }}
-                                    >
-                                        Affected Threads
-                                    </Typography>
+                                                    {/* Sub-finding title row */}
+                                                    <Box display="flex" alignItems="center" gap={0.75} mb={0.5}>
+                                                        <Typography
+                                                            variant="caption"
+                                                            fontWeight={700}
+                                                            sx={(theme) => ({ color: theme.palette.severity[severity].text })}
+                                                        >
+                                                            {finding.label}
+                                                        </Typography>
+                                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+                                                            — {finding.affectedThreads.length} thread{finding.affectedThreads.length !== 1 ? 's' : ''}
+                                                        </Typography>
+                                                    </Box>
 
-                                    {/* Thread chips — soft filled */}
-                                    <Box display="flex" flexWrap="wrap" gap={0.5}>
-                                        {finding.affectedThreads.slice(0, 8).map((name, i) => (
-                                            <Chip
-                                                key={i}
-                                                label={name}
-                                                size="small"
-                                                onClick={() => onThreadClick(name)}
-                                                sx={(theme) => {
-                                                    const tokens = theme.palette.severity[finding.severity];
-                                                    return {
-                                                        fontSize: '0.6rem',
-                                                        height: 20,
-                                                        cursor: 'pointer',
-                                                        bgcolor: tokens.bg,
-                                                        border: 'none',
-                                                        color: tokens.text,
-                                                        fontFamily: 'monospace',
-                                                        fontWeight: 600,
-                                                        maxWidth: 180,
-                                                        '&:hover': {
-                                                            bgcolor: tokens.bg,
-                                                            opacity: 0.8,
-                                                        },
-                                                    };
-                                                }}
-                                            />
-                                        ))}
-                                        {overflowCount > 0 && (
-                                            <Chip
-                                                label={`+${overflowCount} more`}
-                                                size="small"
-                                                onClick={() => setSelectedFinding(finding)}
-                                                sx={(theme) => ({
-                                                    fontSize: '0.6rem',
-                                                    height: 20,
-                                                    cursor: 'pointer',
-                                                    bgcolor: theme.palette.surface.inset,
-                                                    color: theme.palette.text.secondary,
-                                                    border: 'none',
-                                                    fontWeight: 600,
-                                                    transition: 'background-color 0.15s ease, color 0.15s ease',
-                                                    '&:hover': {
-                                                        bgcolor: theme.palette.surface.borderStrong,
-                                                        color: theme.palette.text.primary,
-                                                    },
-                                                })}
-                                            />
-                                        )}
+                                                    {/* Description */}
+                                                    <Typography variant="caption" display="block" mb={1} sx={{ color: 'text.secondary', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                                        {finding.description}
+                                                    </Typography>
+
+                                                    {/* Thread chips */}
+                                                    <Box display="flex" flexWrap="wrap" gap={0.5}>
+                                                        {finding.affectedThreads.slice(0, 8).map((name, i) => (
+                                                            <Chip
+                                                                key={i}
+                                                                label={name}
+                                                                size="small"
+                                                                onClick={() => onThreadClick(name)}
+                                                                sx={(theme) => {
+                                                                    const tokens = theme.palette.severity[severity];
+                                                                    return {
+                                                                        fontSize: '0.6rem',
+                                                                        height: 20,
+                                                                        cursor: 'pointer',
+                                                                        bgcolor: tokens.bg,
+                                                                        border: 'none',
+                                                                        color: tokens.text,
+                                                                        fontFamily: 'monospace',
+                                                                        fontWeight: 600,
+                                                                        maxWidth: 180,
+                                                                        '&:hover': {
+                                                                            bgcolor: tokens.bg,
+                                                                            opacity: 0.8,
+                                                                        },
+                                                                    };
+                                                                }}
+                                                            />
+                                                        ))}
+                                                        {overflowCount > 0 && (
+                                                            <Chip
+                                                                label={`+${overflowCount} more`}
+                                                                size="small"
+                                                                onClick={() => setSelectedFinding(finding)}
+                                                                sx={(theme) => ({
+                                                                    fontSize: '0.6rem',
+                                                                    height: 20,
+                                                                    cursor: 'pointer',
+                                                                    bgcolor: theme.palette.surface.inset,
+                                                                    color: theme.palette.text.secondary,
+                                                                    border: 'none',
+                                                                    fontWeight: 600,
+                                                                    transition: 'background-color 0.15s ease, color 0.15s ease',
+                                                                    '&:hover': {
+                                                                        bgcolor: theme.palette.surface.borderStrong,
+                                                                        color: theme.palette.text.primary,
+                                                                    },
+                                                                })}
+                                                            />
+                                                        )}
+                                                    </Box>
+                                                </Box>
+                                            );
+                                        })}
                                     </Box>
                                 </Box>
                             );
                         })}
                     </Box>
                 )}
+                </Collapse>
             </Paper>
 
             <Dialog

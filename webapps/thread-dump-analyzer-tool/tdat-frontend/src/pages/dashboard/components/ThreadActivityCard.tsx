@@ -35,6 +35,15 @@ interface ThreadActivityCardProps {
     onTabChange: (tab: number) => void;
 }
 
+type CategoryChipColor = 'default' | 'info' | 'warning' | 'error';
+
+function getCategoryChipColor(category: string): CategoryChipColor {
+    const lower = category.toLowerCase();
+    if (lower.includes('block')) return 'error';
+    if (lower.includes('wait')) return 'warning';
+    return 'info';
+}
+
 const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
     threadClusters, longRunningThreads, highCpuThreads, onThreadClick, activityTab, onTabChange,
 }) => {
@@ -86,7 +95,7 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                     <Table stickyHeader size="small">
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={thSx}>CLUSTER GROUP</TableCell>
+                                <TableCell sx={thSx}>TOP EXECUTING METHOD</TableCell>
                                 <TableCell align="center" sx={{ ...thSx, width: 120 }}>THREAD COUNT</TableCell>
                                 <TableCell align="center" sx={{ ...thSx, width: 160 }}>DOMINANT STATE</TableCell>
                             </TableRow>
@@ -105,21 +114,31 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                                     key={idx}
                                     hover
                                     sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
-                                    onClick={() => onThreadClick(cluster.threadNames[0])}
+                                    onClick={() => onThreadClick(cluster.clusterName)}
                                 >
                                     <TableCell>
-                                        <Typography
-                                            variant="body2"
-                                            title={cluster.clusterName}
-                                            sx={(theme) => ({
-                                                fontFamily: 'monospace',
-                                                fontSize: '0.75rem',
-                                                color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
-                                                wordBreak: 'break-word',
-                                            })}
-                                        >
-                                            {cluster.clusterName}
-                                        </Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                            <Typography
+                                                variant="body2"
+                                                title={cluster.clusterName}
+                                                sx={(theme) => ({
+                                                    fontFamily: 'monospace',
+                                                    fontSize: '0.75rem',
+                                                    color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
+                                                    wordBreak: 'break-word',
+                                                })}
+                                            >
+                                                {cluster.clusterName}
+                                            </Typography>
+                                            {cluster.category && (
+                                                <Chip
+                                                    label={cluster.category}
+                                                    size="small"
+                                                    color={getCategoryChipColor(cluster.category)}
+                                                    sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600 }}
+                                                />
+                                            )}
+                                        </Box>
                                     </TableCell>
                                     <TableCell align="center">
                                         <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem' }}>

@@ -75,7 +75,7 @@ POST /api/v1/analyze/jobs
 
 ### Rule Engine
 
-26 Grule DSL rules in `internal/rules/rules.grl`, applied concurrently per thread. Each thread is matched by at most one rule (highest salience wins). Rules gate on `t.Analyzed == false` and set `t.Analyzed = true` in `then` — no `Retract()` is used (it would thrash working memory).
+28 Grule DSL rules in `internal/rules/rules.grl`, applied concurrently per thread. Each thread is matched by at most one rule (highest salience wins). Rules gate on `t.Analyzed == false` and set `t.Analyzed = true` in `then` — no `Retract()` is used (it would thrash working memory).
 
 Two unambiguous findings are flagged **natively by the parser** before rules run, since they arrive as JVM summary blocks or single-number signals rather than per-thread state:
 
@@ -86,8 +86,8 @@ Both also set `Analyzed = true` so the rule engine skips them. The corresponding
 
 | Risk | Examples |
 |---|---|
-| CRITICAL | Deadlock (parser), runaway CPU ≥100% (parser), thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O, PassThrough starvation on backend I/O, DB connection pool exhaustion |
-| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3+ on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
+| CRITICAL | Deadlock (parser), runaway CPU ≥100% (parser), thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O, PassThrough starvation on backend I/O, DB connection pool exhaustion, critical lock contention (20+ threads on same monitor), catastrophic thread count (5,000+ live threads — GC root explosion) |
+| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3–19 threads on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
 | MEDIUM | Idle threads (>10s), native/socket block with 0% CPU, recursive lock, thread leak |
 | INFO | Threads not belonging to any known pool |
 
@@ -138,7 +138,7 @@ tdat-backend/
     │   ├── rules_engine.go          Grule integration, GlobalStats, AnalyzeThreads
     │   └── aggregator.go            AggregateThreads: file-centric → thread-centric pivot
     ├── rules/
-    │   └── rules.grl                26 Grule DSL rules (deadlock, high CPU, lock contention, DB pool, LDAP, OAuth, Hazelcast, etc.)
+    │   └── rules.grl                28 Grule DSL rules (deadlock, high CPU, lock contention, catastrophic thread count, critical lock contention, DB pool, LDAP, OAuth, Hazelcast, etc.)
     └── ai/
         └── insights.go              Anthropic API call (claude-haiku-4-5), prompt build, JSON response parse
 ```

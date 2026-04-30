@@ -31,6 +31,57 @@ import ExecutiveSummaryCard from './components/ExecutiveSummaryCard';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+type FindingSeverity = 'critical' | 'high' | 'medium' | 'info';
+
+interface RuleCategory {
+    test: RegExp;
+    label: string;
+    description: string;
+    severity: FindingSeverity;
+}
+
+// Maps backend Grule issue strings (from rules.grl) to dashboard-friendly
+// titles, descriptions, and severities. Order matters — first match wins,
+// so place more specific patterns above generic fallbacks.
+const RULE_CATEGORIES: RuleCategory[] = [
+    { test: /deadlock/i, label: 'Deadlock Detected', description: 'Threads are permanently blocked in a monitor lock cycle. The JVM cannot self-recover — a restart is likely required.', severity: 'critical' },
+    { test: /runaway cpu/i, label: 'Runaway CPU Threads', description: 'Threads are consuming an entire CPU core (≥100%). Likely an infinite loop or runaway computation.', severity: 'critical' },
+    { test: /thread starvation/i, label: 'Thread Starvation', description: 'A single thread is consuming >95% CPU, starving all other threads of scheduling time.', severity: 'critical' },
+    { test: /pool exhaustion|stuck waiting for a database connection/i, label: 'Database Connection Pool Exhaustion', description: 'Threads are stuck waiting for a JDBC connection from an exhausted pool. Increase maxActive, shorten queries, or fix connection leaks.', severity: 'critical' },
+    { test: /passthrough http worker.*backend i\/o/i, label: 'PassThrough Backend I/O Stall', description: 'WSO2 PassThrough HTTP workers are blocked on slow or unresponsive backend services. Investigate backend latency and connection timeouts.', severity: 'critical' },
+    { test: /passthrough.*stuck on network i\/o/i, label: 'PassThrough Network I/O Stall', description: 'WSO2 PassThrough I/O threads are stuck in network read/write with 0% CPU. Indicates a slow client or slow backend.', severity: 'critical' },
+    { test: /sudden blockage spike/i, label: 'Sudden Blockage Spike', description: 'Blocked thread percentage jumped sharply between dumps — a new contention hotspot has emerged.', severity: 'critical' },
+    { test: /critical lock contention/i, label: 'Critical Lock Contention', description: '20+ threads are serialized behind the same monitor lock — a transport-level throughput failure.', severity: 'critical' },
+    { test: /catastrophic thread leak/i, label: 'Catastrophic Thread Leak', description: 'JVM hosts 5000+ live threads. Each is a GC root, causing sustained high CPU from GC overhead even when threads are idle.', severity: 'critical' },
+    { test: /thread blocked for > 10s/i, label: 'Prolonged Blocked Threads', description: 'Threads have been BLOCKED for over 10 seconds, waiting on a monitor lock held by another thread.', severity: 'high' },
+    { test: /sustained high cpu/i, label: 'Sustained High CPU Usage', description: 'Threads are consuming >30% CPU — investigate for heavy computation, large data parsing, or tight loops.', severity: 'high' },
+    { test: /database\/jdbc operations/i, label: 'Database/JDBC Stalls', description: 'Threads have been executing JDBC/SQL operations for >5 seconds. Check for slow queries, missing indexes, or pool exhaustion.', severity: 'high' },
+    { test: /worker thread pool member/i, label: 'Thread Pool Saturation Warning', description: 'Worker threads are stuck — if multiple threads exhibit this, the thread pool will saturate and reject new requests.', severity: 'high' },
+    { test: /heavy mediation/i, label: 'Heavy Mediation on I/O Thread', description: 'WSO2 PassThrough I/O threads are doing heavy XSLT/Script work that should be offloaded to SynapseWorker threads.', severity: 'high' },
+    { test: /system-wide blockage/i, label: 'System-Wide Blockage', description: 'Over 25% of all threads are BLOCKED. Locate the root lock holder and investigate immediately.', severity: 'high' },
+    { test: /gc activity detected/i, label: 'GC Pause Activity', description: 'Threads are parked or waiting due to JVM garbage collection. Tune heap size, or consider switching to G1GC or ZGC.', severity: 'high' },
+    { test: /long monitor wait/i, label: 'Prolonged Lock Waits', description: 'Threads have been waiting to acquire a specific monitor lock for over 10 seconds.', severity: 'high' },
+    { test: /high lock contention/i, label: 'High Lock Contention', description: '3 or more threads are competing for the same monitor lock. Reduce synchronization scope or use concurrent data structures.', severity: 'high' },
+    { test: /timer\/scheduler blocked/i, label: 'Timer/Scheduler Blocked', description: 'A scheduler thread cannot acquire a lock — scheduled jobs may be missed or delayed.', severity: 'high' },
+    { test: /ldap\/active directory/i, label: 'LDAP/User Store Timeouts', description: 'Threads are delayed by slow LDAP/Active Directory user store responses. Check LDAP server health and connection timeouts.', severity: 'high' },
+    { test: /oauth2 token/i, label: 'OAuth2 Token Bottleneck', description: 'Threads are stuck inside OAuth2 token validation or issuance flows. Check token persistence DB and cache hit rates.', severity: 'high' },
+    { test: /http thread bottleneck/i, label: 'HTTP Request Bottleneck', description: 'Tomcat HTTP/HTTPS workers have been active or blocked for over 5 seconds — thread pool may be nearing saturation.', severity: 'high' },
+    { test: /hazelcast/i, label: 'Distributed Cache Contention', description: 'Threads are blocked on Hazelcast distributed cache synchronization. Check cluster health and hot keys.', severity: 'high' },
+    { test: /blocked waiting for a monitor lock/i, label: 'Severe Lock Contention', description: 'Threads are BLOCKED waiting for a monitor lock. Identify the holder and inspect its stack to determine why the lock is held.', severity: 'high' },
+    { test: /recursive lock contention/i, label: 'Recursive Lock Contention', description: 'Threads acquire the same lock more than once in their own call stack — re-entrant or nested locking.', severity: 'medium' },
+    { test: /native thread issue/i, label: 'Native/Socket Block', description: 'Threads are RUNNABLE with 0% CPU — likely blocked inside a native or socket call.', severity: 'medium' },
+    { test: /thread leak suspected/i, label: 'Thread Leak Suspected', description: 'Thread count is growing consistently between dumps. Investigate unclosed ExecutorServices or unbounded thread pools.', severity: 'medium' },
+    { test: /long idle duration/i, label: 'Long Idle Threads', description: 'Threads have been WAITING or TIMED_WAITING for over 10 seconds. Check for abandoned work or unresponsive external resources.', severity: 'medium' },
+    { test: /standalone thread/i, label: 'Standalone Threads', description: 'Threads do not belong to any configured thread pool — informational classification only.', severity: 'info' },
+];
+
+const SEVERITY_ORDER: Record<FindingSeverity, number> = { critical: 0, high: 1, medium: 2, info: 3 };
+
+function categorizeIssue(issue: string): RuleCategory | null {
+    for (const cat of RULE_CATEGORIES) if (cat.test.test(issue)) return cat;
+    return null;
+}
+
 function computeHealthScore(snapshots: ThreadSnapshot[]): number {
     if (snapshots.length === 0) return 100;
     const total = snapshots.length;
@@ -192,31 +243,51 @@ const DashboardHome: React.FC = () => {
     }, [selectedSnapshots]);
 
     const keyFindings = useMemo(() => {
-        type FindingItem = { label: string; description: string; severity: 'critical' | 'high' | 'medium' | 'info'; affectedThreads: string[] };
-        const findings: FindingItem[] = [];
+        type FindingItem = { label: string; description: string; severity: FindingSeverity; affectedThreads: string[] };
+        const buckets = new Map<string, FindingItem>();
 
-        const deadlocked = threads.filter(t => t.snapshots.some(s => s.issues?.some(i => i.toLowerCase().includes('deadlock'))));
-        if (deadlocked.length > 0) findings.push({ label: 'Deadlock Detected', description: 'Threads are permanently blocked waiting on each other\'s locks. The JVM cannot self-recover — a restart is likely required.', severity: 'critical', affectedThreads: deadlocked.map(t => t.name) });
+        threads.forEach(t => {
+            const seen = new Set<string>();
+            let matchedCritical = false;
+            t.snapshots.forEach(s => {
+                (s.issues ?? []).forEach(issue => {
+                    const cat = categorizeIssue(issue);
+                    if (!cat || seen.has(cat.label)) return;
+                    seen.add(cat.label);
+                    if (cat.severity === 'critical') matchedCritical = true;
 
-        const deadlockedSet = new Set(deadlocked.map(t => t.name));
-        const critical = threads.filter(t => !deadlockedSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'CRITICAL'));
-        if (critical.length > 0) findings.push({ label: 'Critical Risk', description: 'Threads flagged at the highest severity — extreme CPU consumption, sudden blockage spikes, or stuck I/O threads causing active service degradation.', severity: 'critical', affectedThreads: critical.map(t => t.name) });
-
-        const criticalSet = new Set([...deadlocked, ...critical].map(t => t.name));
-        const high = threads.filter(t => !criticalSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'HIGH'));
-        if (high.length > 0) findings.push({ label: 'High Risk', description: 'Threads with significant performance issues such as prolonged lock waits, database/JDBC stalls, HTTP worker saturation, or GC pressure.', severity: 'high', affectedThreads: high.map(t => t.name) });
-
-        if (dumpNames.length > 0) {
-            const lastDump = dumpNames[dumpNames.length - 1];
-            const blocked = threads.filter(t => {
-                const snap = t.snapshots.find(s => s.dump_name === lastDump);
-                return snap?.state === 'BLOCKED' && !criticalSet.has(t.name) && !high.map(x => x.name).includes(t.name);
+                    let bucket = buckets.get(cat.label);
+                    if (!bucket) {
+                        bucket = { label: cat.label, description: cat.description, severity: cat.severity, affectedThreads: [] };
+                        buckets.set(cat.label, bucket);
+                    }
+                    bucket.affectedThreads.push(t.name);
+                });
             });
-            if (blocked.length > 0) findings.push({ label: 'Blocked Threads', description: 'Threads waiting to acquire a monitor lock currently held by another thread in the latest snapshot. Indicates contention on a shared resource.', severity: 'medium', affectedThreads: blocked.map(t => t.name) });
-        }
 
-        return findings;
-    }, [threads, dumpNames]);
+            // Surface CRITICAL-risk threads that didn't match any specific critical rule,
+            // so the Key Findings "Critical Risk" band always reflects the Critical Issues stat.
+            if (!matchedCritical && t.snapshots.some(s => s.risk_level === 'CRITICAL')) {
+                const label = 'Critical Risk Threads';
+                let bucket = buckets.get(label);
+                if (!bucket) {
+                    bucket = {
+                        label,
+                        description: 'Threads flagged as CRITICAL risk by the analysis engine. Open in Thread Explorer to inspect the stack trace and recommendation.',
+                        severity: 'critical',
+                        affectedThreads: [],
+                    };
+                    buckets.set(label, bucket);
+                }
+                bucket.affectedThreads.push(t.name);
+            }
+        });
+
+        return [...buckets.values()].sort((a, b) => {
+            const sev = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
+            return sev !== 0 ? sev : b.affectedThreads.length - a.affectedThreads.length;
+        });
+    }, [threads]);
 
     return (
         <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 2000, mx: 'auto' }}>

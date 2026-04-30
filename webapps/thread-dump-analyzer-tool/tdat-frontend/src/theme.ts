@@ -188,10 +188,10 @@ const tokens = (mode: ThemeMode) => {
         border: '#FF6700',
       },
       medium: {
-        main: '#FF6700',
-        text: isDark ? '#FF6700' : '#F14E23',
-        bg: isDark ? 'rgba(255,103,0,0.10)' : 'rgba(255,103,0,0.08)',
-        border: '#FF6700',
+        main: isDark ? '#F5C518' : '#CA8A04',
+        text: isDark ? '#FDE047' : '#A16207',
+        bg: isDark ? 'rgba(245,197,24,0.14)' : 'rgba(202,138,4,0.10)',
+        border: isDark ? '#F5C518' : '#CA8A04',
       },
       info: {
         main: '#5CD1FF',
@@ -219,8 +219,8 @@ const tokens = (mode: ThemeMode) => {
       },
     },
     accent: {
-      link: '#5CD1FF',
-      linkHover: '#B7E4FC',
+      link: isDark ? '#5CD1FF' : '#0E7490',
+      linkHover: isDark ? '#B7E4FC' : '#155E75',
       owner: '#FF6700',
       ownerBg: isDark ? 'rgba(255,103,0,0.20)' : 'rgba(255,103,0,0.10)',
       ownerBgHover: isDark ? 'rgba(255,103,0,0.30)' : 'rgba(255,103,0,0.18)',
