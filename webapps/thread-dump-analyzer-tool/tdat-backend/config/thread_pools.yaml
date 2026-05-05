@@ -72,13 +72,6 @@ pools:
     description: "Heavy-lifting threads that execute complex message transformations, routing, and mediation logic within the system."
     expected_behavior: "Mostly WAITING in a pool. If a payload requires complex transformation (like XML to JSON), they will be heavily RUNNABLE."
 
-  # DisruptorInboundEvent Threadpool
-  - name: "DisruptorInboundEvent Threads"
-    patterns:
-      - "^DisruptorInboundEventThread-\\d+$"
-    description: "High-speed threads that consume incoming network events sequentially using a highly optimized ring-buffer queue."
-    expected_behavior: "WAITING when the event queue is empty, and rapidly switching to RUNNABLE during high-throughput traffic spikes."
-
   # DataBridge Core pool Threadpool
   - name: "DataBridge Core Threads"
     patterns:

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"tdat-backend/internal/ai"
 	"tdat-backend/internal/analyzer"
 
@@ -81,7 +82,7 @@ func main() {
 		AllowedOrigins: []string{"*"}, // Allow all origins
 		AllowedMethods: []string{"GET", "POST", "OPTIONS", "PUT", "DELETE"},
 		AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
-		Debug:          true,
+		Debug:          os.Getenv("CORS_DEBUG") == "true",
 	})
 
 	// Wrap the entire router with the CORS middleware

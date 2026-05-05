@@ -2,7 +2,7 @@ module tdat-backend
 
 go 1.24.4
 
-toolchain go1.24.11
+toolchain go1.24.13
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.38.0

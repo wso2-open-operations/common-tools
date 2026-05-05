@@ -15,12 +15,12 @@
 // under the License.
 
 import React, { useState } from 'react';
-import { Box, Paper, Typography, Chip } from '@mui/material';
+import { Box, Paper, Typography, Chip, ButtonBase } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import type { DeadlockCycle, CulpritEntry } from '../../../utils/lockContentionAnalysis';
 
-// ─── Deadlock Cycle Flow ─────────────────────────────────────────────────────
+// Deadlock Cycle Flow
 
 interface DeadlockChainProps {
     cycle: DeadlockCycle;
@@ -79,7 +79,7 @@ const DeadlockChain: React.FC<DeadlockChainProps> = ({ cycle, index, onThreadCli
                                     })}
                                 />
                             </Box>
-                            <Box
+                            <ButtonBase
                                 onClick={() => onThreadClick(entry.thread.name)}
                                 sx={(theme) => ({
                                     flex: 1,
@@ -87,12 +87,12 @@ const DeadlockChain: React.FC<DeadlockChainProps> = ({ cycle, index, onThreadCli
                                     py: 0.75,
                                     bgcolor: theme.palette.accent.victimBg,
                                     borderRadius: 2,
-                                    cursor: 'pointer',
-                                    '&:hover': { bgcolor: theme.palette.accent.victimBgHover },
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 1,
                                     minWidth: 0,
+                                    '&:hover': { bgcolor: theme.palette.accent.victimBgHover },
+                                    '&:focus-visible': { outline: `2px solid ${theme.palette.accent.link}`, outlineOffset: 2 },
                                 })}
                             >
                                 <Typography
@@ -109,7 +109,7 @@ const DeadlockChain: React.FC<DeadlockChainProps> = ({ cycle, index, onThreadCli
                                 >
                                     {entry.thread.name}
                                 </Typography>
-                            </Box>
+                            </ButtonBase>
                         </Box>
 
                         {/* Arrow: waiting for lock */}
@@ -215,20 +215,20 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                         })}
                     />
                 </Box>
-                <Box
+                <ButtonBase
                     onClick={() => onThreadClick(culprit.thread.name)}
                     sx={(theme) => ({
                         px: 1.5,
                         py: 0.75,
                         bgcolor: theme.palette.accent.ownerBg,
                         borderRadius: 2,
-                        cursor: 'pointer',
-                        '&:hover': { bgcolor: theme.palette.accent.ownerBgHover },
                         display: 'flex',
                         alignItems: 'center',
                         gap: 1,
                         minWidth: 0,
                         flex: 1,
+                        '&:hover': { bgcolor: theme.palette.accent.ownerBgHover },
+                        '&:focus-visible': { outline: `2px solid ${theme.palette.accent.owner}`, outlineOffset: 2 },
                     })}
                 >
                     <Chip
@@ -257,7 +257,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                     >
                         {culprit.thread.name}
                     </Typography>
-                </Box>
+                </ButtonBase>
             </Box>
 
             {/* Locks and victims */}
@@ -300,7 +300,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                                     <Box sx={(theme) => ({ width: 2, bgcolor: theme.palette.surface.border, position: 'absolute', top: 0, bottom: '50%' })} />
                                     <Box sx={(theme) => ({ width: 12, height: 2, bgcolor: theme.palette.surface.border, position: 'absolute', left: '50%', top: '50%' })} />
                                 </Box>
-                                <Box
+                                <ButtonBase
                                     onClick={() => onThreadClick(victim.thread.name)}
                                     sx={(theme) => ({
                                         flex: 1,
@@ -309,12 +309,12 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                                         ml: 1,
                                         bgcolor: theme.palette.accent.victimBg,
                                         borderRadius: 2,
-                                        cursor: 'pointer',
-                                        '&:hover': { bgcolor: theme.palette.accent.victimBgHover },
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 1,
                                         minWidth: 0,
+                                        '&:hover': { bgcolor: theme.palette.accent.victimBgHover },
+                                        '&:focus-visible': { outline: `2px solid ${theme.palette.accent.link}`, outlineOffset: 2 },
                                     })}
                                 >
                                     <Typography
@@ -343,18 +343,20 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                                             {victim.waitTimeMs >= 1000 ? `${(victim.waitTimeMs / 1000).toFixed(1)}s` : `${victim.waitTimeMs}ms`}
                                         </Typography>
                                     )}
-                                </Box>
+                                </ButtonBase>
                             </Box>
                         ))}
                         {remainingCount > 0 && (
-                            <Box
+                            <ButtonBase
                                 onClick={() => toggleLock(lock.address)}
                                 sx={(theme) => ({
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 1.5,
-                                    cursor: 'pointer',
-                                    '&:hover': { '& .expand-label': { color: theme.palette.text.secondary } },
+                                    width: '100%',
+                                    justifyContent: 'flex-start',
+                                    '&:hover .expand-label': { color: theme.palette.text.secondary },
+                                    '&:focus-visible': { outline: `2px solid ${theme.palette.accent.monitor}`, outlineOffset: 2 },
                                 })}
                             >
                                 <Box sx={{ width: 24, flexShrink: 0 }} />
@@ -371,7 +373,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ culprit, onThreadClic
                                 >
                                     {isExpanded ? '— Show fewer' : `+ ${remainingCount} more blocked threads`}
                                 </Typography>
-                            </Box>
+                            </ButtonBase>
                         )}
                     </React.Fragment>
                 );

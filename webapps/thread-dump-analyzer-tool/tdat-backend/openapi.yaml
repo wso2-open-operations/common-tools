@@ -45,6 +45,8 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - thread_dumps[]
               properties:
                 thread_dumps[]:
                   type: array

@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"tdat-backend/internal/analyzer"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -58,7 +60,10 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 	client := anthropic.NewClient(option.WithAPIKey(apiKey))
 
 	// Using Claude 4.5
-	resp, err := client.Messages.New(context.Background(), anthropic.MessageNewParams{
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 1024,
 		System: []anthropic.TextBlockParam{
@@ -102,21 +107,22 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 	var sb strings.Builder
 
-	// Count risk levels
-	counts := map[string]int{"critical": 0, "warning": 0, "info": 0, "normal": 0}
+	// Count risk levels (worst per thread across snapshots).
+	counts := map[string]int{"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "INFO": 0, "NORMAL": 0}
 	for _, t := range threads {
-		worst := "normal"
+		worst := "NORMAL"
 		for _, s := range t.Snapshots {
-			if riskRank(s.RiskLevel) < riskRank(worst) {
-				worst = s.RiskLevel
+			norm := normalizeRisk(s.RiskLevel)
+			if riskRank(norm) < riskRank(worst) {
+				worst = norm
 			}
 		}
 		counts[worst]++
 	}
 
 	fmt.Fprintf(&sb, "Thread dump analysis summary:\n")
-	fmt.Fprintf(&sb, "Total threads: %d | Critical: %d | Warning: %d | Info: %d | Normal: %d\n",
-		len(threads), counts["critical"], counts["warning"], counts["info"], counts["normal"])
+	fmt.Fprintf(&sb, "Total threads: %d | Critical: %d | High: %d | Medium: %d | Info: %d | Normal: %d\n",
+		len(threads), counts["CRITICAL"], counts["HIGH"], counts["MEDIUM"], counts["INFO"], counts["NORMAL"])
 
 	if usageProvided {
 		fmt.Fprintf(&sb, "CPU/thread usage data: available\n")
@@ -125,28 +131,45 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 	}
 	fmt.Fprintf(&sb, "\n")
 
-	// Cap threads sent to avoid token limits
-	const maxThreads = 40
-	sent := threads
-	if len(sent) > maxThreads {
-		sent = sent[:maxThreads]
+	// Build candidates: worst snapshot per thread, dropping low-signal levels.
+	// INFO (standalone/ungrouped) and NORMAL carry no actionable content but
+	// consume large amounts of tokens.
+	type candidate struct {
+		thread   analyzer.AnalyzedThread
+		snapshot analyzer.ThreadSnapshot
+		rank     int
 	}
-
-	for _, t := range sent {
-		// Find the worst snapshot to represent this thread
+	candidates := make([]candidate, 0, len(threads))
+	for _, t := range threads {
+		if len(t.Snapshots) == 0 {
+			continue
+		}
 		worst := t.Snapshots[0]
 		for _, s := range t.Snapshots[1:] {
 			if riskRank(s.RiskLevel) < riskRank(worst.RiskLevel) {
 				worst = s
 			}
 		}
-
-		// Aggressively drop low-signal threads: INFO (standalone/ungrouped) and normal
-		// threads carry no actionable content but consume large amounts of tokens.
-		if worst.RiskLevel == "INFO" || worst.RiskLevel == "normal" {
+		risk := normalizeRisk(worst.RiskLevel)
+		if risk == "INFO" || risk == "NORMAL" {
 			continue
 		}
+		candidates = append(candidates, candidate{thread: t, snapshot: worst, rank: riskRank(risk)})
+	}
 
+	// Highest severity first; stable so input order breaks ties.
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].rank < candidates[j].rank
+	})
+
+	// Cap threads sent to avoid token limits.
+	const maxThreads = 40
+	if len(candidates) > maxThreads {
+		candidates = candidates[:maxThreads]
+	}
+
+	for _, c := range candidates {
+		t, worst := c.thread, c.snapshot
 		fmt.Fprintf(&sb, "[%s] %q pool=%s state=%s", worst.RiskLevel, t.Name, t.ThreadPool, worst.State)
 		if usageProvided && worst.CPUPercentage > 0 {
 			fmt.Fprintf(&sb, " cpu=%.1f%%", worst.CPUPercentage)
@@ -168,16 +191,33 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 	return sb.String()
 }
 
-func riskRank(level string) int {
-	switch level {
-	case "critical":
-		return 0
-	case "warning":
-		return 1
-	case "info":
-		return 2
+func normalizeRisk(level string) string {
+	switch strings.ToUpper(strings.TrimSpace(level)) {
+	case "CRITICAL":
+		return "CRITICAL"
+	case "HIGH":
+		return "HIGH"
+	case "MEDIUM":
+		return "MEDIUM"
+	case "INFO":
+		return "INFO"
 	default:
+		return "NORMAL"
+	}
+}
+
+func riskRank(level string) int {
+	switch normalizeRisk(level) {
+	case "CRITICAL":
+		return 0
+	case "HIGH":
+		return 1
+	case "MEDIUM":
+		return 2
+	case "INFO":
 		return 3
+	default:
+		return 4
 	}
 }
 

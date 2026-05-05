@@ -323,6 +323,10 @@ func ParseThreadUsage(r io.Reader) ([]ThreadUsage, error) {
 			UserTime:      timeMs,
 		})
 	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
 	return usages, nil
 }
 

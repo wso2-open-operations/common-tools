@@ -50,8 +50,12 @@ export interface JobInitResponse {
 }
 
 export interface JobStatusResponse {
+  job_id: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  created_at?: string;
+  updated_at?: string;
   result?: AnalysisResponse;
+  error?: string;
 }
 
 export interface AnalysisResponse {

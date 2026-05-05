@@ -110,10 +110,17 @@ const ThreadExplorer: React.FC = () => {
 
         let current: Thread[] = selectedPools.flatMap(pool => threadsByPool[pool] || []);
 
+        // Compute the last and average metrics from ordering snapshots by timestamp.
+        const orderedSnapshots = (snaps: Thread['snapshots']) =>
+        [...snaps].sort((a, b) => 
+            a.dump_name.localeCompare(b.dump_name, undefined, { numeric: true })
+    );
+
+
         // Apply the state filter (e.g., only show BLOCKED threads)
         if (stateFilter) {
             current = current.filter(t => {
-                const snaps = t.snapshots;
+                const snaps = orderedSnapshots(t.snapshots);
                 const lastState = snaps.length > 0 ? snaps[snaps.length - 1].state : 'N/A';
                 return lastState === stateFilter;
             });
@@ -131,11 +138,11 @@ const ThreadExplorer: React.FC = () => {
         }
 
         const withStats = current.map(thread => {
-            const snaps = thread.snapshots;
+            const snaps = orderedSnapshots(thread.snapshots);
             const lastSnap = snaps[snaps.length - 1];
             const maxCpu = Math.max(...snaps.map(s => s.cpu_percent || 0));
             const avgUserTime = snaps.length > 0 ? snaps.reduce((acc, s) => acc + (s.cpu_time_ms || 0), 0) / snaps.length : 0;
-            const avgCpu = lastSnap?.cpu_percent || 0;
+            const avgCpu = snaps.length > 0 ? snaps.reduce((acc, s) => acc + (s.cpu_percent || 0), 0) / snaps.length : 0;
             const displayState = lastSnap?.state || 'N/A';
 
             return {

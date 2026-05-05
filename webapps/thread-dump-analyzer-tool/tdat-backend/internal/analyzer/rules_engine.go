@@ -17,6 +17,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"tdat-backend/internal/parser"
@@ -47,8 +48,13 @@ func NewEngine(ruleFilePath string) (*RuleEngine, error) {
 	}, nil
 }
 
-// AnalyzeThreads applies the rules to a slice of threads concurrently
-func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided bool) error {
+// AnalyzeThreads applies the rules to a slice of threads concurrently. The
+// caller passes prevBlockedPct and prevTotalThreads from the previously
+// analyzed dump (zero on the first dump) so temporal rules — SuddenBlockageSpike
+// and ThreadLeak — can compare against the prior snapshot. The returned
+// GlobalStats is what the caller should feed back as prev values on the next
+// invocation.
+func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided bool, prevBlockedPct float64, prevTotalThreads int) (*parser.GlobalStats, error) {
 
 	// Preprocessing: CPU Usage Inference
 	if !usageDataProvided {
@@ -65,8 +71,9 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 
 	// Calculate Global State
 	stats := &parser.GlobalStats{
-		TotalThreads:        len(threads),
-		IsUsageDataProvided: usageDataProvided,
+		TotalThreads:              len(threads),
+		IsUsageDataProvided:       usageDataProvided,
+		PreviousBlockedPercentage: prevBlockedPct,
 	}
 	blockedCount := 0
 	for _, t := range threads {
@@ -76,6 +83,9 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 	}
 	if len(threads) > 0 {
 		stats.BlockedPercentage = (float64(blockedCount) / float64(len(threads))) * 100.0
+	}
+	if prevTotalThreads > 0 {
+		stats.ThreadCountGrowth = (float64(len(threads)-prevTotalThreads) / float64(prevTotalThreads)) * 100.0
 	}
 
 	// Compute lock contention counts: how many threads are waiting for each monitor address
@@ -97,11 +107,16 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		numWorkers = len(threads)
 	}
 	if numWorkers == 0 {
-		return nil
+		return stats, nil
 	}
 
 	chunkSize := (len(threads) + numWorkers - 1) / numWorkers
 	var wg sync.WaitGroup
+	var firstErrOnce sync.Once
+	var firstErr error
+	captureErr := func(err error) {
+		firstErrOnce.Do(func() { firstErr = err })
+	}
 
 	for i := 0; i < numWorkers; i++ {
 		start := i * chunkSize
@@ -128,14 +143,26 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 				t := &threadChunk[j]
 
 				// Get a fresh KnowledgeBase clone so Retract() doesn't break other threads
-				kb, _ := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
+				kb, err := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
+				if err != nil {
+					captureErr(fmt.Errorf("knowledge base instance for thread %s: %w", t.Name, err))
+					continue
+				}
 
 				dataCtx := ast.NewDataContext()
-				_ = dataCtx.Add("t", t)
-				_ = dataCtx.Add("global", stats)
+				if err := dataCtx.Add("t", t); err != nil {
+					captureErr(fmt.Errorf("add 't' to data context for thread %s: %w", t.Name, err))
+					continue
+				}
+				if err := dataCtx.Add("global", stats); err != nil {
+					captureErr(fmt.Errorf("add 'global' to data context for thread %s: %w", t.Name, err))
+					continue
+				}
 
 				// Execute rules safely isolated from all other goroutines
-				_ = workerEngine.Execute(dataCtx, kb)
+				if err := workerEngine.Execute(dataCtx, kb); err != nil {
+					captureErr(fmt.Errorf("rule execution for thread %s: %w", t.Name, err))
+				}
 			}
 		}(threads[start:end])
 	}
@@ -143,5 +170,5 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 	// Wait for all chunks to finish
 	wg.Wait()
 
-	return nil
+	return stats, firstErr
 }

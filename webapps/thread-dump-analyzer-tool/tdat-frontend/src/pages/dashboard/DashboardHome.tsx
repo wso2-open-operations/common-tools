@@ -130,11 +130,14 @@ const DashboardHome: React.FC = () => {
         }
     }, [dumpNames, selectedDump]);
 
-    // Latest snapshot per thread (for summary cards)
-    const latestSnapshots = useMemo((): ThreadSnapshot[] =>
-        threads.flatMap(t => t.snapshots.length > 0 ? [t.snapshots[t.snapshots.length - 1]] : []),
-        [threads]
-    );
+    // Latest snapshot per thread (for summary cards) from the latest dump
+    const latestSnapshots = useMemo((): ThreadSnapshot[] => {
+        if (dumpNames.length === 0) return [];
+        const latestDump = dumpNames[dumpNames.length - 1];
+        return threads
+            .map(t => t.snapshots.find(s => s.dump_name === latestDump))
+            .filter((s): s is ThreadSnapshot => s !== undefined);
+    }, [threads, dumpNames]);
 
     const latestDumpCount = useMemo((): number => {
         if (dumpNames.length === 0) return 0;

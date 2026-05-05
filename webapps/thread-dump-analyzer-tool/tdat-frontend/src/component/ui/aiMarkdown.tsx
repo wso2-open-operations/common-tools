@@ -18,7 +18,7 @@ import React from 'react';
 import { Box, List, ListItem, ListItemIcon, Typography } from '@mui/material';
 
 // Matches Thread-N and multi-segment hyphenated identifiers like http-nio-8080-exec-5
-const THREAD_RE_SOURCE = '\b(Thread-\d+|[A-Za-z][\w]*(?:-[\w]+){2,}-\d+)\b';
+const THREAD_RE_SOURCE = String.raw`\b(Thread-\d+|[A-Za-z][\w]*(?:-[\w]+){2,}-\d+)\b`;
 
 export type ParsedBlock =
     | { type: 'bullets'; items: string[] }

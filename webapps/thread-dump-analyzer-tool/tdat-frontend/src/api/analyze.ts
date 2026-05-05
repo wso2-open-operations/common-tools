@@ -19,9 +19,17 @@ import type { JobInitResponse, JobStatusResponse } from "@/types/api";
 const apiUrl = String(window?.configs?.apiUrl || "");
 const API_BASE_URL = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
 
+type TokenGetter = () => Promise<string>;
+
+const authHeader = async (getAccessToken: TokenGetter): Promise<HeadersInit> => {
+  const token = await getAccessToken();
+  return { Authorization: `Bearer ${token}` };
+};
+
 export const uploadThreadDumps = async (
   dumps: File[],
-  usages: File[]
+  usages: File[],
+  getAccessToken: TokenGetter
 ): Promise<JobInitResponse> => {
   const formData = new FormData();
 
@@ -36,6 +44,7 @@ export const uploadThreadDumps = async (
   const response = await fetch(`${API_BASE_URL}/api/v1/analyze/jobs`, {
     method: "POST",
     body: formData,
+    headers: await authHeader(getAccessToken),
   });
 
   if (!response.ok) {
@@ -45,8 +54,13 @@ export const uploadThreadDumps = async (
   return response.json();
 };
 
-export const getJobStatus = async (jobId: string): Promise<JobStatusResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/analyze/jobs/${jobId}`);
+export const getJobStatus = async (
+  jobId: string,
+  getAccessToken: TokenGetter
+): Promise<JobStatusResponse> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/analyze/jobs/${jobId}`, {
+    headers: await authHeader(getAccessToken),
+  });
 
   if (!response.ok) {
     throw new Error(`Job status check failed: ${response.statusText}`);

@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAuthContext } from "@asgardeo/auth-react";
 import { uploadThreadDumps, getJobStatus } from "@api/analyze";
 import { useAnalysisData } from "@context/AnalysisContext";
 import type { JobInitResponse } from "@/types/api";
@@ -23,15 +24,16 @@ import type { JobInitResponse } from "@/types/api";
 export const useAnalyzeThreads = () => {
   const [jobId, setJobId] = useState<string | null>(null);
   const { setAnalysisData } = useAnalysisData();
+  const { getAccessToken } = useAuthContext();
 
   const mutation = useMutation<JobInitResponse, Error, { dumps: File[]; usages: File[] }>({
-    mutationFn: ({ dumps, usages }) => uploadThreadDumps(dumps, usages),
+    mutationFn: ({ dumps, usages }) => uploadThreadDumps(dumps, usages, getAccessToken),
     onSuccess: ({ job_id }) => setJobId(job_id),
   });
 
   const query = useQuery({
     queryKey: ["jobStatus", jobId],
-    queryFn: () => getJobStatus(jobId!),
+    queryFn: () => getJobStatus(jobId!, getAccessToken),
     enabled: jobId !== null,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
