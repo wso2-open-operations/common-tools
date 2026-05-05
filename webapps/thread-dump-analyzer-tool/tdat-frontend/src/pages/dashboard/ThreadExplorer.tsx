@@ -59,11 +59,8 @@ const ThreadExplorer: React.FC = () => {
     const threadsByPool = useMemo(() => {
         if (!data) return {};
         const groups: Record<string, Thread[]> = {};
-        const seenThreads = new Set<string>();
 
         data.threads.forEach(t => {
-            if (seenThreads.has(t.id)) return;
-            seenThreads.add(t.id);
             const pool = t.thread_pool || 'Uncategorized';
             if (!groups[pool]) groups[pool] = [];
             groups[pool].push(t);

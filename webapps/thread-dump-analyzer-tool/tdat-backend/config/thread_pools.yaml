@@ -131,7 +131,7 @@ pools:
   # AMQP Connection Threadpool
   - name: "AMQP Connection Threads"
     patterns:
-      - "^AMQP Connection \\d+.\\d+.\\d+.\\d+:\\d+$"
+      - "^AMQP Connection \\d+\\.\\d+\\.\\d+\\.\\d+:\\d+$"
     description: "Background threads that maintain the active network connection and send heartbeats to the RabbitMQ broker to keep the connection alive."
     expected_behavior: "Frequently TIMED_WAITING between heartbeats, waking up briefly as RUNNABLE to ping the broker over the network."
 

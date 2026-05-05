@@ -194,9 +194,12 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 						if len(m) > 2 {
 							unit = m[2]
 						}
-						if unit == "s" {
+						switch unit {
+						case "s":
 							t.CPUTime = val * 1000
-						} else {
+						case "ns":
+							t.CPUTime = val / 1_000_000
+						default: // "ms" or no unit
 							t.CPUTime = val
 						}
 					}
@@ -367,21 +370,23 @@ func ProcessAndCorrelate(dumpReader, usageReader io.Reader) ([]Thread, error) {
 		return nil, fmt.Errorf("failed to parse dump: %w", err)
 	}
 
+	// Provide CPU usage data to threads by matching on NativeID/TID.
 	if usageReader != nil {
 		usages, err := ParseThreadUsage(usageReader)
-		if err == nil {
-			usageMap := make(map[int64]ThreadUsage)
-			for _, u := range usages {
-				usageMap[u.TID] = u
-			}
-			for i := range threads {
-				t := &threads[i]
-				if usage, found := usageMap[t.NativeID]; found {
-					t.CPUPercentage = usage.CPUPercentage
-					if usage.UserTime > 0 {
-						t.CPUTime = usage.UserTime
-					}
-				}
+		// Handles bad uploads gracefully by proceeding with CPU inference rather than failing outright.
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse thread usage: %w", err)
+		}
+		usageMap := make(map[int64]ThreadUsage)
+		for _, u := range usages {
+			usageMap[u.TID] = u
+		}
+
+		for i := range threads {
+			t := &threads[i]
+			if usage, ok := usageMap[t.NativeID]; ok {
+				t.CPUPercentage = usage.CPUPercentage
+				t.CPUTime = usage.UserTime
 			}
 		}
 	}

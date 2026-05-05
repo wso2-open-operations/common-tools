@@ -23,6 +23,7 @@ import (
 	"os"
 	"tdat-backend/internal/ai"
 	"tdat-backend/internal/analyzer"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -89,8 +90,17 @@ func main() {
 	handler := c.Handler(mux)
 
 	// Start Server using the wrapped handler
+	srv := &http.Server{
+		Addr:              ":8080",
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
 	fmt.Println("Server started at http://localhost:8080")
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
