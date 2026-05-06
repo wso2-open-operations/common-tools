@@ -8,7 +8,7 @@ Upload one or more Java thread dump files (and optionally CPU usage metrics) and
 
 - Per-thread risk classification (CRITICAL / HIGH / MEDIUM / INFO) via a Grule rule engine
 - Thread pool identification (Tomcat, WSO2, Disruptor, RabbitMQ, MINA, etc.)
-- Lock contention graph with culprit/victim relationships and deadlock cycle detection
+- Lock contention graph mapping each lock owner to the threads it is blocking, plus deadlock cycle detection
 - Chronological thread history when multiple dumps are uploaded
 - AI-generated executive summary, pattern recognition, and recommended actions (via Anthropic Claude)
 
@@ -25,10 +25,11 @@ Upload one or more Java thread dump files (and optionally CPU usage metrics) and
 
 ```bash
 cd tdat-backend
-# Create .env with your Anthropic API key
-echo "ANTHROPIC_API_KEY=your_key_here" > .env
+# Copy the env template and fill in your Anthropic API key
+cp .env.example .env
+# Edit .env: set ANTHROPIC_API_KEY=your_key_here
 
-go run main.go
+go run .
 # Server starts at http://localhost:8080
 ```
 
@@ -60,8 +61,8 @@ GET  /                              # HTML upload form for manual testing
 The analysis runs asynchronously. Poll the status endpoint until `status` is `completed` or `failed`.
 
 **Upload fields (multipart/form-data):**
-- `thread_dumps[]` — required, one or more Java thread dump `.txt`/`.log` files
-- `thread_usages[]` — optional, matching CPU usage files (`PID TID %CPU TIME` columns)
+- `thread_dumps` — required, one or more Java thread dump `.txt`/`.log` files
+- `thread_usages` — optional, matching CPU usage files (`PID TID %CPU TIME` columns)
 
 When multiple dump files are uploaded, TDAT correlates threads across snapshots by identity (`name + id + native_id + pool`) to show how thread state evolved over time.
 
@@ -107,10 +108,10 @@ Threads are classified into named pools via regex patterns in `tdat-backend/conf
 
 ### Lock Contention Analysis
 
-The frontend derives the full lock contention graph from raw thread snapshot data — no pre-processing by the backend. It identifies culprit threads (holding locks), victim threads (waiting), and visualizes deadlock cycles with arrow-based chain diagrams.
+The frontend derives the full lock contention graph from raw thread snapshot data — no pre-processing by the backend. It identifies lock owners (threads holding contended monitors), the blocked threads waiting on each owner, and visualizes deadlock cycles with arrow-based chain diagrams.
 
 - `utils/lockParsing.ts` — regex extraction of held/waiting lock addresses
-- `utils/lockContentionAnalysis.ts` — culprit-centric aggregation and deadlock cycle detection
+- `utils/lockContentionAnalysis.ts` — `deriveLockOwnerCentricData`, `detectDeadlocks`
 
 ### AI Insights
 

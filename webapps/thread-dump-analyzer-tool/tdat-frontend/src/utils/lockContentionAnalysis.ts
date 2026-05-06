@@ -27,25 +27,25 @@ export interface BlockedThreadInfo {
     waitTimeMs: number;
 }
 
-export interface LockWithVictims {
+export interface LockWithBlockedThreads {
     address: string;
     className: string;
     lockType: LockType;
-    victims: BlockedThreadInfo[];
+    blockedThreads: BlockedThreadInfo[];
 }
 
-export interface CulpritEntry {
+export interface LockOwnerEntry {
     thread: Thread;
     snapshot: ThreadSnapshot;
-    heldLocks: LockWithVictims[];
-    totalVictims: number;
+    heldLocks: LockWithBlockedThreads[];
+    totalBlocked: number;
 }
 
 export interface OrphanedLock {
     address: string;
     className: string;
     lockType: LockType;
-    victims: BlockedThreadInfo[];
+    blockedThreads: BlockedThreadInfo[];
 }
 
 export interface DeadlockCycle {
@@ -57,8 +57,8 @@ export interface DeadlockCycle {
     }>;
 }
 
-export interface CulpritCentricData {
-    culprits: CulpritEntry[];
+export interface LockOwnerCentricData {
+    lockOwners: LockOwnerEntry[];
     orphanedLocks: OrphanedLock[];
     deadlocks: DeadlockCycle[];
 }
@@ -69,7 +69,7 @@ function detectDeadlocks(
     waitGraph: Map<string, string>,
     holderGraph: Map<string, string>,
     latestByThreadId: Map<string, { thread: Thread; snapshot: ThreadSnapshot }>,
-    waitingByLock: Map<string, { className: string; lockType: LockType; victims: BlockedThreadInfo[] }>,
+    waitingByLock: Map<string, { className: string; lockType: LockType; blockedThreads: BlockedThreadInfo[] }>,
 ): DeadlockCycle[] {
     const threadWaitsFor = new Map<string, string>();
     for (const [waitingThreadId, lockAddress] of waitGraph.entries()) {
@@ -133,8 +133,8 @@ function detectDeadlocks(
 
 // ─── Main Derivation ──────────────────────────────────────────────────────────
 
-export function deriveCulpritCentricData(threads: Thread[]): CulpritCentricData {
-    if (!threads || threads.length === 0) return { culprits: [], orphanedLocks: [], deadlocks: [] };
+export function deriveLockOwnerCentricData(threads: Thread[]): LockOwnerCentricData {
+    if (!threads || threads.length === 0) return { lockOwners: [], orphanedLocks: [], deadlocks: [] };
 
     const latestByThreadId = new Map<string, { thread: Thread; snapshot: ThreadSnapshot }>();
     for (const thread of threads) {
@@ -146,7 +146,7 @@ export function deriveCulpritCentricData(threads: Thread[]): CulpritCentricData 
         }
     }
 
-    const waitingByLock = new Map<string, { className: string; lockType: LockType; victims: BlockedThreadInfo[] }>();
+    const waitingByLock = new Map<string, { className: string; lockType: LockType; blockedThreads: BlockedThreadInfo[] }>();
     const holdingByLock = new Map<string, { thread: Thread; snapshot: ThreadSnapshot }>();
     const waitGraph = new Map<string, string>();
     const holderGraph = new Map<string, string>();
@@ -156,11 +156,11 @@ export function deriveCulpritCentricData(threads: Thread[]): CulpritCentricData 
             const waitLock = findWaitingLock(snapshot.stack_trace);
             if (waitLock) {
                 if (!waitingByLock.has(waitLock.address)) {
-                    waitingByLock.set(waitLock.address, { className: waitLock.className, lockType: waitLock.lockType, victims: [] });
+                    waitingByLock.set(waitLock.address, { className: waitLock.className, lockType: waitLock.lockType, blockedThreads: [] });
                 }
                 const waitTimeMs = snapshot.elapsed_time_s > 0 ? Math.round(snapshot.elapsed_time_s * 1000) : 0;
                 const waitTime = waitTimeMs > 0 ? `${waitTimeMs} ms` : '';
-                waitingByLock.get(waitLock.address)!.victims.push({ thread, snapshot, lockAddress: waitLock.address, waitTime, waitTimeMs });
+                waitingByLock.get(waitLock.address)!.blockedThreads.push({ thread, snapshot, lockAddress: waitLock.address, waitTime, waitTimeMs });
                 waitGraph.set(thread.id, waitLock.address);
             }
         }
@@ -173,36 +173,36 @@ export function deriveCulpritCentricData(threads: Thread[]): CulpritCentricData 
         }
     }
 
-    const culpritMap = new Map<string, CulpritEntry>();
+    const lockOwnerMap = new Map<string, LockOwnerEntry>();
     for (const { thread, snapshot } of latestByThreadId.values()) {
-        const locksWithVictims: LockWithVictims[] = [];
+        const locksWithBlocked: LockWithBlockedThreads[] = [];
         for (const held of findHeldLocks(snapshot.stack_trace)) {
             const waiting = waitingByLock.get(held.address);
             if (waiting) {
-                locksWithVictims.push({
+                locksWithBlocked.push({
                     address: held.address,
                     className: waiting.className,
                     lockType: waiting.lockType,
-                    victims: waiting.victims,
+                    blockedThreads: waiting.blockedThreads,
                 });
             }
         }
-        if (locksWithVictims.length > 0) {
-            const totalVictims = locksWithVictims.reduce((sum, lv) => sum + lv.victims.length, 0);
-            culpritMap.set(thread.id, { thread, snapshot, heldLocks: locksWithVictims, totalVictims });
+        if (locksWithBlocked.length > 0) {
+            const totalBlocked = locksWithBlocked.reduce((sum, lb) => sum + lb.blockedThreads.length, 0);
+            lockOwnerMap.set(thread.id, { thread, snapshot, heldLocks: locksWithBlocked, totalBlocked });
         }
     }
 
-    const culprits = [...culpritMap.values()].sort((a, b) => b.totalVictims - a.totalVictims);
+    const lockOwners = [...lockOwnerMap.values()].sort((a, b) => b.totalBlocked - a.totalBlocked);
 
     const orphanedLocks: OrphanedLock[] = [];
     for (const [address, data] of waitingByLock.entries()) {
         if (!holdingByLock.has(address)) {
-            orphanedLocks.push({ address, className: data.className, lockType: data.lockType, victims: data.victims });
+            orphanedLocks.push({ address, className: data.className, lockType: data.lockType, blockedThreads: data.blockedThreads });
         }
     }
 
     const deadlocks = detectDeadlocks(waitGraph, holderGraph, latestByThreadId, waitingByLock);
 
-    return { culprits, orphanedLocks, deadlocks };
+    return { lockOwners, orphanedLocks, deadlocks };
 }

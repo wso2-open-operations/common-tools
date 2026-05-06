@@ -175,12 +175,14 @@ func serveHTML(w http.ResponseWriter, r *http.Request) {
 
 				try {
 					const submitRes = await fetch('/api/v1/analyze/jobs', { method: 'POST', body: form });
+					if (!submitRes.ok) throw new Error('submit failed: HTTP ' + submitRes.status);
 					const { job_id } = await submitRes.json();
 
 					let data;
 					while (true) {
 						await sleep(1000);
 						const pollRes = await fetch('/api/v1/analyze/jobs/' + job_id);
+						if (!pollRes.ok) throw new Error('poll failed: HTTP ' + pollRes.status);
 						const job = await pollRes.json();
 						if (job.status === 'completed') { data = job.result; break; }
 						if (job.status === 'failed') throw new Error(job.error || 'job failed');
@@ -204,5 +206,6 @@ func serveHTML(w http.ResponseWriter, r *http.Request) {
 	</body>
 	</html>
 	`
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html))
 }

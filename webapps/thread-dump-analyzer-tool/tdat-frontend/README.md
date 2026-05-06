@@ -47,7 +47,7 @@ Summary cards (thread counts by state and risk), state distribution chart, key f
 Browse all threads grouped by pool. Sort and filter by state, risk level, or name. Each row expands to show a per-snapshot timeline with stack traces, CPU %, and rule engine findings.
 
 ### Lock Contention (`/lock-contention`)
-Frontend-derived lock contention graph built from thread stack trace data. Shows culprit threads (holding locks), victim threads (waiting), contention counts per monitor address, and deadlock cycle visualizations with directional chain diagrams.
+Frontend-derived lock contention graph built from thread stack trace data. Shows lock owners (threads holding contended monitors), the blocked threads waiting on each owner, contention counts per monitor address, and deadlock cycle visualizations with directional chain diagrams.
 
 ## Key Implementation Details
 
@@ -138,16 +138,16 @@ tdat-frontend/
     │       │   ├── AIInsightsCard.tsx
     │       │   └── ExecutiveSummaryCard.tsx
     │       ├── lock-contention/            LockContention sub-components
-    │       │   ├── CulpritAccordion.tsx
+    │       │   ├── LockOwnerAccordion.tsx  One row per thread holding a contended monitor
     │       │   ├── MonitorSection.tsx
-    │       │   ├── VictimRow.tsx
+    │       │   ├── BlockedThreadRow.tsx    Single blocked thread with wait-time chip
     │       │   ├── LockChainView.tsx       Deadlock cycle arrow diagram
     │       │   └── OrphanedLockCard.tsx
     │       └── thread-explorer/
     │           └── ThreadRow.tsx           Expandable row with state chart + snapshot details
     ├── utils/
     │   ├── lockParsing.ts                  Regex constants, findWaitingLock, findHeldLocks
-    │   ├── lockContentionAnalysis.ts       deriveCulpritCentricData, detectDeadlocks
+    │   ├── lockContentionAnalysis.ts       deriveLockOwnerCentricData, detectDeadlocks
     │   ├── reportFormatter.ts              Plain-text report from AnalysisResponse
     │   └── uploadValidation.ts             validateFiles, extractFileKey, PairedFile type
     └── types/

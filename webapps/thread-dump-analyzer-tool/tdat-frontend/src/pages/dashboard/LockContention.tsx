@@ -24,9 +24,9 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import SearchIcon from '@mui/icons-material/Search';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useAnalysisData } from '@context/AnalysisContext';
-import { deriveCulpritCentricData } from '../../utils/lockContentionAnalysis';
+import { deriveLockOwnerCentricData } from '../../utils/lockContentionAnalysis';
 import { useNavigateToThread } from '@hooks/useNavigateToThread';
-import CulpritAccordion from './lock-contention/CulpritAccordion';
+import LockOwnerAccordion from './lock-contention/LockOwnerAccordion';
 import OrphanedLockCard from './lock-contention/OrphanedLockCard';
 import LockChainView from './lock-contention/LockChainView';
 import noData from '@assets/error.svg';
@@ -44,61 +44,61 @@ const LockContention: React.FC = () => {
     const navigateToThread = useNavigateToThread();
     const threads = data?.threads ?? [];
 
-    const { culprits, orphanedLocks, deadlocks } = useMemo(
-        () => deriveCulpritCentricData(threads),
+    const { lockOwners, orphanedLocks, deadlocks } = useMemo(
+        () => deriveLockOwnerCentricData(threads),
         [threads],
     );
 
-    const totalBlocked = culprits.reduce((acc, c) => acc + c.totalVictims, 0);
-    const hasContention = culprits.length > 0 || orphanedLocks.length > 0;
+    const totalBlocked = lockOwners.reduce((acc, owner) => acc + owner.totalBlocked, 0);
+    const hasContention = lockOwners.length > 0 || orphanedLocks.length > 0;
 
     const [searchQuery, setSearchQuery] = useState('');
     const [showAllOrphanedLocks, setShowAllOrphanedLocks] = useState(false);
 
-    // Compute max wait time across all victims
+    // Compute max wait time across all blocked threads
     const maxWaitTimeMs = useMemo(() => {
         let maxMs = 0;
-        for (const c of culprits) {
-            for (const lock of c.heldLocks) {
-                for (const v of lock.victims) {
-                    if (v.waitTimeMs > maxMs) maxMs = v.waitTimeMs;
+        for (const owner of lockOwners) {
+            for (const lock of owner.heldLocks) {
+                for (const bt of lock.blockedThreads) {
+                    if (bt.waitTimeMs > maxMs) maxMs = bt.waitTimeMs;
                 }
             }
         }
         for (const o of orphanedLocks) {
-            for (const v of o.victims) {
-                if (v.waitTimeMs > maxMs) maxMs = v.waitTimeMs;
+            for (const bt of o.blockedThreads) {
+                if (bt.waitTimeMs > maxMs) maxMs = bt.waitTimeMs;
             }
         }
         return maxMs;
-    }, [culprits, orphanedLocks]);
+    }, [lockOwners, orphanedLocks]);
 
     // Filtered data based on search
     const q = searchQuery.toLowerCase().trim();
 
-    const filteredCulprits = useMemo(() => {
-        if (!q) return culprits;
-        return culprits.filter(entry => {
+    const filteredLockOwners = useMemo(() => {
+        if (!q) return lockOwners;
+        return lockOwners.filter(entry => {
             if (entry.thread.name.toLowerCase().includes(q)) return true;
             if (entry.thread.id.toLowerCase().includes(q)) return true;
             for (const lock of entry.heldLocks) {
                 if (lock.address.toLowerCase().includes(q)) return true;
                 if (lock.className.toLowerCase().includes(q)) return true;
-                for (const v of lock.victims) {
-                    if (v.thread.name.toLowerCase().includes(q)) return true;
+                for (const bt of lock.blockedThreads) {
+                    if (bt.thread.name.toLowerCase().includes(q)) return true;
                 }
             }
             return false;
         });
-    }, [culprits, q]);
+    }, [lockOwners, q]);
 
     const filteredOrphanedLocks = useMemo(() => {
         if (!q) return orphanedLocks;
         return orphanedLocks.filter(lock => {
             if (lock.address.toLowerCase().includes(q)) return true;
             if (lock.className.toLowerCase().includes(q)) return true;
-            for (const v of lock.victims) {
-                if (v.thread.name.toLowerCase().includes(q)) return true;
+            for (const bt of lock.blockedThreads) {
+                if (bt.thread.name.toLowerCase().includes(q)) return true;
             }
             return false;
         });
@@ -107,7 +107,7 @@ const LockContention: React.FC = () => {
     const visibleOrphanedLocks = showAllOrphanedLocks ? filteredOrphanedLocks : filteredOrphanedLocks.slice(0, ORPHAN_LOCK_LIMIT);
     const hiddenOrphanedCount = filteredOrphanedLocks.length - ORPHAN_LOCK_LIMIT;
 
-    const hasFilteredResults = filteredCulprits.length > 0 || filteredOrphanedLocks.length > 0;
+    const hasFilteredResults = filteredLockOwners.length > 0 || filteredOrphanedLocks.length > 0;
 
     if (!data) {
         return (
@@ -133,7 +133,7 @@ const LockContention: React.FC = () => {
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
                             {hasContention
-                                ? `${culprits.length} lock owner${culprits.length !== 1 ? 's' : ''} blocking ${totalBlocked} thread${totalBlocked !== 1 ? 's' : ''} total`
+                                ? `${lockOwners.length} lock owner${lockOwners.length !== 1 ? 's' : ''} blocking ${totalBlocked} thread${totalBlocked !== 1 ? 's' : ''} total`
                                 : 'No lock contention detected in this thread dump.'}
                         </Typography>
                     </Box>
@@ -279,8 +279,8 @@ const LockContention: React.FC = () => {
                 )}
 
                 {/* Chain Map Visualization */}
-                {!q && (deadlocks.length > 0 || culprits.length > 0) && (
-                    <LockChainView deadlocks={deadlocks} culprits={culprits} onThreadClick={navigateToThread} />
+                {!q && (deadlocks.length > 0 || lockOwners.length > 0) && (
+                    <LockChainView deadlocks={deadlocks} lockOwners={lockOwners} onThreadClick={navigateToThread} />
                 )}
 
                 {/* Search empty state */}
@@ -307,17 +307,17 @@ const LockContention: React.FC = () => {
                     </Paper>
                 )}
 
-                {/* Culprit Threads Section */}
+                {/* Lock Owners Section */}
                 {hasContention && hasFilteredResults && (
                     <Box sx={{ mb: 4 }}>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
                             <Typography variant="h6" fontWeight={700} sx={(theme) => ({ color: theme.palette.text.primary })}>Lock Owners</Typography>
-                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredCulprits.length} match{filteredCulprits.length !== 1 ? 'es' : ''})</Typography>}
+                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredLockOwners.length} match{filteredLockOwners.length !== 1 ? 'es' : ''})</Typography>}
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.75 }}>
                             Threads holding locks/monitors and blocking other threads, sorted by impact.
                         </Typography>
-                        {filteredCulprits.length === 0 ? (
+                        {filteredLockOwners.length === 0 ? (
                             <Paper
                                 sx={(theme) => ({
                                     p: 2.5,
@@ -337,8 +337,8 @@ const LockContention: React.FC = () => {
                                     </Typography>
                                 </Box>
                             </Paper>
-                        ) : filteredCulprits.map(entry => (
-                            <CulpritAccordion key={entry.thread.id} entry={entry} onThreadClick={navigateToThread} />
+                        ) : filteredLockOwners.map(entry => (
+                            <LockOwnerAccordion key={entry.thread.id} entry={entry} onThreadClick={navigateToThread} />
                         ))}
                     </Box>
                 )}

@@ -75,9 +75,9 @@ declare module '@mui/material/styles' {
       owner: string;
       ownerBg: string;
       ownerBgHover: string;
-      victim: string;
-      victimBg: string;
-      victimBgHover: string;
+      blocked: string;
+      blockedBg: string;
+      blockedBgHover: string;
       deadlock: string;
       deadlockBg: string;
       monitor: string;
@@ -224,9 +224,9 @@ const tokens = (mode: ThemeMode) => {
       owner: '#FF6700',
       ownerBg: isDark ? 'rgba(255,103,0,0.20)' : 'rgba(255,103,0,0.10)',
       ownerBgHover: isDark ? 'rgba(255,103,0,0.30)' : 'rgba(255,103,0,0.18)',
-      victim: '#F14E23',
-      victimBg: isDark ? 'rgba(241,78,35,0.15)' : 'rgba(241,78,35,0.10)',
-      victimBgHover: isDark ? 'rgba(241,78,35,0.25)' : 'rgba(241,78,35,0.18)',
+      blocked: '#F14E23',
+      blockedBg: isDark ? 'rgba(241,78,35,0.15)' : 'rgba(241,78,35,0.10)',
+      blockedBgHover: isDark ? 'rgba(241,78,35,0.25)' : 'rgba(241,78,35,0.18)',
       deadlock: '#F14E23',
       deadlockBg: isDark ? 'rgba(241,78,35,0.25)' : 'rgba(241,78,35,0.20)',
       monitor: '#FF6700',

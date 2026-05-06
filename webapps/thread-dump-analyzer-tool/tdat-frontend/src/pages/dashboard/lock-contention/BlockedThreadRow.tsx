@@ -34,21 +34,21 @@ function formatWaitTime(ms: number): string {
     return `${ms}ms`;
 }
 
-interface VictimRowProps {
-    victim: BlockedThreadInfo;
+interface BlockedThreadRowProps {
+    blockedThread: BlockedThreadInfo;
     onThreadClick: (name: string) => void;
 }
 
-const VictimRow: React.FC<VictimRowProps> = ({ victim, onThreadClick }) => {
+const BlockedThreadRow: React.FC<BlockedThreadRowProps> = ({ blockedThread, onThreadClick }) => {
     const theme = useTheme();
-    const hasWaitTime = victim.waitTimeMs > 0;
-    const severity = hasWaitTime ? getWaitSeverity(victim.waitTimeMs, theme) : null;
+    const hasWaitTime = blockedThread.waitTimeMs > 0;
+    const severity = hasWaitTime ? getWaitSeverity(blockedThread.waitTimeMs, theme) : null;
 
     return (
         <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 0.75 }}>
             <Typography
                 variant="body2"
-                onClick={() => onThreadClick(victim.thread.name)}
+                onClick={() => onThreadClick(blockedThread.thread.name)}
                 sx={(theme) => ({
                     fontFamily: 'monospace',
                     fontWeight: 600,
@@ -63,14 +63,14 @@ const VictimRow: React.FC<VictimRowProps> = ({ victim, onThreadClick }) => {
                     '&:hover': { textDecoration: 'underline' },
                 })}
             >
-                {victim.thread.name}
+                {blockedThread.thread.name}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, ml: 2 }}>
-                <ThreadStateChip state={victim.snapshot.state} />
+                <ThreadStateChip state={blockedThread.snapshot.state} />
                 {hasWaitTime && severity && (
                     <Chip
                         icon={<AccessTimeIcon sx={{ fontSize: '13px !important', color: `${severity.color} !important` }} />}
-                        label={formatWaitTime(victim.waitTimeMs)}
+                        label={formatWaitTime(blockedThread.waitTimeMs)}
                         size="small"
                         sx={{
                             bgcolor: severity.bg,
@@ -89,4 +89,4 @@ const VictimRow: React.FC<VictimRowProps> = ({ victim, onThreadClick }) => {
     );
 };
 
-export default VictimRow;
+export default BlockedThreadRow;

@@ -17,13 +17,13 @@
 import React, { useState } from 'react';
 import { Box, Typography, Button, Divider } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import type { LockWithVictims } from '../../../utils/lockContentionAnalysis';
-import VictimRow from './VictimRow';
+import type { LockWithBlockedThreads } from '../../../utils/lockContentionAnalysis';
+import BlockedThreadRow from './BlockedThreadRow';
 
-const VICTIM_LIMIT = 5;
+const BLOCKED_THREAD_LIMIT = 5;
 
 interface MonitorSectionProps {
-    lock: LockWithVictims;
+    lock: LockWithBlockedThreads;
     onThreadClick: (name: string) => void;
 }
 
@@ -31,8 +31,8 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
     const [showAll, setShowAll] = useState(false);
 
     const shortName = lock.className.split('.').pop() ?? lock.className;
-    const visibleVictims = showAll ? lock.victims : lock.victims.slice(0, VICTIM_LIMIT);
-    const hiddenCount = lock.victims.length - VICTIM_LIMIT;
+    const visibleBlockedThreads = showAll ? lock.blockedThreads : lock.blockedThreads.slice(0, BLOCKED_THREAD_LIMIT);
+    const hiddenCount = lock.blockedThreads.length - BLOCKED_THREAD_LIMIT;
 
     return (
         <Box
@@ -66,11 +66,11 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
                     &lt;{lock.address}&gt;
                 </Typography>
                 <Typography variant="caption" sx={(theme) => ({ ml: 'auto', color: theme.palette.text.secondary, whiteSpace: 'nowrap' })}>
-                    {lock.victims.length} blocked thread{lock.victims.length !== 1 ? 's' : ''}
+                    {lock.blockedThreads.length} blocked thread{lock.blockedThreads.length !== 1 ? 's' : ''}
                 </Typography>
             </Box>
 
-            {lock.victims.length === 0 ? (
+            {lock.blockedThreads.length === 0 ? (
                 <Box sx={(theme) => ({ px: 2, py: 2, bgcolor: theme.palette.surface.inset, textAlign: 'center' })}>
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
                         No blocked threads recorded for this monitor.
@@ -78,10 +78,10 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
                 </Box>
             ) : (
                 <>
-                    {visibleVictims.map((victim, idx) => (
-                        <React.Fragment key={victim.thread.id}>
+                    {visibleBlockedThreads.map((bt, idx) => (
+                        <React.Fragment key={bt.thread.id}>
                             {idx > 0 && <Divider />}
-                            <VictimRow victim={victim} onThreadClick={onThreadClick} />
+                            <BlockedThreadRow blockedThread={bt} onThreadClick={onThreadClick} />
                         </React.Fragment>
                     ))}
 
@@ -95,7 +95,7 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
                                     onClick={() => setShowAll(v => !v)}
                                     sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', color: theme.palette.accent.link })}
                                 >
-                                    {showAll ? 'Show fewer' : `Show all ${lock.victims.length} threads`}
+                                    {showAll ? 'Show fewer' : `Show all ${lock.blockedThreads.length} threads`}
                                 </Button>
                             </Box>
                         </>

@@ -19,9 +19,9 @@ import { Box, Typography, Chip, Button, Divider, Tooltip, Accordion, AccordionSu
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import type { OrphanedLock } from '../../../utils/lockContentionAnalysis';
-import VictimRow from './VictimRow';
+import BlockedThreadRow from './BlockedThreadRow';
 
-const ORPHAN_VICTIM_LIMIT = 10;
+const ORPHAN_BLOCKED_LIMIT = 10;
 
 interface OrphanedLockCardProps {
     lock: OrphanedLock;
@@ -32,8 +32,8 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
     const [showAll, setShowAll] = useState(false);
 
     const shortName = lock.className.split('.').pop() ?? lock.className;
-    const visibleVictims = showAll ? lock.victims : lock.victims.slice(0, ORPHAN_VICTIM_LIMIT);
-    const hiddenCount = lock.victims.length - ORPHAN_VICTIM_LIMIT;
+    const visibleBlockedThreads = showAll ? lock.blockedThreads : lock.blockedThreads.slice(0, ORPHAN_BLOCKED_LIMIT);
+    const hiddenCount = lock.blockedThreads.length - ORPHAN_BLOCKED_LIMIT;
 
     return (
         <Accordion
@@ -95,7 +95,7 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                     </Tooltip>
                 </Box>
                 <Chip
-                    label={`${lock.victims.length} Blocked`}
+                    label={`${lock.blockedThreads.length} Blocked`}
                     size="small"
                     sx={(theme) => ({
                         bgcolor: theme.palette.severity.high.bg,
@@ -126,7 +126,7 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                     </Typography>
                 </Box>
 
-                {lock.victims.length === 0 ? (
+                {lock.blockedThreads.length === 0 ? (
                     <Box sx={(theme) => ({ px: 2, py: 2, bgcolor: theme.palette.surface.inset, textAlign: 'center' })}>
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
                             No blocked threads recorded for this monitor.
@@ -134,10 +134,10 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                     </Box>
                 ) : (
                     <>
-                        {visibleVictims.map((victim, idx) => (
-                            <React.Fragment key={victim.thread.id}>
+                        {visibleBlockedThreads.map((bt, idx) => (
+                            <React.Fragment key={bt.thread.id}>
                                 {idx > 0 && <Divider />}
-                                <VictimRow victim={victim} onThreadClick={onThreadClick} />
+                                <BlockedThreadRow blockedThread={bt} onThreadClick={onThreadClick} />
                             </React.Fragment>
                         ))}
                         {hiddenCount > 0 && (
@@ -150,7 +150,7 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
                                         onClick={() => setShowAll(v => !v)}
                                         sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', color: theme.palette.accent.owner })}
                                     >
-                                        {showAll ? 'Show fewer' : `Show all ${lock.victims.length} threads`}
+                                        {showAll ? 'Show fewer' : `Show all ${lock.blockedThreads.length} threads`}
                                     </Button>
                                 </Box>
                             </>

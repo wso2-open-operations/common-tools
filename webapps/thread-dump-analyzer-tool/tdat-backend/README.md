@@ -5,10 +5,11 @@ Go HTTP server that analyzes Java thread dumps to detect performance issues — 
 ## Getting Started
 
 ```bash
-# Create .env with your Anthropic API key
-echo "ANTHROPIC_API_KEY=your_key_here" > .env
+# Copy the env template and fill in your Anthropic API key
+cp .env.example .env
+# Edit .env: set ANTHROPIC_API_KEY=your_key_here
 
-go run main.go
+go run .
 # Server starts at http://localhost:8080
 ```
 
@@ -26,8 +27,8 @@ Upload thread dumps and start an async analysis job.
 
 | Field | Required | Description |
 |---|---|---|
-| `thread_dumps[]` | Yes | One or more Java thread dump text files |
-| `thread_usages[]` | No | Matching CPU usage files (`PID TID %CPU TIME` columns), paired by index with dumps |
+| `thread_dumps` | Yes | One or more Java thread dump text files |
+| `thread_usages` | No | Matching CPU usage files (`PID TID %CPU TIME` columns), paired by index with dumps |
 
 **Response:** `202 Accepted`
 ```json
@@ -107,7 +108,9 @@ Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineer
 
 | Item | Details |
 |---|---|
-| `ANTHROPIC_API_KEY` | Set in `.env` or environment |
+| `.env.example` | Tracked template listing the env vars the server reads — copy to `.env` and fill in |
+| `ANTHROPIC_API_KEY` | Set in `.env` or environment. Required for AI insights; if unset, the job still completes and `ai_insights` returns a static "unavailable" message |
+| `CORS_DEBUG` | Optional, set to `"true"` to enable `rs/cors` debug logging |
 | `config/thread_pools.yaml` | Thread pool name, regex patterns, description, expected behavior |
 | Upload limit | 100 MB per multipart form |
 | CORS | Open to all origins (`*`) |
@@ -126,7 +129,8 @@ tdat-backend/
 ├── main.go                          HTTP server, route wiring, AggregatedAnalysisResponse
 ├── jobs.go                          Job/JobStore, async handlers, runAnalysis pipeline
 ├── go.mod / go.sum                  Go module definition and dependency lock
-├── .env                             ANTHROPIC_API_KEY (loaded via godotenv)
+├── .env.example                     Tracked template — copy to .env and fill in
+├── .env                             Local secrets (gitignored, loaded via godotenv)
 ├── openapi.yaml                     OpenAPI 3.0 specification for REST API
 ├── config/
 │   └── thread_pools.yaml            Thread pool name/regex/description definitions

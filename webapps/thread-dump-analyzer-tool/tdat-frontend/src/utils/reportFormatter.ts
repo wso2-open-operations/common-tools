@@ -15,7 +15,7 @@
 // under the License.
 
 import type { AnalysisResponse, Thread, ThreadSnapshot, AIInsights } from '@/types/api';
-import { deriveCulpritCentricData } from './lockContentionAnalysis';
+import { deriveLockOwnerCentricData } from './lockContentionAnalysis';
 
 const LINE_WIDTH = 80;
 const DIVIDER = '='.repeat(LINE_WIDTH);
@@ -403,9 +403,9 @@ ${formatTable(columns, rows)}`;
 
 function formatLockContention(threads: Thread[]): string {
     const header = sectionHeader('LOCK CONTENTION');
-    const { culprits, orphanedLocks, deadlocks } = deriveCulpritCentricData(threads);
+    const { lockOwners, orphanedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
 
-    if (culprits.length === 0 && orphanedLocks.length === 0 && deadlocks.length === 0) {
+    if (lockOwners.length === 0 && orphanedLocks.length === 0 && deadlocks.length === 0) {
         return `${header}
 
   No lock contention detected.`;
@@ -427,25 +427,25 @@ function formatLockContention(threads: Thread[]): string {
     }
 
     // Lock Owners
-    const totalBlocked = culprits.reduce((acc, c) => acc + c.totalVictims, 0);
-    sections.push(`  --- Lock Owners (${culprits.length} owner${culprits.length !== 1 ? 's' : ''}, ${totalBlocked} blocked) ---`);
+    const totalBlocked = lockOwners.reduce((acc, owner) => acc + owner.totalBlocked, 0);
+    sections.push(`  --- Lock Owners (${lockOwners.length} owner${lockOwners.length !== 1 ? 's' : ''}, ${totalBlocked} blocked) ---`);
 
-    if (culprits.length === 0) {
+    if (lockOwners.length === 0) {
         sections.push('\n  No lock owners identified.');
     } else {
-        culprits.forEach(entry => {
+        lockOwners.forEach(entry => {
             sections.push(`
   Owner: "${truncate(entry.thread.name, 60)}" [${entry.snapshot.state}]`);
-            sections.push(`    Holding ${entry.heldLocks.length} monitor${entry.heldLocks.length !== 1 ? 's' : ''}, blocking ${entry.totalVictims} thread${entry.totalVictims !== 1 ? 's' : ''}`);
+            sections.push(`    Holding ${entry.heldLocks.length} monitor${entry.heldLocks.length !== 1 ? 's' : ''}, blocking ${entry.totalBlocked} thread${entry.totalBlocked !== 1 ? 's' : ''}`);
             entry.heldLocks.forEach(lock => {
                 const shortName = lock.className.split('.').pop() ?? lock.className;
                 sections.push(`
     Monitor: ${shortName} <${lock.address}>`);
-                lock.victims.forEach(v => {
-                    const waitStr = v.waitTimeMs > 0
-                        ? `  wait: ${formatWaitTime(v.waitTimeMs)} ${waitSeverityTag(v.waitTimeMs)}`
+                lock.blockedThreads.forEach(bt => {
+                    const waitStr = bt.waitTimeMs > 0
+                        ? `  wait: ${formatWaitTime(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
                         : '';
-                    sections.push(`      - ${truncate(v.thread.name, 50)} [${v.snapshot.state}]${waitStr}`);
+                    sections.push(`      - ${truncate(bt.thread.name, 50)} [${bt.snapshot.state}]${waitStr}`);
                 });
             });
         });
@@ -461,15 +461,15 @@ function formatLockContention(threads: Thread[]): string {
             const shortName = lock.className.split('.').pop() ?? lock.className;
             sections.push(`
   Monitor: ${shortName} <${lock.address}>`);
-            sections.push(`    ${lock.victims.length} blocked thread${lock.victims.length !== 1 ? 's' : ''}:`);
-            lock.victims.slice(0, 10).forEach(v => {
-                const waitStr = v.waitTimeMs > 0
-                    ? `  wait: ${formatWaitTime(v.waitTimeMs)} ${waitSeverityTag(v.waitTimeMs)}`
+            sections.push(`    ${lock.blockedThreads.length} blocked thread${lock.blockedThreads.length !== 1 ? 's' : ''}:`);
+            lock.blockedThreads.slice(0, 10).forEach(bt => {
+                const waitStr = bt.waitTimeMs > 0
+                    ? `  wait: ${formatWaitTime(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
                     : '';
-                sections.push(`      - ${truncate(v.thread.name, 50)} [${v.snapshot.state}]${waitStr}`);
+                sections.push(`      - ${truncate(bt.thread.name, 50)} [${bt.snapshot.state}]${waitStr}`);
             });
-            if (lock.victims.length > 10) {
-                sections.push(`      ... +${lock.victims.length - 10} more`);
+            if (lock.blockedThreads.length > 10) {
+                sections.push(`      ... +${lock.blockedThreads.length - 10} more`);
             }
         });
     }
@@ -504,20 +504,20 @@ export function generateReport(data: AnalysisResponse): string {
         t.snapshots.some(s => s.risk_level === 'CRITICAL'),
     ).length;
 
-    const { culprits, orphanedLocks, deadlocks } = deriveCulpritCentricData(threads);
+    const { lockOwners, orphanedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
     const deadlockCycles = deadlocks.length;
 
     let maxWaitTimeMs = 0;
-    for (const c of culprits) {
-        for (const lock of c.heldLocks) {
-            for (const v of lock.victims) {
-                if (v.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = v.waitTimeMs;
+    for (const owner of lockOwners) {
+        for (const lock of owner.heldLocks) {
+            for (const bt of lock.blockedThreads) {
+                if (bt.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = bt.waitTimeMs;
             }
         }
     }
     for (const o of orphanedLocks) {
-        for (const v of o.victims) {
-            if (v.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = v.waitTimeMs;
+        for (const bt of o.blockedThreads) {
+            if (bt.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = bt.waitTimeMs;
         }
     }
 

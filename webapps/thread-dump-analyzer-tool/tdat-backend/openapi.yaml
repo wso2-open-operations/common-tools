@@ -46,15 +46,15 @@ paths:
             schema:
               type: object
               required:
-                - thread_dumps[]
+                - thread_dumps
               properties:
-                thread_dumps[]:
+                thread_dumps:
                   type: array
                   items:
                     type: string
                     format: binary
                   description: One or more Java thread dump text files
-                thread_usages[]:
+                thread_usages:
                   type: array
                   items:
                     type: string

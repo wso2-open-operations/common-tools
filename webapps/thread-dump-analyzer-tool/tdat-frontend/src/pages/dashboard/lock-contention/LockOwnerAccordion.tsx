@@ -18,17 +18,17 @@ import React from 'react';
 import { Box, Typography, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ThreadStateChip from '@component/ui/ThreadStateChip';
-import type { CulpritEntry } from '../../../utils/lockContentionAnalysis';
+import type { LockOwnerEntry } from '../../../utils/lockContentionAnalysis';
 import MonitorSection from './MonitorSection';
 
-interface CulpritAccordionProps {
-    entry: CulpritEntry;
+interface LockOwnerAccordionProps {
+    entry: LockOwnerEntry;
     onThreadClick: (name: string) => void;
 }
 
-const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClick }) => {
+const LockOwnerAccordion: React.FC<LockOwnerAccordionProps> = ({ entry, onThreadClick }) => {
     const monitorCount = entry.heldLocks.length;
-    const victimCount = entry.totalVictims;
+    const blockedCount = entry.totalBlocked;
 
     return (
         <Accordion
@@ -106,7 +106,7 @@ const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClic
                             whiteSpace: 'nowrap',
                         })}
                     >
-                        Blocking {victimCount} Thread{victimCount !== 1 ? 's' : ''}
+                        Blocking {blockedCount} Thread{blockedCount !== 1 ? 's' : ''}
                     </Typography>
                 </Box>
             </AccordionSummary>
@@ -120,4 +120,4 @@ const CulpritAccordion: React.FC<CulpritAccordionProps> = ({ entry, onThreadClic
     );
 };
 
-export default CulpritAccordion;
+export default LockOwnerAccordion;
