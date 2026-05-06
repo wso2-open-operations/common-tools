@@ -34,7 +34,7 @@ import noData from '@assets/error.svg';
 const ORPHAN_LOCK_LIMIT = 15;
 
 function formatMaxWait(ms: number): string {
-    if (ms >= 60_000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
     if (ms >= 1_000) return `${(ms / 1000).toFixed(1)}s`;
     return `${ms}ms`;
 }
@@ -243,11 +243,11 @@ const LockContention: React.FC = () => {
                             Deadlock Detected — {deadlocks.length} cycle{deadlocks.length !== 1 ? 's' : ''}
                         </AlertTitle>
                         {deadlocks.map((cycle, i) => {
-                            const threadA = cycle.threads[0]?.thread.name ?? '?';
-                            const threadB = cycle.threads[1]?.thread.name ?? '?';
+                            const names = cycle.threads.map((t) => t.thread.name);
+                            const chain = names.length > 0 ? [...names, names[0]].join(' → ') : '?';
                             return (
                                 <Typography key={i} variant="caption" display="block" sx={{ fontFamily: 'monospace', mt: 0.5, opacity: 0.95 }}>
-                                    Circular Dependency Detected: {threadA} is waiting on {threadB}, which is waiting on {threadA}
+                                    Circular Dependency Detected: {chain}
                                 </Typography>
                             );
                         })}

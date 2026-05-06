@@ -15,7 +15,7 @@
 // under the License.
 
 import React from 'react';
-import { Box, Typography, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import { Box, Typography, Accordion, AccordionSummary, AccordionDetails, ButtonBase} from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ThreadStateChip from '@component/ui/ThreadStateChip';
 import type { LockOwnerEntry } from '../../../utils/lockContentionAnalysis';
@@ -58,9 +58,10 @@ const LockOwnerAccordion: React.FC<LockOwnerAccordionProps> = ({ entry, onThread
                     },
                 }}
             >
-                <Typography
-                    variant="body2"
+                <ButtonBase
                     onClick={(e) => { e.stopPropagation(); onThreadClick(entry.thread.name); }}
+                    onFocus={(e) => e.stopPropagation()}
+                    aria-label={`View details of thread ${entry.thread.name}`}
                     sx={(theme) => ({
                         fontFamily: 'monospace',
                         fontWeight: 700,
@@ -76,7 +77,7 @@ const LockOwnerAccordion: React.FC<LockOwnerAccordionProps> = ({ entry, onThread
                     title={entry.thread.name}
                 >
                     {entry.thread.name}
-                </Typography>
+                </ButtonBase>
                 <ThreadStateChip state={entry.snapshot.state} />
 
                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>

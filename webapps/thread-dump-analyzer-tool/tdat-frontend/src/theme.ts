@@ -150,7 +150,7 @@ const tokens = (mode: ThemeMode) => {
         border: isDark ? 'rgba(253,186,116,0.4)' : 'rgba(253,186,116,0.5)',
       },
       timedWaiting: {
-        main: isDark ? '#93c5fd' : '#1976d2',
+        main: isDark ? '#facc15' : '#eab308',
         text: isDark ? '#fde68a' : '#ca8a04',
         bg: isDark ? 'rgba(202,138,4,0.18)' : '#fefce8',
         border: isDark ? 'rgba(253,224,71,0.35)' : 'rgba(253,224,71,0.5)',
@@ -234,7 +234,7 @@ const tokens = (mode: ThemeMode) => {
   };
 };
 
-// ─── Theme factory ───────────────────────────────────────────────────────────
+// Theme factory
 
 export const themeSettings = (mode: ThemeMode) => {
   const t = tokens(mode);
@@ -281,13 +281,13 @@ export const themeSettings = (mode: ThemeMode) => {
     },
     components: {
       MuiCssBaseline: {
-        styleOverrides: {
+        styleOverrides: ({palette}) => ({
           body: {
-            backgroundColor: isDark ? '#0a0d12' : '#f5f6fa',
-            color: isDark ? '#e6edf3' : '#111827',
+            backgroundColor: palette.background.default,
+            color: palette.text.primary,
             transition: 'background-color 0.2s ease, color 0.2s ease',
           },
-        },
+        }),
       },
       MuiPaper: {
         defaultProps: {

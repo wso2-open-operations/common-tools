@@ -15,7 +15,7 @@
 // under the License.
 
 import React from 'react';
-import { Box, Chip, Typography, useTheme } from '@mui/material';
+import { Box, ButtonBase, Chip, Typography, useTheme } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ThreadStateChip from '@component/ui/ThreadStateChip';
@@ -29,7 +29,7 @@ function getWaitSeverity(ms: number, theme: Theme): { bg: string; color: string 
 }
 
 function formatWaitTime(ms: number): string {
-    if (ms >= 60_000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
     if (ms >= 1_000) return `${(ms / 1000).toFixed(1)}s`;
     return `${ms}ms`;
 }
@@ -46,25 +46,33 @@ const BlockedThreadRow: React.FC<BlockedThreadRowProps> = ({ blockedThread, onTh
 
     return (
         <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 0.75 }}>
-            <Typography
-                variant="body2"
+            <ButtonBase
                 onClick={() => onThreadClick(blockedThread.thread.name)}
                 sx={(theme) => ({
-                    fontFamily: 'monospace',
-                    fontWeight: 600,
-                    fontSize: '0.8rem',
-                    color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
-                    cursor: 'pointer',
                     flex: 1,
                     minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    '&:hover': { textDecoration: 'underline' },
+                    justifyContent: 'flex-start',
+                    '&:focus-visible': { outline: `2px solid ${theme.palette.accent.link}`, outlineOffset: 2 },
                 })}
             >
-                {blockedThread.thread.name}
-            </Typography>
+                <Typography
+                    variant="body2"
+                    sx={(theme) => ({
+                        fontFamily: 'monospace',
+                        fontWeight: 600,
+                        fontSize: '0.8rem',
+                        color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'left',
+                        '&:hover': { textDecoration: 'underline' },
+                        '&:focus-visible': { outline: `2px solid ${theme.palette.accent.link}`, outlineOffset: 2 },
+                    })}
+                >
+                    {blockedThread.thread.name}
+                </Typography>
+            </ButtonBase>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, ml: 2 }}>
                 <ThreadStateChip state={blockedThread.snapshot.state} />
                 {hasWaitTime && severity && (
