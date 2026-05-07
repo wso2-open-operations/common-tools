@@ -19,7 +19,7 @@ import type { PaletteMode } from '@mui/material';
 
 export type ThemeMode = 'light' | 'dark';
 
-// ─── Custom palette token augmentation ───────────────────────────────────────
+// Custom palette token augmentation
 
 type StateTokens = { main: string; text: string; bg: string; border: string };
 type SeverityTokens = { main: string; text: string; bg: string; border: string };
@@ -93,7 +93,7 @@ declare module '@mui/material/styles' {
   }
 }
 
-// ─── Token values per mode ───────────────────────────────────────────────────
+// Token values per mode
 
 const tokens = (mode: ThemeMode) => {
   const isDark = mode === 'dark';

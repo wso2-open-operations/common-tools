@@ -171,7 +171,7 @@ const DeadlockChain: React.FC<DeadlockChainProps> = ({ cycle, index, onThreadCli
     </Paper>
 );
 
-// ─── Contention Chain Flow ───────────────────────────────────────────────────
+// Contention Chain Flow
 
 interface ContentionChainProps {
     lockOwner: LockOwnerEntry;
@@ -382,7 +382,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ lockOwner, onThreadCl
     );
 };
 
-// ─── Exported Component ──────────────────────────────────────────────────────
+// Exported Component
 
 interface LockChainViewProps {
     deadlocks: DeadlockCycle[];

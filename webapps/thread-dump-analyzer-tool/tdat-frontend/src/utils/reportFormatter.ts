@@ -403,9 +403,9 @@ ${formatTable(columns, rows)}`;
 
 function formatLockContention(threads: Thread[]): string {
     const header = sectionHeader('LOCK CONTENTION');
-    const { lockOwners, orphanedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
+    const { lockOwners, unownedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
 
-    if (lockOwners.length === 0 && orphanedLocks.length === 0 && deadlocks.length === 0) {
+    if (lockOwners.length === 0 && unownedLocks.length === 0 && deadlocks.length === 0) {
         return `${header}
 
   No lock contention detected.`;
@@ -452,12 +452,12 @@ function formatLockContention(threads: Thread[]): string {
     }
 
     // Unowned Monitors
-    if (orphanedLocks.length > 0) {
+    if (unownedLocks.length > 0) {
         sections.push('');
-        sections.push(`  --- Unowned Monitors (${orphanedLocks.length}) ---`);
+        sections.push(`  --- Unowned Monitors (${unownedLocks.length}) ---`);
         sections.push('  Monitors with blocked threads but no owner thread visible in this snapshot.');
 
-        orphanedLocks.forEach(lock => {
+        unownedLocks.forEach(lock => {
             const shortName = lock.className.split('.').pop() ?? lock.className;
             sections.push(`
   Monitor: ${shortName} <${lock.address}>`);
@@ -504,7 +504,7 @@ export function generateReport(data: AnalysisResponse): string {
         t.snapshots.some(s => s.risk_level === 'CRITICAL'),
     ).length;
 
-    const { lockOwners, orphanedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
+    const { lockOwners, unownedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
     const deadlockCycles = deadlocks.length;
 
     let maxWaitTimeMs = 0;
@@ -515,7 +515,7 @@ export function generateReport(data: AnalysisResponse): string {
             }
         }
     }
-    for (const o of orphanedLocks) {
+    for (const o of unownedLocks) {
         for (const bt of o.blockedThreads) {
             if (bt.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = bt.waitTimeMs;
         }

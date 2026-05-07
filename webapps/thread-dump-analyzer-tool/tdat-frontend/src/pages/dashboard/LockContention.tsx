@@ -27,11 +27,11 @@ import { useAnalysisData } from '@context/AnalysisContext';
 import { deriveLockOwnerCentricData } from '../../utils/lockContentionAnalysis';
 import { useNavigateToThread } from '@hooks/useNavigateToThread';
 import LockOwnerAccordion from './lock-contention/LockOwnerAccordion';
-import OrphanedLockCard from './lock-contention/OrphanedLockCard';
+import UnownedLockCard from './lock-contention/UnownedLockCard';
 import LockChainView from './lock-contention/LockChainView';
 import noData from '@assets/error.svg';
 
-const ORPHAN_LOCK_LIMIT = 15;
+const UNOWNED_LOCK_LIMIT = 15;
 
 function formatMaxWait(ms: number): string {
     if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
@@ -44,16 +44,18 @@ const LockContention: React.FC = () => {
     const navigateToThread = useNavigateToThread();
     const threads = data?.threads ?? [];
 
-    const { lockOwners, orphanedLocks, deadlocks } = useMemo(
+    const { lockOwners, unownedLocks, deadlocks } = useMemo(
         () => deriveLockOwnerCentricData(threads),
         [threads],
     );
 
-    const totalBlocked = lockOwners.reduce((acc, owner) => acc + owner.totalBlocked, 0);
-    const hasContention = lockOwners.length > 0 || orphanedLocks.length > 0;
+    const totalBlockedByOwners = lockOwners.reduce((acc, owner) => acc + owner.totalBlocked, 0);
+    const totalBlockedInUnowned = unownedLocks.reduce((acc, lock) => acc + lock.blockedThreads.length, 0);
+    const totalBlocked = totalBlockedByOwners + totalBlockedInUnowned;
+    const hasContention = lockOwners.length > 0 || unownedLocks.length > 0;
 
     const [searchQuery, setSearchQuery] = useState('');
-    const [showAllOrphanedLocks, setShowAllOrphanedLocks] = useState(false);
+    const [showAllUnownedLocks, setShowAllUnownedLocks] = useState(false);
 
     // Compute max wait time across all blocked threads
     const maxWaitTimeMs = useMemo(() => {
@@ -65,13 +67,13 @@ const LockContention: React.FC = () => {
                 }
             }
         }
-        for (const o of orphanedLocks) {
+        for (const o of unownedLocks) {
             for (const bt of o.blockedThreads) {
                 if (bt.waitTimeMs > maxMs) maxMs = bt.waitTimeMs;
             }
         }
         return maxMs;
-    }, [lockOwners, orphanedLocks]);
+    }, [lockOwners, unownedLocks]);
 
     // Filtered data based on search
     const q = searchQuery.toLowerCase().trim();
@@ -92,9 +94,9 @@ const LockContention: React.FC = () => {
         });
     }, [lockOwners, q]);
 
-    const filteredOrphanedLocks = useMemo(() => {
-        if (!q) return orphanedLocks;
-        return orphanedLocks.filter(lock => {
+    const filteredUnownedLocks = useMemo(() => {
+        if (!q) return unownedLocks;
+        return unownedLocks.filter(lock => {
             if (lock.address.toLowerCase().includes(q)) return true;
             if (lock.className.toLowerCase().includes(q)) return true;
             for (const bt of lock.blockedThreads) {
@@ -102,12 +104,12 @@ const LockContention: React.FC = () => {
             }
             return false;
         });
-    }, [orphanedLocks, q]);
+    }, [unownedLocks, q]);
 
-    const visibleOrphanedLocks = showAllOrphanedLocks ? filteredOrphanedLocks : filteredOrphanedLocks.slice(0, ORPHAN_LOCK_LIMIT);
-    const hiddenOrphanedCount = filteredOrphanedLocks.length - ORPHAN_LOCK_LIMIT;
+    const visibleUnownedLocks = showAllUnownedLocks ? filteredUnownedLocks : filteredUnownedLocks.slice(0, UNOWNED_LOCK_LIMIT);
+    const hiddenUnownedCount = filteredUnownedLocks.length - UNOWNED_LOCK_LIMIT;
 
-    const hasFilteredResults = filteredLockOwners.length > 0 || filteredOrphanedLocks.length > 0;
+    const hasFilteredResults = filteredLockOwners.length > 0 || filteredUnownedLocks.length > 0;
 
     if (!data) {
         return (
@@ -133,7 +135,7 @@ const LockContention: React.FC = () => {
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
                             {hasContention
-                                ? `${lockOwners.length} lock owner${lockOwners.length !== 1 ? 's' : ''} blocking ${totalBlocked} thread${totalBlocked !== 1 ? 's' : ''} total`
+                                ? `${lockOwners.length} lock owner${lockOwners.length !== 1 ? 's' : ''}, ${totalBlocked} blocked thread${totalBlocked !== 1 ? 's' : ''} total`
                                 : 'No lock contention detected in this thread dump.'}
                         </Typography>
                     </Box>
@@ -333,7 +335,7 @@ const LockContention: React.FC = () => {
                                 <Box>
                                     <Typography variant="body2" fontWeight={600} sx={(theme) => ({ color: theme.palette.text.secondary })}>No lock owners identified</Typography>
                                     <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>
-                                        {q ? 'No lock owners match your search query.' : 'No thread was found actively holding a lock that is blocking others. The monitors below may be orphaned or already released.'}
+                                        {q ? 'No lock owners match your search query.' : 'No thread was found actively holding a lock that is blocking others. The monitors below may be unowned or already released.'}
                                     </Typography>
                                 </Box>
                             </Paper>
@@ -343,28 +345,28 @@ const LockContention: React.FC = () => {
                     </Box>
                 )}
 
-                {/* Orphaned Monitors Section */}
-                {filteredOrphanedLocks.length > 0 && (
+                {/* Unowned Monitors Section */}
+                {filteredUnownedLocks.length > 0 && (
                     <Box>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
                             <Typography variant="h6" fontWeight={700} sx={(theme) => ({ color: theme.palette.text.primary })}>Unowned Monitors</Typography>
-                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredOrphanedLocks.length} match{filteredOrphanedLocks.length !== 1 ? 'es' : ''})</Typography>}
+                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredUnownedLocks.length} match{filteredUnownedLocks.length !== 1 ? 'es' : ''})</Typography>}
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                             Monitors with blocked threads but no owner thread visible in this snapshot.
                         </Typography>
-                        {visibleOrphanedLocks.map(lock => (
-                            <OrphanedLockCard key={lock.address} lock={lock} onThreadClick={navigateToThread} />
+                        {visibleUnownedLocks.map(lock => (
+                            <UnownedLockCard key={lock.address} lock={lock} onThreadClick={navigateToThread} />
                         ))}
-                        {hiddenOrphanedCount > 0 && (
+                        {hiddenUnownedCount > 0 && (
                             <Box sx={{ textAlign: 'center', py: 0.5 }}>
                                 <Button
                                     size="small"
                                     variant="text"
-                                    onClick={() => setShowAllOrphanedLocks(v => !v)}
+                                    onClick={() => setShowAllUnownedLocks(v => !v)}
                                     sx={(theme) => ({ fontSize: '0.75rem', color: theme.palette.brand.softText })}
                                 >
-                                    {showAllOrphanedLocks ? 'Show fewer' : `Show all ${filteredOrphanedLocks.length} locks`}
+                                    {showAllUnownedLocks ? 'Show fewer' : `Show all ${filteredUnownedLocks.length} locks`}
                                 </Button>
                             </Box>
                         )}

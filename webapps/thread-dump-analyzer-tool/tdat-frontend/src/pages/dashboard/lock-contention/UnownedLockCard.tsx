@@ -18,22 +18,22 @@ import React, { useState } from 'react';
 import { Box, Typography, Chip, Button, Divider, Tooltip, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import type { OrphanedLock } from '../../../utils/lockContentionAnalysis';
+import type { UnownedLock } from '../../../utils/lockContentionAnalysis';
 import BlockedThreadRow from './BlockedThreadRow';
 
-const ORPHAN_BLOCKED_LIMIT = 10;
+const UNOWNED_BLOCKED_LIMIT = 10;
 
-interface OrphanedLockCardProps {
-    lock: OrphanedLock;
+interface UnownedLockCardProps {
+    lock: UnownedLock;
     onThreadClick: (name: string) => void;
 }
 
-const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick }) => {
+const UnownedLockCard: React.FC<UnownedLockCardProps> = ({ lock, onThreadClick }) => {
     const [showAll, setShowAll] = useState(false);
 
     const shortName = lock.className.split('.').pop() ?? lock.className;
-    const visibleBlockedThreads = showAll ? lock.blockedThreads : lock.blockedThreads.slice(0, ORPHAN_BLOCKED_LIMIT);
-    const hiddenCount = lock.blockedThreads.length - ORPHAN_BLOCKED_LIMIT;
+    const visibleBlockedThreads = showAll ? lock.blockedThreads : lock.blockedThreads.slice(0, UNOWNED_BLOCKED_LIMIT);
+    const hiddenCount = lock.blockedThreads.length - UNOWNED_BLOCKED_LIMIT;
 
     return (
         <Accordion
@@ -162,4 +162,4 @@ const OrphanedLockCard: React.FC<OrphanedLockCardProps> = ({ lock, onThreadClick
     );
 };
 
-export default OrphanedLockCard;
+export default UnownedLockCard;

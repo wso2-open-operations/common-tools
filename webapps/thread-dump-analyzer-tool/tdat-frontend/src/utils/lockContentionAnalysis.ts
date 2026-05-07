@@ -41,7 +41,7 @@ export interface LockOwnerEntry {
     totalBlocked: number;
 }
 
-export interface OrphanedLock {
+export interface UnownedLock {
     address: string;
     className: string;
     lockType: LockType;
@@ -59,7 +59,7 @@ export interface DeadlockCycle {
 
 export interface LockOwnerCentricData {
     lockOwners: LockOwnerEntry[];
-    orphanedLocks: OrphanedLock[];
+    unownedLocks: UnownedLock[];
     deadlocks: DeadlockCycle[];
 }
 
@@ -134,7 +134,7 @@ function detectDeadlocks(
 // ─── Main Derivation ──────────────────────────────────────────────────────────
 
 export function deriveLockOwnerCentricData(threads: Thread[]): LockOwnerCentricData {
-    if (!threads || threads.length === 0) return { lockOwners: [], orphanedLocks: [], deadlocks: [] };
+    if (!threads || threads.length === 0) return { lockOwners: [], unownedLocks: [], deadlocks: [] };
 
     const latestByThreadId = new Map<string, { thread: Thread; snapshot: ThreadSnapshot }>();
     for (const thread of threads) {
@@ -195,14 +195,14 @@ export function deriveLockOwnerCentricData(threads: Thread[]): LockOwnerCentricD
 
     const lockOwners = [...lockOwnerMap.values()].sort((a, b) => b.totalBlocked - a.totalBlocked);
 
-    const orphanedLocks: OrphanedLock[] = [];
+    const unownedLocks: UnownedLock[] = [];
     for (const [address, data] of waitingByLock.entries()) {
         if (!holdingByLock.has(address)) {
-            orphanedLocks.push({ address, className: data.className, lockType: data.lockType, blockedThreads: data.blockedThreads });
+            unownedLocks.push({ address, className: data.className, lockType: data.lockType, blockedThreads: data.blockedThreads });
         }
     }
 
     const deadlocks = detectDeadlocks(waitGraph, holderGraph, latestByThreadId, waitingByLock);
 
-    return { lockOwners, orphanedLocks, deadlocks };
+    return { lockOwners, unownedLocks, deadlocks };
 }
