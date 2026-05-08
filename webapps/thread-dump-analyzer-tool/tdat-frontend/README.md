@@ -1,6 +1,6 @@
 # TDAT Frontend
 
-React 19 SPA for the Thread Dump Analysis Tool. Upload Java thread dumps, explore results, and visualize lock contention — backed by the `tdat-backend` API.
+React 19 SPA for the Thread Dump Analysis Tool. Upload Java thread dumps, explore results, and visualize lock contention backed by the `tdat-backend` API.
 
 ## Getting Started
 
@@ -38,7 +38,7 @@ pnpm preview    # Preview production build
 ## Pages
 
 ### Upload (`/`)
-Drag-and-drop upload of thread dump files and optional CPU usage metric files. Files are paired by index (dump[0] ↔ usage[0]). Triggers async analysis and polls for completion before navigating to the dashboard.
+Drag-and-drop upload of thread dump files and optional CPU usage metric files. Dump/usage files are paired by a normalized filename key (`utils/uploadValidation.ts#extractFileKey`) - known prefixes (`threaddump`, `threadusage`, `dump`, `usage`, `td`, `tu`, etc.) are stripped only when followed by a `_`/`-`/`.` boundary or end-of-string, so generic prefixes like `td` do not eat into unrelated names such as `today.log`. Triggers async analysis and polls for completion before navigating to the dashboard.
 
 ### Dashboard (`/dashboard`)
 Summary cards (thread counts by state and risk), state distribution chart, key findings from the rule engine, thread activity heatmap, and AI-generated insights rendered as formatted markdown.
@@ -51,15 +51,17 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 
 ## Key Implementation Details
 
-**Session persistence** — analysis results are stored in IndexedDB via `localforage` under key `tdat_analysis_session`. The app shows a full-screen loader until hydration completes, so the dashboard is always available after a page refresh.
+**Session persistence** - analysis results are stored in IndexedDB via `localforage` under key `tdat_analysis_session`. The app shows a full-screen loader until hydration completes, so the dashboard is always available after a page refresh.
 
-**Job polling** — `useAnalyzeThreads` uses TanStack React Query's `refetchInterval` to poll `GET /api/v1/analyze/jobs/{id}` every 3 seconds. Polling stops automatically on `completed` or `failed` status.
+**Job polling** - `useAnalyzeThreads` uses TanStack React Query's `refetchInterval` to poll `GET /api/v1/analyze/jobs/{id}` every 3 seconds. Polling stops automatically on `completed` or `failed` status.
 
-**Lock contention** — computed entirely in the browser from raw snapshot data (`utils/lockContentionAnalysis.ts`). The backend does not pre-aggregate contention.
+**Lock contention** - computed entirely in the browser from raw snapshot data (`utils/lockContentionAnalysis.ts`). The backend does not pre-aggregate contention.
 
-**Theme** — light/dark/system preference persisted to `localStorage` under key `tdat-theme`. Toggled via the header icon.
+**Thread row keys** - `ThreadExplorer` keys each `ThreadRow` on the `{id, name, native_id, thread_pool}` composite identity used by the backend aggregator. The aggregator emits distinct histories that can share a `thread.id`, so keying on `id` alone would collide and corrupt React's reconciliation during sort/filter.
 
-**Auth gate** — `AppHandler` checks Asgardeo auth state before rendering the router. Unauthenticated users see `LoginScreen`; loading state shows `PreLoader`.
+**Theme** - light/dark/system preference persisted to `localStorage` under key `tdat-theme`. Toggled via the header icon.
+
+**Auth gate** - `AppHandler` checks Asgardeo auth state before rendering the router. Unauthenticated users see `LoginScreen`; loading state shows `PreLoader`.
 
 ## Stack
 
@@ -153,7 +155,7 @@ tdat-frontend/
     │   ├── lockParsing.ts                  Regex constants, findWaitingLock, findHeldLocks
     │   ├── lockContentionAnalysis.ts       deriveLockOwnerCentricData, detectDeadlocks
     │   ├── reportFormatter.ts              Plain-text report from AnalysisResponse
-    │   └── uploadValidation.ts             validateFiles, extractFileKey, PairedFile type
+    │   └── uploadValidation.ts             validateFiles, extractFileKey (boundary-safe prefix strip), PairedFile type
     └── types/
         ├── api.ts                          JobInitResponse, JobStatusResponse, AnalysisResponse, etc.
         └── global.d.ts                     Window.configs augmentation

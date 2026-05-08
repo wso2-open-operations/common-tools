@@ -15,7 +15,7 @@ go run .
 
 A built-in HTML form at `http://localhost:8080` can be used for manual testing without the frontend.
 
-If `ANTHROPIC_API_KEY` is not set, analysis still completes — AI insights return a static "unavailable" message instead of failing the job.
+If `ANTHROPIC_API_KEY` is not set, analysis still completes and AI insights return a static "unavailable" message instead of failing the job.
 
 ## API
 
@@ -28,7 +28,7 @@ Upload thread dumps and start an async analysis job.
 | Field | Required | Description |
 |---|---|---|
 | `thread_dumps` | Yes | One or more Java thread dump text files |
-| `thread_usages` | No | Matching CPU usage files (`PID TID %CPU TIME` columns), paired by index with dumps |
+| `thread_usages` | No | Matching CPU usage files (`PID TID %CPU TIME` columns), paired by upload index with `thread_dumps` (the TDAT frontend pre-aligns the two arrays by filename key before posting) |
 
 **Response:** `202 Accepted`
 ```json
@@ -80,15 +80,15 @@ POST /api/v1/analyze/jobs
 
 Two unambiguous findings are flagged **natively by the parser** before rules run, since they arrive as JVM summary blocks or single-number signals rather than per-thread state:
 
-- **Deadlocks** — threads listed in the `Found X Java-level deadlock` summary block are tagged `CRITICAL` directly in `ParseThread`.
-- **Runaway CPU** — threads with `CPUPercentage >= 100.0` after correlation are tagged `CRITICAL` in `ProcessAndCorrelate`.
+- **Deadlocks** - threads listed in the `Found X Java-level deadlock` summary block are tagged `CRITICAL` directly in `ParseThread`.
+- **Runaway CPU** - threads with `CPUPercentage >= 100.0` after correlation are tagged `CRITICAL` in `ProcessAndCorrelate`.
 
 Both also set `Analyzed = true` so the rule engine skips them. The corresponding rules (`DeadlockDetection`, `ThreadStarvation`) remain as defensive backups.
 
 | Risk | Examples |
 |---|---|
-| CRITICAL | Deadlock (parser), runaway CPU ≥100% (parser), thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O, PassThrough starvation on backend I/O, DB connection pool exhaustion, critical lock contention (20+ threads on same monitor), catastrophic thread count (5,000+ live threads — GC root explosion) |
-| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3–19 threads on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
+| CRITICAL | Deadlock (parser), runaway CPU ≥100% (parser), thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O, PassThrough starvation on backend I/O, DB connection pool exhaustion, critical lock contention (20+ threads on same monitor), catastrophic thread count (5,000+ live threads - GC root explosion) |
+| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3-19 threads on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
 | MEDIUM | Idle threads (>10s), native/socket block with 0% CPU, recursive lock, thread leak |
 | INFO | Threads not belonging to any known pool |
 
@@ -98,7 +98,7 @@ Threads are matched against regex patterns in `config/thread_pools.yaml`. Suppor
 
 ### Multi-Dump Analysis
 
-When multiple dump files are uploaded, threads are correlated across files by composite identity (`name + id + native_id + pool`), producing a chronological snapshot history per thread.
+When multiple dump files are uploaded, threads are correlated across files by composite identity (`name + id + native_id + pool`), producing a chronological snapshot history per thread. The frontend reuses this same composite as the React row key in `ThreadExplorer`, so distinct histories that share a single `thread.id` do not collide on render.
 
 ### AI Insights
 
