@@ -143,8 +143,12 @@ tdat-frontend/
     │       │   ├── BlockedThreadRow.tsx    Single blocked thread with wait-time chip
     │       │   ├── LockChainView.tsx       Deadlock cycle arrow diagram
     │       │   └── OrphanedLockCard.tsx
-    │       └── thread-explorer/
-    │           └── ThreadRow.tsx           Expandable row with state chart + snapshot details
+    │       └── thread-explorer/           ThreadExplorer sub-components
+    │           ├── ThreadRow.tsx           Expandable row with state chart + snapshot details
+    │           ├── PoolSidebar.tsx         Left-rail pool list with select-all and per-pool toggles
+    │           ├── PoolHeaderCard.tsx      Header card with pool details accordion (owns showPoolDetails state)
+    │           ├── ThreadSortHeader.tsx    Column header row; exports SortableKeys / Order types
+    │           └── ThreadTablePagination.tsx   Page selector + rows-per-page dropdown
     ├── utils/
     │   ├── lockParsing.ts                  Regex constants, findWaitingLock, findHeldLocks
     │   ├── lockContentionAnalysis.ts       deriveLockOwnerCentricData, detectDeadlocks

@@ -44,6 +44,7 @@ function UploadPage() {
     const sortedDumps = [...dumps].sort((a, b) => a.name.localeCompare(b.name));
     const sortedUsages = [...usages].sort((a, b) => a.name.localeCompare(b.name));
 
+    // Two-pass pairing: match dumps to usages by filename key, then add unmatched usages.
     const pairedFiles = useMemo<PairedFile[]>(() => {
         if (sortedUsages.length === 0) {
             return sortedDumps.map(dump => ({ dump, usage: null, matched: true }));

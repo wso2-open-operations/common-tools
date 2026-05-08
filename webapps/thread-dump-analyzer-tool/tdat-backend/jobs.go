@@ -34,17 +34,13 @@ import (
 )
 
 const (
-	// maxUploadBytes caps the multipart body so ParseMultipartForm never spills
-	// to disk in $TMPDIR — see analyzeJobsHandler.
+	// maxUploadBytes caps the multipart body so ParseMultipartForm never spills to disk in $TMPDIR — see analyzeJobsHandler.
 	maxUploadBytes = 100 << 20
 
-	// jobTTL is how long a terminal (completed/failed) job is retained before
-	// the janitor evicts it.
+	// jobTTL is how long a terminal (completed/failed) job is retained beforenthe janitor evicts it.
 	jobTTL = 1 * time.Hour
 
-	// jobStoreMaxSize is a hard cap on retained terminal jobs; the oldest are
-	// evicted first when the cap is exceeded. Pending/running jobs are never
-	// evicted regardless of cap.
+	// jobStoreMaxSize is a hard cap on terminal jobs; oldest evicted first; pending/running exempt.
 	jobStoreMaxSize = 200
 
 	// jobJanitorTick is how often the background eviction sweep runs.
@@ -60,8 +56,8 @@ const (
 	JobFailed    JobStatus = "failed"
 )
 
-// Job represents one asynchronous analysis request. Result is populated once Status is
-// JobCompleted; Error is populated on JobFailed.
+// Job represents one asynchronous analysis request.
+// Result is populated once Status is JobCompleted; Error is populated on JobFailed.
 type Job struct {
 	ID        string                      `json:"job_id"`
 	Status    JobStatus                   `json:"status"`
@@ -153,7 +149,7 @@ func (s *JobStore) Get(id string) (*Job, bool) {
 	if !ok {
 		return nil, false
 	}
-	//A copy is taken under read lock to avoid
+	// Copy under read lock to prevent mutation of returned job after lock release.
 	snapshot := *j
 	return &snapshot, true
 }
@@ -168,8 +164,7 @@ func (s *JobStore) Update(id string, fn func(*Job)) {
 	}
 }
 
-// filePayload holds an uploaded file fully buffered in memory so analysis can
-// continue after the HTTP request has returned.
+// filePayload holds an uploaded file fully buffered in memory so analysis can continue after the HTTP request has returned.
 type filePayload struct {
 	FileName string
 	Data     []byte
@@ -192,12 +187,8 @@ func readMultipartFiles(headers []*multipart.FileHeader) ([]filePayload, error) 
 	return out, nil
 }
 
-// analyzeJobsHandler buffers the uploaded files, registers a Job, kicks off the
-// analysis in a background goroutine, and returns the job id immediately.
 func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) {
-	// Cap body size before parsing so ParseMultipartForm never spills file parts
-	// to $TMPDIR. With body <= maxUploadBytes and maxMemory == maxUploadBytes,
-	// every part stays in RAM.
+	// Cap body size so ParseMultipartForm keeps file parts in RAM, not $TMPDIR.
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
 		http.Error(w, "Files too large. Limit is 100MB.", http.StatusBadRequest)
@@ -249,8 +240,6 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore,
 	json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID})
 }
 
-// jobStatusHandler returns the current Job record, including Result once the
-// job is completed.
 func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *JobStore) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -266,27 +255,20 @@ func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *JobStore) {
 	json.NewEncoder(w).Encode(job)
 }
 
-// preppedFile holds the output of parallel phase 1 (parse + correlate +
-// enrich) so phase 2 can run the rule engine serially in upload order with
-// carry-over GlobalStats for temporal rules.
+// Holds phase 1 output (parse/correlate/enrich) so phase 2 runs serially with GlobalStats carry-over.
 type preppedFile struct {
 	fileName          string
 	threads           []parser.Thread
 	usageDataProvided bool
 }
 
-// runAnalysis runs the full parsing/enrichment/Grule/AI pipeline over
-// already-buffered file payloads and returns the aggregated response.
-//
-// Phase 1 (parallel): parse, correlate, enrich each file into a slot indexed by
-// upload order. Phase 2 (serial, ordered): invoke the rule engine, threading
-// the previous dump's BlockedPercentage and TotalThreads forward so the
-// SuddenBlockageSpike and ThreadLeak rules can fire across consecutive dumps.
+// Two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
 func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) *AggregatedAnalysisResponse {
 	prepped := make([]*preppedFile, len(dumps))
 	errSlots := make([][]string, len(dumps))
 	var wg sync.WaitGroup
 
+	// Phase 1: parallel parse/correlate/enrich indexed by upload order.
 	for i, dump := range dumps {
 		wg.Add(1)
 		go func(index int, d filePayload) {
@@ -295,6 +277,7 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 			var usageReader io.Reader
 			if index < len(usages) {
 				u := usages[index]
+				// Validate usage file by parsing; treat parse error or empty result the same (invalid).
 				parsed, _ := parser.ParseThreadUsage(bytes.NewReader(u.Data))
 				if len(parsed) == 0 {
 					errSlots[index] = append(errSlots[index], fmt.Sprintf("Invalid file. No valid thread usage data found in %s", u.FileName))
@@ -331,6 +314,7 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 	prevBlockedPct := 0.0
 	prevTotalThreads := 0
 
+	// Phase 2: serial, ordered rule engine execution with temporal state carry-over.
 	for i := range prepped {
 		errorMessages = append(errorMessages, errSlots[i]...)
 		p := prepped[i]

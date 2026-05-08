@@ -37,7 +37,6 @@ func NewEngine(ruleFilePath string) (*RuleEngine, error) {
 	lib := ast.NewKnowledgeLibrary()
 	ruleBuilder := builder.NewRuleBuilder(lib)
 
-	// Load the rules from the file system
 	err := ruleBuilder.BuildRuleFromResource("ThreadRules", "0.0.1", pkg.NewFileResource(ruleFilePath))
 	if err != nil {
 		return nil, err
@@ -48,15 +47,10 @@ func NewEngine(ruleFilePath string) (*RuleEngine, error) {
 	}, nil
 }
 
-// AnalyzeThreads applies the rules to a slice of threads concurrently. The
-// caller passes prevBlockedPct and prevTotalThreads from the previously
-// analyzed dump (zero on the first dump) so temporal rules — SuddenBlockageSpike
-// and ThreadLeak — can compare against the prior snapshot. The returned
-// GlobalStats is what the caller should feed back as prev values on the next
-// invocation.
+// Applies rules concurrently with prev metrics for temporal rules.
+// Caller should pass the returned GlobalStats as prev values on next invocation.
 func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided bool, prevBlockedPct float64, prevTotalThreads int) (*parser.GlobalStats, error) {
 
-	// Preprocessing: CPU Usage Inference
 	if !usageDataProvided {
 		for i := range threads {
 			t := &threads[i]
@@ -134,9 +128,8 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		go func(threadChunk []parser.Thread) {
 			defer wg.Done()
 
-			// One engine per worker — GruleEngine itself is stateless, so it is
-			// safe to reuse across threads in this chunk as long as each thread
-			// gets its own KnowledgeBase clone below.
+			// One engine per worker
+			// GruleEngine is stateless and thread-safe here, provided each thread uses its own KnowledgeBase clone.
 			workerEngine := engine.NewGruleEngine()
 
 			for j := range threadChunk {

@@ -21,6 +21,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ThreadStateChip from '@component/ui/ThreadStateChip';
 import type { BlockedThreadInfo } from '../../../utils/lockContentionAnalysis';
 
+// Severity mapping: ≥1 min = critical, ≥10s = high, ≥1s = medium, <1s = success (normal wait)
 function getWaitSeverity(ms: number, theme: Theme): { bg: string; color: string } {
     if (ms >= 60_000) return { bg: theme.palette.severity.critical.bg, color: theme.palette.severity.critical.text };
     if (ms >= 10_000) return { bg: theme.palette.severity.high.bg, color: theme.palette.severity.high.text };

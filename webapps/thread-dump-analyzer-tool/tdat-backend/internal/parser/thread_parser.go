@@ -73,8 +73,7 @@ func (t *Thread) StackTraceCount(keyword string) int {
 	return count
 }
 
-// HasRepeatedLock reports whether the thread holds the same lock address more than once —
-// a sign of recursive or nested synchronization on the same object.
+// HasRepeatedLock reports whether the thread holds the same lock address more than once.
 func (t *Thread) HasRepeatedLock() bool {
 	seen := map[string]bool{}
 	for _, line := range t.StackTrace {
@@ -257,10 +256,8 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 		threads = append(threads, *currentThread)
 	}
 
-	// Mark threads that appear in the deadlock summary section.
-	// Deadlocks are JVM-reported summary blocks, not per-thread states — flag them
-	// as CRITICAL during extraction so the result is correct even before rules run.
-	// Setting Analyzed = true prevents the rules engine from re-firing on the same finding.
+	// Pre-flag deadlocked threads as CRITICAL; Analyzed=true prevents rules re-firing.
+	// Deadlocks are JVM-reported findings, not inferred.
 	for i := range threads {
 		if deadlockedNames[threads[i].Name] {
 			threads[i].IsDeadlocked = true

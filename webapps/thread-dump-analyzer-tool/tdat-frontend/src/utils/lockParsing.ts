@@ -22,6 +22,7 @@ export interface LockRef {
     lockType: LockType;
 }
 
+// Parse Java thread dump lock patterns: LOCK_WAITING→OBJECT_MONITOR, PARKING→JUC_LOCK, WAITING_ON→WAIT_SET
 const LOCK_WAITING_REGEX = /[-\s]waiting to lock\s+<(0x[0-9a-fA-F]+)>\s+\(a\s+([^)]+)\)/;
 const LOCK_HOLDING_REGEX = /[-\s]locked\s+<(0x[0-9a-fA-F]+)>\s+\(a\s+([^)]+)\)/;
 const PARKING_REGEX = /[-\s]parking to wait for\s+<(0x[0-9a-fA-F]+)>\s+\(a\s+([^)]+)\)/;

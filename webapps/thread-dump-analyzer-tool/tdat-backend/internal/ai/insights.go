@@ -132,8 +132,6 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 	fmt.Fprintf(&sb, "\n")
 
 	// Build candidates: worst snapshot per thread, dropping low-signal levels.
-	// INFO (standalone/ungrouped) and NORMAL carry no actionable content but
-	// consume large amounts of tokens.
 	type candidate struct {
 		thread   analyzer.AnalyzedThread
 		snapshot analyzer.ThreadSnapshot
@@ -206,6 +204,7 @@ func normalizeRisk(level string) string {
 	}
 }
 
+// Lower rank = higher severity (critical=0, normal=4)
 func riskRank(level string) int {
 	switch normalizeRisk(level) {
 	case "CRITICAL":

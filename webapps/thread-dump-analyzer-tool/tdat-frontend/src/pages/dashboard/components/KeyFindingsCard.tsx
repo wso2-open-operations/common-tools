@@ -171,6 +171,7 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                                     {/* Sub-findings */}
                                     <Box display="flex" flexDirection="column" gap={1.25}>
                                         {findings.map((finding, idx) => {
+                                            // Show up to 8 threads before displaying "+X more" chip to avoid UI clutter
                                             const overflowCount = finding.affectedThreads.length - 8;
                                             return (
                                                 <Box key={finding.label}>

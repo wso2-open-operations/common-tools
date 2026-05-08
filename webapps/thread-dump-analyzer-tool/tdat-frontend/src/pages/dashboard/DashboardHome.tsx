@@ -29,7 +29,7 @@ import ThreadActivityCard from './components/ThreadActivityCard';
 import AIInsightsCard from './components/AIInsightsCard';
 import ExecutiveSummaryCard from './components/ExecutiveSummaryCard';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 
 type FindingSeverity = 'critical' | 'high' | 'medium' | 'info';
 
@@ -40,9 +40,8 @@ interface RuleCategory {
     severity: FindingSeverity;
 }
 
-// Maps backend Grule issue strings (from rules.grl) to dashboard-friendly
-// titles, descriptions, and severities. Order matters — first match wins,
-// so place more specific patterns above generic fallbacks.
+// Maps backend Grule issue strings (from rules.grl) to dashboard-friendly titles, descriptions, and severities. 
+// Order matters - first match wins, so place more specific patterns above generic fallbacks.
 const RULE_CATEGORIES: RuleCategory[] = [
     { test: /deadlock/i, label: 'Deadlock Detected', description: 'Threads are permanently blocked in a monitor lock cycle. The JVM cannot self-recover — a restart is likely required.', severity: 'critical' },
     { test: /runaway cpu/i, label: 'Runaway CPU Threads', description: 'Threads are consuming an entire CPU core (≥100%). Likely an infinite loop or runaway computation.', severity: 'critical' },
@@ -92,6 +91,7 @@ function computeHealthScore(snapshots: ThreadSnapshot[]): number {
     return Math.max(0, Math.round(100 - penalty));
 }
 
+// Extracts the first stack frame (blocking point) to cluster threads blocked on the same operation.
 function getClusterKey(stackTrace: string[]): string {
     for (const line of stackTrace) {
         const trimmed = line.trim();
@@ -100,7 +100,7 @@ function getClusterKey(stackTrace: string[]): string {
     return stackTrace[0]?.trim() || 'Unknown';
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// Component
 
 const DashboardHome: React.FC = () => {
     const { data } = useAnalysisData();
@@ -223,6 +223,8 @@ const DashboardHome: React.FC = () => {
         [selectedSnapshots]
     );
 
+    // Group threads by stack trace to identify common contention patterns.
+    // Keep clusters with 2+ threads, sorted by frequency, limited to top 20.
     const threadClusters = useMemo((): ThreadCluster[] => {
         const clusterMap = new Map<string, Array<{ thread: Thread; snapshot: ThreadSnapshot }>>();
         selectedSnapshots.forEach(({ thread, snapshot }) => {

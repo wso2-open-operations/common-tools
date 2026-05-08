@@ -82,8 +82,10 @@ export function renderInline(text: string, onThreadClick?: (name: string) => voi
 // following text — before line splitting so they never reach the renderer as literal characters.
 function sanitize(raw: string): string {
     return raw
-        .replace(/^[ 	]*#{1,6}[ 	]*/gm, '')  // leading hashes on any line
-        .replace(/#{1,6}/g, '');                 // any remaining stray hash sequences
+        // leading hashes on any line
+        .replace(/^[ 	]*#{1,6}[ 	]*/gm, '')  
+        // any remaining stray hash sequences
+        .replace(/#{1,6}/g, '');                 
 }
 
 // Splits raw AI text into typed blocks: headings, bullet lists, ordered lists, paragraphs.
@@ -158,7 +160,7 @@ export function renderBlocks(blocks: ParsedBlock[], options: RenderBlocksOptions
                     );
                 }
 
-                // paragraph
+                // Paragraph
                 const isFirst = emphasizeFirstParagraph && !firstParaSeen;
                 const isHighlighted = highlightBoldParagraphs && block.hasBold;
                 if (!firstParaSeen) firstParaSeen = true;

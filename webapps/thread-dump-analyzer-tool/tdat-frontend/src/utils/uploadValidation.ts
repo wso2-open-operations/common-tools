@@ -39,6 +39,8 @@ export function validateFiles(files: File[]): { valid: File[]; invalid: boolean 
     return { valid: validFiles, invalid: hasInvalid };
 }
 
+// Extract matching key from filename by removing extension and known prefixes.
+// E.g. "threaddump_2024-01-15.txt" and "threadusage_2024-01-15.log" both extract to "2024-01-15" for pairing.
 export function extractFileKey(filename: string): string {
     let key = filename.replace(/\.[^/.]+$/, '');
 

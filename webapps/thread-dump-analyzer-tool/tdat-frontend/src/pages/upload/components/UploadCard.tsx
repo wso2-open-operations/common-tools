@@ -65,6 +65,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
         if (event.target.files && event.target.files.length > 0) {
             processFiles(Array.from(event.target.files));
         }
+        // Reset value so onChange fires again if user selects the same file.
         event.target.value = '';
     };
 

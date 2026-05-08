@@ -285,7 +285,7 @@ export const themeSettings = (mode: ThemeMode) => {
           body: {
             backgroundColor: palette.background.default,
             color: palette.text.primary,
-            transition: 'background-color 0.2s ease, color 0.2s ease',
+            transition: 'background-color 0.2s ease, color 0.2s ease', // Smooth theme switching animation
           },
         }),
       },

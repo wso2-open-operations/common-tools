@@ -31,6 +31,7 @@ export const useAnalyzeThreads = () => {
     onSuccess: ({ job_id }) => setJobId(job_id),
   });
 
+  // Poll job status every 3s; dynamic refetchInterval returns false when job reaches terminal state, stopping polls.
   const query = useQuery({
     queryKey: ["jobStatus", jobId],
     queryFn: () => getJobStatus(jobId!, getAccessToken),

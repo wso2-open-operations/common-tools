@@ -20,7 +20,7 @@ import { deriveLockOwnerCentricData } from './lockContentionAnalysis';
 const LINE_WIDTH = 80;
 const DIVIDER = '='.repeat(LINE_WIDTH);
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// Helpers
 
 function centerText(text: string, width: number = LINE_WIDTH): string {
     const pad = Math.max(0, Math.floor((width - text.length) / 2));
@@ -61,7 +61,7 @@ function waitSeverityTag(ms: number): string {
     return '[OK]';
 }
 
-// ─── Table Generator ────────────────────────────────────────────────────────
+// Table Generator
 
 interface TableColumn {
     header: string;
@@ -101,8 +101,9 @@ function formatTable(columns: TableColumn[], rows: string[][]): string {
     ].join('\n') + '\n';
 }
 
-// ─── Computation (mirrors DashboardHome) ────────────────────────────────────
+// Computation (mirrors DashboardHome)
 
+// Health score is 100 minus weighted penalties: BLOCKED threads (50 pts), WAITING (15 pts), TIMED_WAITING (5 pts).
 function computeHealthScore(snapshots: ThreadSnapshot[]): number {
     if (snapshots.length === 0) return 100;
     const total = snapshots.length;
@@ -113,6 +114,7 @@ function computeHealthScore(snapshots: ThreadSnapshot[]): number {
     return Math.max(0, Math.round(100 - penalty));
 }
 
+// Extract the most relevant executing method from stack trace (first "at" line) for clustering threads.
 function getClusterKey(stackTrace: string[]): string {
     for (const line of stackTrace) {
         const trimmed = line.trim();
@@ -141,7 +143,7 @@ function getDumpNames(threads: Thread[]): string[] {
     return [...names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
-// ─── Section Formatters ─────────────────────────────────────────────────────
+// Section Formatters
 
 function formatHeader(sessionId: string, timestamp: string): string {
     return [
@@ -485,7 +487,7 @@ ${centerText('END OF REPORT')}
 ${DIVIDER}`;
 }
 
-// ─── Main Entry Point ───────────────────────────────────────────────────────
+// Main Entry Point
 
 export function generateReport(data: AnalysisResponse): string {
     const threads = data.threads ?? [];

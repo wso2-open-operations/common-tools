@@ -17,7 +17,7 @@
 import type { Thread, ThreadSnapshot } from '@/types/api';
 import { type LockType, findWaitingLock, findHeldLocks } from './lockParsing';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 
 export interface BlockedThreadInfo {
     thread: Thread;
@@ -63,7 +63,7 @@ export interface LockOwnerCentricData {
     deadlocks: DeadlockCycle[];
 }
 
-// ─── Deadlock Detection ───────────────────────────────────────────────────────
+// Deadlock Detection 
 
 function detectDeadlocks(
     waitGraph: Map<string, string>,
@@ -71,6 +71,7 @@ function detectDeadlocks(
     latestByThreadId: Map<string, { thread: Thread; snapshot: ThreadSnapshot }>,
     waitingByLock: Map<string, { className: string; lockType: LockType; blockedThreads: BlockedThreadInfo[] }>,
 ): DeadlockCycle[] {
+    // Convert lock-centric waits to thread-centric waits: A waits for lock held by B → A waits for B.
     const threadWaitsFor = new Map<string, string>();
     for (const [waitingThreadId, lockAddress] of waitGraph.entries()) {
         const holderId = holderGraph.get(lockAddress);
@@ -95,6 +96,7 @@ function detectDeadlocks(
                 const cycleStart = path.indexOf(next);
                 if (cycleStart !== -1) {
                     const cycle = path.slice(cycleStart);
+                    // Rotate cycle to start with smallest thread ID so A→B→A == B→A→A (avoid duplicate cycles).
                     const sorted = [...cycle].sort();
                     const minIdx = cycle.indexOf(sorted[0]);
                     const canonical = [...cycle.slice(minIdx), ...cycle.slice(0, minIdx)];
@@ -131,11 +133,12 @@ function detectDeadlocks(
     }));
 }
 
-// ─── Main Derivation ──────────────────────────────────────────────────────────
+// Main Derivation
 
 export function deriveLockOwnerCentricData(threads: Thread[]): LockOwnerCentricData {
     if (!threads || threads.length === 0) return { lockOwners: [], unownedLocks: [], deadlocks: [] };
 
+    // Phase 1: Collect most recent snapshot per thread (represents current thread state).
     const latestByThreadId = new Map<string, { thread: Thread; snapshot: ThreadSnapshot }>();
     for (const thread of threads) {
         if (thread.snapshots.length > 0) {
@@ -146,6 +149,7 @@ export function deriveLockOwnerCentricData(threads: Thread[]): LockOwnerCentricD
         }
     }
 
+    // Phase 2: Parse stack traces to build lock dependency graphs (which locks threads wait for/hold).
     const waitingByLock = new Map<string, { className: string; lockType: LockType; blockedThreads: BlockedThreadInfo[] }>();
     const holdingByLock = new Map<string, { thread: Thread; snapshot: ThreadSnapshot }>();
     const waitGraph = new Map<string, string>();
@@ -173,6 +177,7 @@ export function deriveLockOwnerCentricData(threads: Thread[]): LockOwnerCentricD
         }
     }
 
+    // Phase 3: Identify lock owners (threads holding locks that are blocking other threads), sorted by severity.
     const lockOwnerMap = new Map<string, LockOwnerEntry>();
     for (const { thread, snapshot } of latestByThreadId.values()) {
         const locksWithBlocked: LockWithBlockedThreads[] = [];
@@ -195,6 +200,7 @@ export function deriveLockOwnerCentricData(threads: Thread[]): LockOwnerCentricD
 
     const lockOwners = [...lockOwnerMap.values()].sort((a, b) => b.totalBlocked - a.totalBlocked);
 
+    // Phase 4: Find unowned locks (locks with waiting threads but no visible holder in current snapshot).
     const unownedLocks: UnownedLock[] = [];
     for (const [address, data] of waitingByLock.entries()) {
         if (!holdingByLock.has(address)) {

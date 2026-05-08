@@ -35,6 +35,7 @@ export function useExportReport() {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
             const filename = `Analysis_${timestamp}.txt`;
 
+            // Trigger browser download via temporary anchor element.
             const anchor = document.createElement('a');
             anchor.href = url;
             anchor.download = filename;
