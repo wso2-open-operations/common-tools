@@ -51,11 +51,11 @@ export function extractFileKey(filename: string): string {
 
     const lowerKey = key.toLowerCase();
     for (const prefix of prefixes) {
-        if (lowerKey.startsWith(prefix)) {
-            key = key.substring(prefix.length);
-            key = key.replace(/^[_\-.]/, '');
-            break;
-        }
+        if (!lowerKey.startsWith(prefix)) continue;
+        const boundary = lowerKey.charAt(prefix.length);
+        if (boundary !== '' && boundary !== '_' && boundary !== '-' && boundary !== '.') continue;
+        key = key.substring(prefix.length).replace(/^[_\-.]/, '');
+        break;
     }
 
     return key.trim().toLowerCase();

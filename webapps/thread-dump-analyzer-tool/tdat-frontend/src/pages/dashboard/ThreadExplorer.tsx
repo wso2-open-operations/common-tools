@@ -260,7 +260,7 @@ const ThreadExplorer: React.FC = () => {
                 {paginatedThreads.length > 0 ? (
                     paginatedThreads.map(({ data: thread, stats }) => (
                         <ThreadRow
-                            key={thread.id}
+                            key={`${thread.id}|${thread.name}|${thread.native_id}|${thread.thread_pool}`}
                             thread={thread}
                             stats={{ lastState: stats.state, avgCpu: stats.avgCpu, maxCpu: stats.maxCpu, avgUserTime: stats.avgUserTime }}
                         />
