@@ -16,15 +16,15 @@ Upload one or more Java thread dump files (and optionally CPU usage metrics) and
 
 | Directory | Stack | Description |
 |---|---|---|
-| `tdat-backend/` | Go | HTTP API server — parses dumps, runs Grule rules, calls Anthropic AI |
-| `tdat-frontend/` | React 19 + TypeScript + Vite | SPA - upload, dashboard, thread explorer, lock contention view |
+| `backend/` | Go | HTTP API server that parses dumps, runs Grule rules, and calls Anthropic AI |
+| `frontend/` | React 19 + TypeScript + Vite | SPA - upload, dashboard, thread explorer, lock contention view |
 
 ## Getting Started
 
 ### Backend
 
 ```bash
-cd tdat-backend
+cd backend
 # Copy the env template and fill in your Anthropic API key
 cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
@@ -38,7 +38,7 @@ If `ANTHROPIC_API_KEY` is not set, the server still runs and analysis completes 
 ### Frontend
 
 ```bash
-cd tdat-frontend
+cd frontend
 # Copy and fill in Asgardeo auth config
 cp .env.example .env.local
 # Edit .env.local: set VITE_ASGARDEO_CLIENT_ID and VITE_ASGARDEO_BASE_URL
@@ -52,8 +52,8 @@ The frontend reads the backend URL from `public/config.js` at runtime via `windo
 ## API
 
 ```
-POST /api/v1/analyze/jobs          # Upload files → returns { job_id } (202 Accepted)
-GET  /api/v1/analyze/jobs/{id}     # Poll for result → { status, result }
+POST /analyze/jobs          # Upload files → returns { job_id } (202 Accepted)
+GET  /analyze/jobs/{id}     # Poll for result → { status, result }
 GET  /health                        # Liveness probe
 GET  /                              # HTML upload form for manual testing
 ```
@@ -84,7 +84,7 @@ Dump and usage files are paired client-side by a normalized filename key (`utils
 
 ### Rule Engine (28 rules)
 
-Rules are defined in `tdat-backend/internal/rules/rules.grl` using the Grule DSL. Each thread is matched by the highest-salience rule that fires, then marked as analyzed so no second rule re-fires on it (no `Retract()` is used - gating on `Analyzed` avoids working-memory thrashing). Two unambiguous findings - JVM-reported deadlocks and runaway threads at ≥100% CPU — are pre-flagged directly by the parser before rules run. Key rules:
+Rules are defined in `backend/internal/rules/rules.grl` using the Grule DSL. Each thread is matched by the highest-salience rule that fires, then marked as analyzed so no second rule re-fires on it. The engine avoids `Retract()` and gates on the `Analyzed` flag instead, which prevents working-memory thrashing. Two unambiguous findings are pre-flagged directly by the parser before rules run: JVM-reported deadlocks, and runaway threads at ≥100% CPU. Key rules:
 
 - **Deadlock detection** - threads flagged in the JVM deadlock summary section (salience 100; parser pre-flags as CRITICAL)
 - **PassThrough starvation** - `PassThroughMessageProcessor-` threads blocked on backend I/O via NIO reactor or socket read (salience 96)
@@ -106,11 +106,11 @@ Rules are defined in `tdat-backend/internal/rules/rules.grl` using the Grule DSL
 
 ### Thread Pool Classification
 
-Threads are classified into named pools via regex patterns in `tdat-backend/config/thread_pools.yaml`. Supported pools include Tomcat HTTP/HTTPS, WSO2 Synapse/PassThrough, Disruptor, RabbitMQ, MINA, DataBridge, and more. Unmatched threads fall into `"Standalone/ Ungrouped Threads"`.
+Threads are classified into named pools via regex patterns in `backend/config/thread_pools.yaml`. Supported pools include Tomcat HTTP/HTTPS, WSO2 Synapse/PassThrough, Disruptor, RabbitMQ, MINA, DataBridge, and more. Unmatched threads fall into `"Standalone/ Ungrouped Threads"`.
 
 ### Lock Contention Analysis
 
-The frontend derives the full lock contention graph from raw thread snapshot data — no pre-processing by the backend. It identifies lock owners (threads holding contended monitors), the blocked threads waiting on each owner, and visualizes deadlock cycles with arrow-based chain diagrams.
+The frontend derives the full lock contention graph directly from the raw thread snapshot data. The backend does not pre-process this graph. The frontend identifies lock owners (threads holding contended monitors), the blocked threads waiting on each owner, and visualizes deadlock cycles with arrow-based chain diagrams.
 
 - `utils/lockParsing.ts` - regex extraction of held/waiting lock addresses
 - `utils/lockContentionAnalysis.ts` - `deriveLockOwnerCentricData`, `detectDeadlocks`
@@ -124,7 +124,7 @@ After rule analysis, the backend sends a summarized thread report (up to 40 non-
 This project is licensed under the **Apache License 2.0**. See LICENSE file for details.
 
 ```
-Copyright (c) 2025 WSO2 LLC. (https://www.wso2.com).
+Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
 ```
 
 All source files include the Apache 2.0 license header. You are free to use, modify, and distribute this software under the terms of the Apache License 2.0.
