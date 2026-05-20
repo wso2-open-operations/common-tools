@@ -9,16 +9,22 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+function isSafeUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url.trim());
+}
+
 export function generateSignatureHTML(data: SignatureData): string {
   const socialLinks: string[] = [];
   if (data.medium) {
+    const safeUrl = isSafeUrl(data.medium) ? escapeHtml(data.medium) : "#";
     socialLinks.push(
-      `<a href="${escapeHtml(data.medium)}" style="color: #000000; text-decoration: none;">Medium</a>`
+      `<a href="${safeUrl}" style="color: #000000; text-decoration: none;">Medium</a>`
     );
   }
   if (data.linkedin) {
+    const safeUrl = isSafeUrl(data.linkedin) ? escapeHtml(data.linkedin) : "#";
     socialLinks.push(
-      `<a href="${escapeHtml(data.linkedin)}" style="color: #000000; text-decoration: none;">LinkedIn</a>`
+      `<a href="${safeUrl}" style="color: #000000; text-decoration: none;">LinkedIn</a>`
     );
   }
   const socialText = socialLinks.join(" | ");

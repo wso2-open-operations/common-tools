@@ -76,7 +76,7 @@ const fields: {
 ];
 
 export default function SignatureForm({ data, onChange }: Props) {
-  const filled = Object.values(data).filter(Boolean).length;
+  const filled = Object.values(data).filter((v) => v.trim().length > 0).length;
   const total = Object.keys(data).length;
 
   const handleChange =
@@ -192,14 +192,16 @@ export default function SignatureForm({ data, onChange }: Props) {
                 type={field.type ?? "text"}
                 required={field.required}
                 helperText={field.helper}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      {field.icon}
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        {field.icon}
+                      </InputAdornment>
+                    ),
+                  },
+                  htmlInput: { autoComplete: "off" },
                 }}
-                inputProps={{ autoComplete: "off" }}
               />
             </Box>
           );

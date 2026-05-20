@@ -7,7 +7,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, ChevronUp, Clipboard, Code2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SignatureData } from "../types";
 import { copyHtmlCode, copyRichText } from "../utils/clipboard";
 import { generateSignatureHTML } from "../utils/signatureGenerator";
@@ -19,7 +19,7 @@ interface Props {
 type CopyState = "idle" | "success" | "error";
 
 function hasContent(data: SignatureData): boolean {
-  return Boolean(data.name || data.designation);
+  return data.name.trim().length > 0 || data.designation.trim().length > 0;
 }
 
 export default function SignaturePreview({ data }: Props) {
@@ -27,7 +27,18 @@ export default function SignaturePreview({ data }: Props) {
   const [htmlCopyState, setHtmlCopyState] = useState<CopyState>("idle");
   const [showCode, setShowCode] = useState(false);
 
-  const signatureHTML = hasContent(data) ? generateSignatureHTML(data) : "";
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const signatureHTML = useMemo(
+    () => (hasContent(data) ? generateSignatureHTML(data) : ""),
+    [data]
+  );
 
   const handleCopy = useCallback(
     async (type: "rich" | "html") => {
@@ -39,7 +50,8 @@ export default function SignaturePreview({ data }: Props) {
           ? await copyRichText(signatureHTML)
           : await copyHtmlCode(signatureHTML);
       setter(ok ? "success" : "error");
-      setTimeout(() => setter("idle"), 2500);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setter("idle"), 2500);
     },
     [signatureHTML]
   );
