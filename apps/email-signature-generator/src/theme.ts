@@ -1,6 +1,6 @@
 import { createTheme } from "@mui/material/styles";
 
-const WSO2_ORANGE = "#FF7300";
+const WSO2_ORANGE = "#FF7200";
 const WSO2_ORANGE_DARK = "#E55A00";
 const WSO2_ORANGE_LIGHT = "#FF9133";
 

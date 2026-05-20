@@ -6,10 +6,10 @@ import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, ChevronUp, Clipboard, Code2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Clipboard } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SignatureData } from "../types";
-import { copyHtmlCode, copyRichText } from "../utils/clipboard";
+import { copyRichText } from "../utils/clipboard";
 import { generateSignatureHTML } from "../utils/signatureGenerator";
 
 interface Props {
@@ -24,7 +24,6 @@ function hasContent(data: SignatureData): boolean {
 
 export default function SignaturePreview({ data }: Props) {
   const [richCopyState, setRichCopyState] = useState<CopyState>("idle");
-  const [htmlCopyState, setHtmlCopyState] = useState<CopyState>("idle");
   const [showCode, setShowCode] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,24 +36,16 @@ export default function SignaturePreview({ data }: Props) {
 
   const signatureHTML = useMemo(
     () => (hasContent(data) ? generateSignatureHTML(data) : ""),
-    [data]
+    [data],
   );
 
-  const handleCopy = useCallback(
-    async (type: "rich" | "html") => {
-      if (!signatureHTML) return;
-      const setter =
-        type === "rich" ? setRichCopyState : setHtmlCopyState;
-      const ok =
-        type === "rich"
-          ? await copyRichText(signatureHTML)
-          : await copyHtmlCode(signatureHTML);
-      setter(ok ? "success" : "error");
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setter("idle"), 2500);
-    },
-    [signatureHTML]
-  );
+  const handleCopy = useCallback(async () => {
+    if (!signatureHTML) return;
+    const ok = await copyRichText(signatureHTML);
+    setRichCopyState(ok ? "success" : "error");
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setRichCopyState("idle"), 2500);
+  }, [signatureHTML]);
 
   return (
     <Paper
@@ -75,8 +66,7 @@ export default function SignaturePreview({ data }: Props) {
           left: 0,
           right: 0,
           height: "3px",
-          background:
-            "linear-gradient(90deg, rgba(255,115,0,0.2), #FF7300)",
+          background: "linear-gradient(90deg, rgba(255,115,0,0.2), #FF7200)",
         },
       }}
     >
@@ -201,7 +191,7 @@ export default function SignaturePreview({ data }: Props) {
               variant="contained"
               fullWidth
               disabled={!hasContent(data)}
-              onClick={() => handleCopy("rich")}
+              onClick={() => handleCopy()}
               startIcon={
                 richCopyState === "success" ? (
                   <Check size={16} />
@@ -215,15 +205,15 @@ export default function SignaturePreview({ data }: Props) {
                   richCopyState === "success"
                     ? "#22c55e"
                     : richCopyState === "error"
-                    ? "#ef4444"
-                    : "primary.main",
+                      ? "#ef4444"
+                      : "primary.main",
                 "&:hover": {
                   bgcolor:
                     richCopyState === "success"
                       ? "#16a34a"
                       : richCopyState === "error"
-                      ? "#dc2626"
-                      : "primary.dark",
+                        ? "#dc2626"
+                        : "primary.dark",
                 },
                 "&.Mui-disabled": { opacity: 0.4 },
                 transition: "background-color 0.3s ease",
@@ -232,44 +222,8 @@ export default function SignaturePreview({ data }: Props) {
               {richCopyState === "success"
                 ? "Copied!"
                 : richCopyState === "error"
-                ? "Failed — try again"
-                : "Copy for Email"}
-            </Button>
-          </span>
-        </Tooltip>
-
-        <Tooltip title="Copy the raw HTML source code" placement="top">
-          <span>
-            <Button
-              variant="outlined"
-              disabled={!hasContent(data)}
-              onClick={() => handleCopy("html")}
-              startIcon={
-                htmlCopyState === "success" ? (
-                  <Check size={16} />
-                ) : (
-                  <Code2 size={16} />
-                )
-              }
-              sx={{
-                py: 1.4,
-                px: 2,
-                borderColor:
-                  htmlCopyState === "success" ? "#22c55e" : "#2a2a2a",
-                color:
-                  htmlCopyState === "success"
-                    ? "#22c55e"
-                    : "text.secondary",
-                "&:hover": {
-                  borderColor: "primary.main",
-                  color: "primary.main",
-                },
-                "&.Mui-disabled": { opacity: 0.4 },
-                transition: "all 0.3s ease",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {htmlCopyState === "success" ? "Copied!" : "Copy HTML"}
+                  ? "Failed — try again"
+                  : "Copy for Email"}
             </Button>
           </span>
         </Tooltip>
@@ -286,9 +240,8 @@ export default function SignaturePreview({ data }: Props) {
             textAlign: "center",
           }}
         >
-          Use{" "}
-          <strong style={{ color: "#FF7300" }}>Copy for Email</strong> →
-          paste in Gmail Settings → Signature, or Outlook New Signature
+          Use <strong style={{ color: "#FF7200" }}>Copy for Email</strong> →
+          paste in Gmail Settings → Signature
         </Typography>
       )}
 

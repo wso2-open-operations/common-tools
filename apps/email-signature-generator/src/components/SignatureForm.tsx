@@ -103,7 +103,7 @@ export default function SignatureForm({ data, onChange }: Props) {
           left: 0,
           right: 0,
           height: "3px",
-          background: "linear-gradient(90deg, #FF7300, rgba(255,115,0,0.2))",
+          background: "linear-gradient(90deg, #FF7200, rgba(255,115,0,0.2))",
         },
       }}
     >
@@ -232,7 +232,7 @@ export default function SignatureForm({ data, onChange }: Props) {
           transition={{ duration: 0.4, ease: "easeOut" }}
           sx={{
             height: "100%",
-            background: "linear-gradient(90deg, #FF7300, #FF9133)",
+            background: "linear-gradient(90deg, #FF7200, #FF9133)",
             borderRadius: 2,
             boxShadow: "0 0 8px rgba(255,115,0,0.4)",
           }}
