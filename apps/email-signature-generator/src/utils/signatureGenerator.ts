@@ -1,26 +1,35 @@
 import type { SignatureData } from "../types";
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export function generateSignatureHTML(data: SignatureData): string {
   const socialLinks: string[] = [];
   if (data.medium) {
     socialLinks.push(
-      `<a href="${data.medium}" style="color: #000000; text-decoration: none;">Medium</a>`
+      `<a href="${escapeHtml(data.medium)}" style="color: #000000; text-decoration: none;">Medium</a>`
     );
   }
   if (data.linkedin) {
     socialLinks.push(
-      `<a href="${data.linkedin}" style="color: #000000; text-decoration: none;">LinkedIn</a>`
+      `<a href="${escapeHtml(data.linkedin)}" style="color: #000000; text-decoration: none;">LinkedIn</a>`
     );
   }
   const socialText = socialLinks.join(" | ");
 
   let phoneText = "";
   if (data.workPhone && data.personalPhone) {
-    phoneText = `Work: ${data.workPhone} | Mobile: ${data.personalPhone}`;
+    phoneText = `Work: ${escapeHtml(data.workPhone)} | Mobile: ${escapeHtml(data.personalPhone)}`;
   } else if (data.workPhone) {
-    phoneText = `Work: ${data.workPhone}`;
+    phoneText = `Work: ${escapeHtml(data.workPhone)}`;
   } else if (data.personalPhone) {
-    phoneText = `Mobile: ${data.personalPhone}`;
+    phoneText = `Mobile: ${escapeHtml(data.personalPhone)}`;
   }
 
   const tdBase = [
@@ -31,7 +40,7 @@ export function generateSignatureHTML(data: SignatureData): string {
     `background-color: transparent`,
   ].join(";");
 
-  const textTd = (extra = "") =>
+  const textTd = (extra: string = "") =>
     `${tdBase};color: #000000 !important;font-family: Inter, Arial, sans-serif;line-height: 1.4;padding: 0 0 3px 0;${extra}`;
 
   return `<table border="0" cellpadding="0" cellspacing="0" style="${tdBase};font-family: Arial, sans-serif;max-width: 400px;" width="100%">
@@ -47,14 +56,14 @@ export function generateSignatureHTML(data: SignatureData): string {
             </tr>
             <tr>
               <td style="${textTd("font-size: 13px;font-weight: 700;")}">
-                <span style="color: #000000 !important;">${data.name}</span>
+                <span style="color: #000000 !important;">${escapeHtml(data.name)}</span>
               </td>
             </tr>
             ${
               data.designation
                 ? `<tr>
               <td style="${textTd("font-size: 12px;font-weight: 600;")}">
-                <span style="color: #000000 !important;">${data.designation}, WSO2</span>
+                <span style="color: #000000 !important;">${escapeHtml(data.designation)}, WSO2</span>
               </td>
             </tr>`
                 : ""
