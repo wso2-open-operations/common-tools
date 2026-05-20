@@ -12,5 +12,16 @@ export function getAppConfig(): AppConfig {
       "window.config is not defined. Ensure /config.js is loaded before the app bundle."
     );
   }
+  const required: (keyof AppConfig)[] = [
+    "ASGARDEO_BASE_URL",
+    "AUTH_SIGN_IN_REDIRECT_URL",
+    "AUTH_SIGN_OUT_REDIRECT_URL",
+    "ASGARDEO_CLIENT_ID",
+  ];
+  for (const key of required) {
+    if (!cfg[key]) {
+      throw new Error(`window.config.${key} is missing or empty. Check /config.js.`);
+    }
+  }
   return cfg;
 }
