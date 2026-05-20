@@ -11,6 +11,6 @@ body {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #0d0d0d; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #FF7300; }
+::-webkit-scrollbar-thumb:hover { background: #FF7200; }
 
 #root { min-height: 100vh; }

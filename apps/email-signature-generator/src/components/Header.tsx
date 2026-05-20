@@ -1,8 +1,17 @@
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import { useAuthContext } from "@asgardeo/auth-react";
 import { motion } from "framer-motion";
+import { LogOut } from "lucide-react";
 
-export default function Header() {
+interface Props {
+  displayName: string;
+}
+
+export default function Header({ displayName }: Props) {
+  const { signOut } = useAuthContext();
+
   return (
     <Box
       component={motion.header}
@@ -22,13 +31,53 @@ export default function Header() {
           transform: "translateX(-50%)",
           width: "60px",
           height: "2px",
-          background: "linear-gradient(90deg, transparent, #FF7300, transparent)",
+          background: "linear-gradient(90deg, transparent, #FF7200, transparent)",
         },
       }}
     >
+      {/* User info + sign out */}
+      <Box
+        data-testid="user-display"
+        sx={{
+          position: "absolute",
+          top: 16,
+          right: 24,
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+        }}
+      >
+        {displayName && (
+          <Typography
+            data-testid="display-name-text"
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              fontFamily: '"Space Mono", monospace',
+              fontSize: "0.75rem",
+            }}
+          >
+            {displayName}
+          </Typography>
+        )}
+        <Button
+          size="small"
+          onClick={() => signOut()}
+          startIcon={<LogOut size={14} />}
+          sx={{
+            color: "text.secondary",
+            textTransform: "none",
+            fontSize: "0.75rem",
+            "&:hover": { color: "#FF7200" },
+          }}
+        >
+          Sign out
+        </Button>
+      </Box>
+
       <Box
         component="img"
-        src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/wso2-orange-logo.png"
+        src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Logo-White.png"
         alt="WSO2"
         sx={{ width: 120, mb: 3, display: "block", mx: "auto" }}
       />
@@ -37,10 +86,7 @@ export default function Header() {
         sx={{
           fontSize: { xs: "2rem", md: "2.8rem" },
           fontWeight: 700,
-          background: "linear-gradient(135deg, #FF7300 0%, #FF9133 50%, #FF7300 100%)",
-          backgroundClip: "text",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
+          color: "#FF7200",
           letterSpacing: "-0.03em",
           mb: 1,
         }}

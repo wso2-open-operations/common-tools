@@ -1,7 +1,10 @@
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 import { ThemeProvider } from "@mui/material/styles";
-import { useState } from "react";
+import { useAuthContext } from "@asgardeo/auth-react";
+import { useEffect, useState } from "react";
 import Header from "./components/Header";
+import LoginPage from "./components/LoginPage";
 import SignatureForm from "./components/SignatureForm";
 import SignaturePreview from "./components/SignaturePreview";
 import { theme } from "./theme";
@@ -17,7 +20,43 @@ const initialData: SignatureData = {
 };
 
 export default function App() {
+  const { state, getBasicUserInfo } = useAuthContext();
   const [data, setData] = useState<SignatureData>(initialData);
+  const [displayName, setDisplayName] = useState("");
+
+  useEffect(() => {
+    if (!state.isAuthenticated) return;
+    getBasicUserInfo()
+      .then((userInfo) => {
+        if (userInfo.displayName) {
+          setDisplayName(userInfo.displayName);
+          setData((prev) => ({ ...prev, name: userInfo.displayName! }));
+        }
+      })
+      .catch(() => {});
+  }, [state.isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (state.isLoading) {
+    return (
+      <ThemeProvider theme={theme}>
+        <Box
+          sx={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: "background.default",
+          }}
+        >
+          <CircularProgress sx={{ color: "#FF7200" }} />
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
+  if (!state.isAuthenticated) {
+    return <LoginPage />;
+  }
 
   return (
     <ThemeProvider theme={theme}>
@@ -39,7 +78,7 @@ export default function App() {
           }}
         />
         <Box sx={{ position: "relative", zIndex: 1 }}>
-          <Header />
+          <Header displayName={displayName} />
           <Box
             sx={{
               display: "grid",
@@ -53,7 +92,13 @@ export default function App() {
             }}
           >
             <SignatureForm data={data} onChange={setData} />
-            <Box sx={{ position: { lg: "sticky" }, top: { lg: 24 }, alignSelf: "start" }}>
+            <Box
+              sx={{
+                position: { lg: "sticky" },
+                top: { lg: 24 },
+                alignSelf: "start",
+              }}
+            >
               <SignaturePreview data={data} />
             </Box>
           </Box>

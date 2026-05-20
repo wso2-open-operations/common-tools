@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 build/
+public/config.js
 
 # Environment files
 .env
@@ -32,3 +33,7 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
+
+config.js
+docs/
+.claude/
