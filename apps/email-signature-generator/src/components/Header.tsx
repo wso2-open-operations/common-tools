@@ -23,16 +23,6 @@ export default function Header({ displayName }: Props) {
         py: 6,
         px: 3,
         position: "relative",
-        "&::after": {
-          content: '""',
-          position: "absolute",
-          bottom: 0,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "60px",
-          height: "2px",
-          background: "linear-gradient(90deg, transparent, #FF7200, transparent)",
-        },
       }}
     >
       {/* User info + sign out */}
