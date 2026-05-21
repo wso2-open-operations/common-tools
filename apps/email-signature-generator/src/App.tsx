@@ -48,7 +48,7 @@ export default function App() {
             bgcolor: "background.default",
           }}
         >
-          <CircularProgress sx={{ color: "#FF7200" }} />
+          <CircularProgress sx={{ color: "#f14e23" }} />
         </Box>
       </ThemeProvider>
     );
@@ -61,23 +61,7 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-        {/* Ambient glow */}
-        <Box
-          sx={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            pointerEvents: "none",
-            zIndex: 0,
-            background: `
-              radial-gradient(ellipse at 15% 40%, rgba(255, 115, 0, 0.07) 0%, transparent 55%),
-              radial-gradient(ellipse at 85% 70%, rgba(255, 115, 0, 0.05) 0%, transparent 55%)
-            `,
-          }}
-        />
-        <Box sx={{ position: "relative", zIndex: 1 }}>
+        <Box>
           <Header displayName={displayName} />
           <Box
             sx={{

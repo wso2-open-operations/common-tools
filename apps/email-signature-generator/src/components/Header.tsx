@@ -23,16 +23,6 @@ export default function Header({ displayName }: Props) {
         py: 6,
         px: 3,
         position: "relative",
-        "&::after": {
-          content: '""',
-          position: "absolute",
-          bottom: 0,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "60px",
-          height: "2px",
-          background: "linear-gradient(90deg, transparent, #FF7200, transparent)",
-        },
       }}
     >
       {/* User info + sign out */}
@@ -68,7 +58,7 @@ export default function Header({ displayName }: Props) {
             color: "text.secondary",
             textTransform: "none",
             fontSize: "0.75rem",
-            "&:hover": { color: "#FF7200" },
+            "&:hover": { color: "#f14e23" },
           }}
         >
           Sign out
@@ -86,7 +76,7 @@ export default function Header({ displayName }: Props) {
         sx={{
           fontSize: { xs: "2rem", md: "2.8rem" },
           fontWeight: 700,
-          color: "#FF7200",
+          color: "#f14e23",
           letterSpacing: "-0.03em",
           mb: 1,
         }}

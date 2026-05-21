@@ -1,8 +1,8 @@
 import { createTheme } from "@mui/material/styles";
 
-const WSO2_ORANGE = "#FF7200";
-const WSO2_ORANGE_DARK = "#E55A00";
-const WSO2_ORANGE_LIGHT = "#FF9133";
+const WSO2_ORANGE = "#f14e23";
+const WSO2_ORANGE_DARK = "#c93d1b";
+const WSO2_ORANGE_LIGHT = "#f47050";
 
 export const theme = createTheme({
   palette: {
@@ -14,7 +14,7 @@ export const theme = createTheme({
       contrastText: "#ffffff",
     },
     background: {
-      default: "#080808",
+      default: "#000000",
       paper: "#111111",
     },
     text: {
@@ -48,7 +48,7 @@ export const theme = createTheme({
             "&:hover fieldset": { borderColor: "#444444" },
             "&.Mui-focused fieldset": {
               borderColor: WSO2_ORANGE,
-              boxShadow: `0 0 0 3px rgba(255, 115, 0, 0.12)`,
+              boxShadow: `0 0 0 3px rgba(241, 78, 35, 0.12)`,
             },
           },
           "& .MuiInputLabel-root": {

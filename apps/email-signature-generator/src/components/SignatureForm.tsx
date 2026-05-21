@@ -94,17 +94,7 @@ export default function SignatureForm({ data, onChange }: Props) {
       sx={{
         p: { xs: 2.5, md: 3.5 },
         borderRadius: 3,
-        position: "relative",
-        overflow: "hidden",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "3px",
-          background: "linear-gradient(90deg, #FF7200, rgba(255,115,0,0.2))",
-        },
+        border: "0.75px solid #f14e23",
       }}
     >
       {/* Header row */}
@@ -123,7 +113,7 @@ export default function SignatureForm({ data, onChange }: Props) {
               height: 8,
               borderRadius: "50%",
               bgcolor: "primary.main",
-              boxShadow: "0 0 8px rgba(255,115,0,0.8)",
+              boxShadow: "0 0 8px rgba(241,78,35,0.8)",
               animation: "pulse 2s ease-in-out infinite",
               "@keyframes pulse": {
                 "0%, 100%": { opacity: 1, transform: "scale(1)" },
@@ -151,7 +141,7 @@ export default function SignatureForm({ data, onChange }: Props) {
                     : "#2a2a2a",
                   transition: "background-color 0.3s ease",
                   boxShadow: data[key as keyof SignatureData]
-                    ? "0 0 4px rgba(255,115,0,0.5)"
+                    ? "0 0 4px rgba(241,78,35,0.5)"
                     : "none",
                 }}
               />
@@ -232,9 +222,9 @@ export default function SignatureForm({ data, onChange }: Props) {
           transition={{ duration: 0.4, ease: "easeOut" }}
           sx={{
             height: "100%",
-            background: "linear-gradient(90deg, #FF7200, #FF9133)",
+            background: "#f14e23",
             borderRadius: 2,
-            boxShadow: "0 0 8px rgba(255,115,0,0.4)",
+            boxShadow: "0 0 8px rgba(241,78,35,0.4)",
           }}
         />
       </Box>
