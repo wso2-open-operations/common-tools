@@ -20,7 +20,6 @@ import { ThemeProvider } from "@mui/material/styles";
 import { useAuthContext } from "@asgardeo/auth-react";
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
-import LoginPage from "./components/LoginPage";
 import SignatureForm from "./components/SignatureForm";
 import SignaturePreview from "./components/SignaturePreview";
 import { theme } from "./theme";
@@ -36,9 +35,15 @@ const initialData: SignatureData = {
 };
 
 export default function App() {
-  const { state, getBasicUserInfo } = useAuthContext();
+  const { state, getBasicUserInfo, signIn } = useAuthContext();
   const [data, setData] = useState<SignatureData>(initialData);
   const [displayName, setDisplayName] = useState("");
+
+  useEffect(() => {
+    if (!state.isLoading && !state.isAuthenticated) {
+      signIn();
+    }
+  }, [state.isLoading, state.isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!state.isAuthenticated) return;
@@ -52,7 +57,7 @@ export default function App() {
       .catch(() => {});
   }, [state.isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (state.isLoading) {
+  if (!state.isAuthenticated) {
     return (
       <ThemeProvider theme={theme}>
         <Box
@@ -68,10 +73,6 @@ export default function App() {
         </Box>
       </ThemeProvider>
     );
-  }
-
-  if (!state.isAuthenticated) {
-    return <LoginPage />;
   }
 
   return (
