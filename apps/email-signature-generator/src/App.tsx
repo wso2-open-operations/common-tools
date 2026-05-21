@@ -15,7 +15,8 @@
 // under the License.
 
 import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
+import LinearProgress from "@mui/material/LinearProgress";
+import Typography from "@mui/material/Typography";
 import { ThemeProvider } from "@mui/material/styles";
 import { useAuthContext } from "@asgardeo/auth-react";
 import { useEffect, useState } from "react";
@@ -70,9 +71,9 @@ export default function App() {
             minHeight: "100vh",
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
             justifyContent: "center",
-            gap: 3,
+            alignItems: "center",
+            gap: 2,
             bgcolor: "background.default",
           }}
         >
@@ -80,9 +81,21 @@ export default function App() {
             component="img"
             src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Logo-White.png"
             alt="WSO2"
-            sx={{ width: 120 }}
+            sx={{ width: 120, mb: 1 }}
           />
-          <CircularProgress sx={{ color: "#f14e23" }} />
+          <LinearProgress
+            sx={{
+              width: 150,
+              borderRadius: 1,
+              "& .MuiLinearProgress-bar": { bgcolor: "#f14e23" },
+              bgcolor: "#1e1e1e",
+            }}
+          />
+          <Typography
+            sx={{ fontSize: "13px", fontWeight: 500, color: "text.secondary" }}
+          >
+            Getting things ready...
+          </Typography>
         </Box>
       </ThemeProvider>
     );
