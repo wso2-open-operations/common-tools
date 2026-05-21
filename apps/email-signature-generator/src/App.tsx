@@ -35,7 +35,8 @@ const initialData: SignatureData = {
 };
 
 export default function App() {
-  const { state, getBasicUserInfo, signIn } = useAuthContext();
+  const { state, getBasicUserInfo, getDecodedIDToken, signIn } =
+    useAuthContext();
   const [data, setData] = useState<SignatureData>(initialData);
   const [displayName, setDisplayName] = useState("");
 
@@ -47,12 +48,16 @@ export default function App() {
 
   useEffect(() => {
     if (!state.isAuthenticated) return;
-    getBasicUserInfo()
-      .then((userInfo) => {
-        if (userInfo.displayName) {
-          setDisplayName(userInfo.displayName);
-          setData((prev) => ({ ...prev, name: userInfo.displayName! }));
-        }
+    Promise.all([getBasicUserInfo(), getDecodedIDToken()])
+      .then(([userInfo, idToken]) => {
+        const name = userInfo.displayName ?? "";
+        const jobTitle = idToken.jobtitle ?? "";
+        setDisplayName(name);
+        setData((prev) => ({
+          ...prev,
+          ...(name && { name }),
+          ...(jobTitle && { designation: jobTitle }),
+        }));
       })
       .catch(() => {});
   }, [state.isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -64,11 +69,19 @@ export default function App() {
           sx={{
             minHeight: "100vh",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
+            gap: 3,
             bgcolor: "background.default",
           }}
         >
+          <Box
+            component="img"
+            src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Logo-White.png"
+            alt="WSO2"
+            sx={{ width: 120 }}
+          />
           <CircularProgress sx={{ color: "#f14e23" }} />
         </Box>
       </ThemeProvider>
