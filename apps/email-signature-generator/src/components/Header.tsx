@@ -20,6 +20,7 @@ import Typography from "@mui/material/Typography";
 import { useAuthContext } from "@asgardeo/auth-react";
 import { motion } from "framer-motion";
 import { LogOut } from "lucide-react";
+import wso2Logo from "../assets/wso2-logo-white.png";
 
 interface Props {
   displayName: string;
@@ -83,7 +84,7 @@ export default function Header({ displayName }: Props) {
 
       <Box
         component="img"
-        src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Logo-White.png"
+        src={wso2Logo}
         alt="WSO2"
         sx={{ width: 120, mb: 3, display: "block", mx: "auto" }}
       />
