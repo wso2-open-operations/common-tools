@@ -179,6 +179,7 @@ export default function SignaturePreview({ data }: Props) {
           <span style={{ flex: 1 }}>
             <Button
               variant="contained"
+              size="large"
               fullWidth
               disabled={!hasContent(data)}
               onClick={() => handleCopy()}
@@ -190,7 +191,11 @@ export default function SignaturePreview({ data }: Props) {
                 )
               }
               sx={{
-                py: 1.4,
+                py: 1.5,
+                borderRadius: 2,
+                fontWeight: 600,
+                textTransform: "none",
+                fontSize: "1rem",
                 bgcolor:
                   richCopyState === "success"
                     ? "#22c55e"

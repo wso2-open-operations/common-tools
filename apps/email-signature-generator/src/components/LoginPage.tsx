@@ -29,17 +29,7 @@ export default function LoginPage() {
             maxWidth: 420,
             width: "100%",
             textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-            "&::before": {
-              content: '""',
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: "3px",
-              background: "#f14e23",
-            },
+            border: "1px solid #f14e23",
           }}
         >
           <Box
