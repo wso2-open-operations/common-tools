@@ -29,7 +29,7 @@ export default function LoginPage() {
             maxWidth: 420,
             width: "100%",
             textAlign: "center",
-            border: "1px solid #f14e23",
+            border: "0.75px solid #f14e23",
           }}
         >
           <Box
