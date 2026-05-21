@@ -94,17 +94,7 @@ export default function SignatureForm({ data, onChange }: Props) {
       sx={{
         p: { xs: 2.5, md: 3.5 },
         borderRadius: 3,
-        position: "relative",
-        overflow: "hidden",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "3px",
-          background: "#f14e23",
-        },
+        border: "1px solid #f14e23",
       }}
     >
       {/* Header row */}
