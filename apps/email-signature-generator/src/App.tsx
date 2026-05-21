@@ -1,14 +1,33 @@
+// Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
 import { ThemeProvider } from "@mui/material/styles";
 import { useAuthContext } from "@asgardeo/auth-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import AuthLoadingScreen from "./components/AuthLoadingScreen";
 import Header from "./components/Header";
-import LoginPage from "./components/LoginPage";
 import SignatureForm from "./components/SignatureForm";
 import SignaturePreview from "./components/SignaturePreview";
 import { theme } from "./theme";
 import type { SignatureData } from "./types";
+
+interface IDTokenClaims {
+  jobtitle?: string;
+}
 
 const initialData: SignatureData = {
   name: "",
@@ -20,42 +39,57 @@ const initialData: SignatureData = {
 };
 
 export default function App() {
-  const { state, getBasicUserInfo } = useAuthContext();
+  const { state, getBasicUserInfo, getDecodedIDToken, signIn } = useAuthContext();
   const [data, setData] = useState<SignatureData>(initialData);
   const [displayName, setDisplayName] = useState("");
+  const [authError, setAuthError] = useState<Error | null>(null);
+  const signInTriggered = useRef(false);
+
+  useEffect(() => {
+    if (!state.isLoading && !state.isAuthenticated && !signInTriggered.current) {
+      signInTriggered.current = true;
+      signIn().catch((err: Error) => {
+        console.error("Asgardeo signIn failed", err);
+        setAuthError(err);
+        signInTriggered.current = false;
+      });
+    }
+  }, [state.isLoading, state.isAuthenticated]); // signIn is a stable identity from auth context
 
   useEffect(() => {
     if (!state.isAuthenticated) return;
-    getBasicUserInfo()
-      .then((userInfo) => {
-        if (userInfo.displayName) {
-          setDisplayName(userInfo.displayName);
-          setData((prev) => ({ ...prev, name: userInfo.displayName! }));
-        }
+    Promise.allSettled([getBasicUserInfo(), getDecodedIDToken()])
+      .then(([userInfoResult, idTokenResult]) => {
+        const name =
+          userInfoResult.status === "fulfilled"
+            ? (userInfoResult.value.displayName ?? "")
+            : "";
+        const jobTitle =
+          idTokenResult.status === "fulfilled"
+            ? ((idTokenResult.value as IDTokenClaims).jobtitle ?? "")
+            : "";
+        if (name) setDisplayName(name);
+        setData((prev) => ({ ...prev, name, designation: jobTitle }));
       })
-      .catch(() => {});
-  }, [state.isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (state.isLoading) {
-    return (
-      <ThemeProvider theme={theme}>
-        <Box
-          sx={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: "background.default",
-          }}
-        >
-          <CircularProgress sx={{ color: "#f14e23" }} />
-        </Box>
-      </ThemeProvider>
-    );
-  }
+      .catch((err: Error) => {
+        console.error("Failed to load user profile", err);
+      });
+  }, [state.isAuthenticated]); // getBasicUserInfo and getDecodedIDToken are stable identities
 
   if (!state.isAuthenticated) {
-    return <LoginPage />;
+    return (
+      <AuthLoadingScreen
+        error={authError}
+        onRetry={() => {
+          setAuthError(null);
+          signInTriggered.current = false;
+          signIn().catch((err: Error) => {
+            console.error("Asgardeo signIn failed", err);
+            setAuthError(err);
+          });
+        }}
+      />
+    );
   }
 
   return (
