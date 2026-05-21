@@ -58,7 +58,7 @@ export default function Header({ displayName }: Props) {
             color: "text.secondary",
             textTransform: "none",
             fontSize: "0.75rem",
-            "&:hover": { color: "#FF7200" },
+            "&:hover": { color: "#f14e23" },
           }}
         >
           Sign out
@@ -76,7 +76,7 @@ export default function Header({ displayName }: Props) {
         sx={{
           fontSize: { xs: "2rem", md: "2.8rem" },
           fontWeight: 700,
-          color: "#FF7200",
+          color: "#f14e23",
           letterSpacing: "-0.03em",
           mb: 1,
         }}

@@ -66,7 +66,7 @@ export default function SignaturePreview({ data }: Props) {
           left: 0,
           right: 0,
           height: "3px",
-          background: "linear-gradient(90deg, rgba(255,115,0,0.2), #FF7200)",
+          background: "#f14e23",
         },
       }}
     >
@@ -78,7 +78,7 @@ export default function SignaturePreview({ data }: Props) {
             height: 8,
             borderRadius: "50%",
             bgcolor: "primary.main",
-            boxShadow: "0 0 8px rgba(255,115,0,0.8)",
+            boxShadow: "0 0 8px rgba(241,78,35,0.8)",
             animation: "pulse 2s ease-in-out infinite 0.5s",
             "@keyframes pulse": {
               "0%, 100%": { opacity: 1, transform: "scale(1)" },
@@ -240,7 +240,7 @@ export default function SignaturePreview({ data }: Props) {
             textAlign: "center",
           }}
         >
-          Use <strong style={{ color: "#FF7200" }}>Copy for Email</strong> →
+          Use <strong style={{ color: "#f14e23" }}>Copy for Email</strong> →
           paste in Gmail Settings → Signature
         </Typography>
       )}

@@ -38,7 +38,7 @@ export default function LoginPage() {
               left: 0,
               right: 0,
               height: "3px",
-              background: "linear-gradient(90deg, #FF7200, rgba(255,115,0,0.2))",
+              background: "#f14e23",
             },
           }}
         >
@@ -52,7 +52,7 @@ export default function LoginPage() {
             variant="h5"
             sx={{
               fontWeight: 700,
-              color: "#FF7200",
+              color: "#f14e23",
               mb: 1,
             }}
           >
@@ -76,8 +76,8 @@ export default function LoginPage() {
             onClick={() => signIn()}
             fullWidth
             sx={{
-              bgcolor: "#FF7200",
-              "&:hover": { bgcolor: "#e66800" },
+              bgcolor: "#f14e23",
+              "&:hover": { bgcolor: "#c93d1b" },
               borderRadius: 2,
               py: 1.5,
               fontWeight: 600,
