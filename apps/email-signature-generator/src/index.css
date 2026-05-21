@@ -1,7 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: #080808;
+  background: #000000;
   color: #f0f0f0;
   font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   min-height: 100vh;
