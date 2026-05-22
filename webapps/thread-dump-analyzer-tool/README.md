@@ -62,7 +62,7 @@ The analysis runs asynchronously. Poll the status endpoint until `status` is `co
 
 **Upload fields (multipart/form-data):**
 - `thread_dumps` - required, one or more Java thread dump `.txt`/`.log` files
-- `thread_usages` - optional, matching CPU usage files (`PID TID %CPU TIME` columns)
+- `thread_usages` - optional, matching CPU usage files. Whitespace-separated `PID TID %CPU TIME` rows (header `PID` row optional). TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`.
 
 When multiple dump files are uploaded, TDAT correlates threads across snapshots by composite identity (`name + id + native_id + pool`) to show how thread state evolved over time. The frontend reuses the same composite as the React key for each thread row, so distinct histories sharing a single `thread.id` do not collide during sort/filter.
 
@@ -75,14 +75,19 @@ Dump and usage files are paired client-side by a normalized filename key (`utils
   "timestamp": "RFC3339",
   "threads": [ ...AnalyzedThread ],
   "thread_pools": { "Pool Name": { "description": "...", "expected_behavior": "..." } },
+  "pattern_matches": [
+    { "rule_name": "DatabaseWait", "issue_prefix": "Thread executing Database/JDBC operations for > 5s", "matched_thread_count": 3 }
+  ],
   "ai_insights": { "executive_summary": "...", "pattern_recognition": "...", "recommended_actions": "..." },
   "errors": []
 }
 ```
 
+`pattern_matches[]` gives the frontend authoritative per-rule unique-thread counts without having to substring-scan `issues[]`. Omitted when no rule fired.
+
 ## Features
 
-### Rule Engine (28 rules)
+### Rule Engine (29 rules)
 
 Rules are defined in `backend/internal/rules/rules.grl` using the Grule DSL. Each thread is matched by the highest-salience rule that fires, then marked as analyzed so no second rule re-fires on it. The engine avoids `Retract()` and gates on the `Analyzed` flag instead, which prevents working-memory thrashing. Two unambiguous findings are pre-flagged directly by the parser before rules run: JVM-reported deadlocks, and runaway threads at ≥100% CPU. Key rules:
 
@@ -92,7 +97,7 @@ Rules are defined in `backend/internal/rules/rules.grl` using the Grule DSL. Eac
 - **DB connection pool exhaustion** - threads parked in `ConnectionPool.borrowConnection` (salience 92)
 - **High global blockage** - >25% of all threads BLOCKED system-wide (salience 88)
 - **Thread starvation** - single thread consuming >95% CPU (salience 86; parser pre-flags ≥100% as runaway)
-- **Database waits** - threads in JDBC/Hibernate calls for >5s (salience 85)
+- **Database waits** - threads in JDBC/Hibernate calls for >5s, gated on ≥2 system-wide stalls so single-thread cases fall to lower-priority rules (salience 85)
 - **GC detection** - threads waiting in GC-related stack frames (salience 85)
 - **Critical lock contention** - 20+ threads queued on the same monitor address; at this scale the protected operation is fully serialized and represents a transport-level throughput failure (salience 84; CRITICAL)
 - **High lock contention** - 3+ threads waiting on the same monitor address (salience 83)
@@ -103,6 +108,7 @@ Rules are defined in `backend/internal/rules/rules.grl` using the Grule DSL. Eac
 - **HTTP bottleneck** - Tomcat HTTP/HTTPS workers busy or blocked for >5s (salience 76)
 - **Hazelcast cache contention** - threads blocked on `com.hazelcast` or `org.wso2.carbon.caching` (salience 71)
 - **Severe lock contention (generic)** - fallback for any BLOCKED thread waiting on a monitor (salience 65)
+- **High CPU info backstop** - threads at ≥20% CPU not surfaced by any other rule, INFO-level so the frontend's KNOWN_WSO2_THREADS classifier can flag them as benign product threads vs. application work (salience 15)
 
 ### Thread Pool Classification
 

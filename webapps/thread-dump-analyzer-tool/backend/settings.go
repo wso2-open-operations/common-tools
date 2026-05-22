@@ -56,10 +56,11 @@ func LoadConfig() *Config {
 	return &Config{
 		Port:              port,
 		PublicURL:         strings.TrimRight(getEnv("PUBLIC_URL", "http://localhost:"+port), "/"),
-		ReadHeaderTimeout: getEnvDuration("READ_HEADER_TIMEOUT", 5*time.Second),
-		ReadTimeout:       getEnvDuration("READ_TIMEOUT", 60*time.Second),
-		WriteTimeout:      getEnvDuration("WRITE_TIMEOUT", 60*time.Second),
-		IdleTimeout:       getEnvDuration("IDLE_TIMEOUT", 120*time.Second),
+		ReadHeaderTimeout: getEnvDuration("READ_HEADER_TIMEOUT", 30*time.Second),
+		// Read/Write timeouts bound the full upload window; 60s was too tight for ~50MB on real uplinks.
+		ReadTimeout:  getEnvDuration("READ_TIMEOUT", 10*time.Minute),
+		WriteTimeout: getEnvDuration("WRITE_TIMEOUT", 10*time.Minute),
+		IdleTimeout:  getEnvDuration("IDLE_TIMEOUT", 5*time.Minute),
 
 		RulesPath:       getEnv("RULES_PATH", "./internal/rules/rules.grl"),
 		ThreadPoolsPath: getEnv("THREAD_POOLS_PATH", "./config/thread_pools.yaml"),

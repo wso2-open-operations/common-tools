@@ -28,7 +28,7 @@ Upload thread dumps and start an async analysis job.
 | Field | Required | Description |
 |---|---|---|
 | `thread_dumps` | Yes | One or more Java thread dump text files |
-| `thread_usages` | No | CPU usage files (`PID TID %CPU TIME` columns). `thread_usages` matches `thread_dumps` by upload index. Entry *i* in `thread_usages` corresponds to entry *i* in `thread_dumps`. The TDAT frontend aligns both arrays by filename before sending; direct POST requests must keep them in the same order. |
+| `thread_usages` | No | CPU usage files. Each row is whitespace-separated `PID TID %CPU TIME` (header `PID` row optional). TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`. Indexed in upload order: entry *i* in `thread_usages` corresponds to entry *i* in `thread_dumps`. The TDAT frontend aligns both arrays by filename before sending; direct POST requests must keep them in the same order. |
 
 **Response:** `202 Accepted`
 ```json
@@ -51,6 +51,9 @@ Poll for job status and result.
     "timestamp": "2026-04-22T10:00:00Z",
     "threads": [ ...AnalyzedThread ],
     "thread_pools": { "Pool Name": { "description": "...", "expected_behavior": "..." } },
+    "pattern_matches": [
+      { "rule_name": "DatabaseWait", "issue_prefix": "Thread executing Database/JDBC operations for > 5s", "matched_thread_count": 3 }
+    ],
     "ai_insights": { "executive_summary": "...", "pattern_recognition": "...", "recommended_actions": "..." },
     "errors": []
   },
@@ -69,14 +72,16 @@ Returns `200 OK` with body `OK`. Used for liveness probes.
 ```
 POST /analyze/jobs
   └─ Background goroutine:
-       ├─ Per file (concurrent): parse dump → correlate CPU usage → classify thread pool → run Grule rules
+       ├─ Per file (concurrent): parse dump → correlate CPU usage (DEBUG-logs match counts;
+       │                         WARN on zero matches) → classify thread pool → run Grule rules
        ├─ Aggregate: pivot file-centric results into thread-centric history across dumps
+       ├─ Pattern matches: per-rule unique-thread counts for the frontend
        └─ AI: send top threads to Anthropic Claude for executive summary
 ```
 
 ### Rule Engine
 
-28 Grule DSL rules in `internal/rules/rules.grl` are applied concurrently per thread. Each thread matches at most one rule, with the highest salience winning. Rules check `t.Analyzed == false` and set `t.Analyzed = true` in `then`; `Retract()` is not used.
+29 Grule DSL rules in `internal/rules/rules.grl` are applied concurrently per thread. Each thread matches at most one rule, with the highest salience winning. Rules check `t.Analyzed == false` and set `t.Analyzed = true` in `then`; `Retract()` is not used.
 
 Two unambiguous findings are flagged **natively by the parser** before rules run, since they arrive as JVM summary blocks or single-number signals rather than per-thread state:
 
@@ -88,9 +93,9 @@ Both also set `Analyzed = true` so the rule engine skips them. The corresponding
 | Risk | Examples |
 |---|---|
 | CRITICAL | Deadlock (parser), runaway CPU ≥100% (parser), thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O, PassThrough starvation on backend I/O, DB connection pool exhaustion, critical lock contention (20+ threads on same monitor), catastrophic thread count (5,000+ live threads - GC root explosion) |
-| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3-19 threads on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
+| HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s, gated on ≥2 system-wide stalls), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3-19 threads on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
 | MEDIUM | Idle threads (>10s), native/socket block with 0% CPU, recursive lock, thread leak |
-| INFO | Threads not belonging to any known pool |
+| INFO | Threads not belonging to any known pool; sustained CPU ≥20% with no other rule match (low-severity backstop — cross-check against known benign product threads) |
 
 ### Thread Pool Classification
 
@@ -103,6 +108,10 @@ When multiple dump files are uploaded, threads are correlated across files by co
 ### AI Insights
 
 Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineering system prompt. Sends up to 40 high-signal threads (top 3 stack frames each; INFO/normal threads excluded) and returns structured JSON with `executive_summary`, `pattern_recognition`, and `recommended_actions`.
+
+### Pattern Matches
+
+`result.pattern_matches[]` exposes per-rule unique-thread counts so the frontend can render rule-level summaries without substring-scanning `issues[]`. Each entry has `{rule_name, issue_prefix, matched_thread_count}` and is populated only when a rule fired. The rule→issue-prefix registry lives in `internal/analyzer/patterns.go` and must stay in lockstep with `rules.grl` — adding a rule means appending one entry.
 
 ## Configuration
 
@@ -136,7 +145,7 @@ Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineer
 | Item | Details |
 |---|---|
 | `config/thread_pools.yaml` | Thread pool name, regex patterns, description, expected behavior. Path overridable via `THREAD_POOLS_PATH`. |
-| `internal/rules/rules.grl` | 28 Grule DSL rules. Path overridable via `RULES_PATH`. |
+| `internal/rules/rules.grl` | 29 Grule DSL rules. Path overridable via `RULES_PATH`. |
 
 ## Building
 
@@ -164,10 +173,11 @@ backend/
     │   └── thread_parser.go         Regex parsers, ProcessAndCorrelate, native deadlock + runaway-CPU pre-classification
     ├── analyzer/
     │   ├── enricher.go              ThreadEnricher: loads YAML, classifies threads into pools
-    │   ├── rules_engine.go          Grule integration, GlobalStats, AnalyzeThreads
-    │   └── aggregator.go            AggregateThreads: file-centric → thread-centric pivot
+    │   ├── rules_engine.go          Grule integration, GlobalStats (incl. JDBCStallCount), AnalyzeThreads
+    │   ├── aggregator.go            AggregateThreads: file-centric → thread-centric pivot
+    │   └── patterns.go              PatternMatch + ComputePatternMatches: per-rule unique-thread counts
     ├── rules/
-    │   └── rules.grl                28 Grule DSL rules (deadlock, high CPU, lock contention, catastrophic thread count, critical lock contention, DB pool, LDAP, OAuth, Hazelcast, etc.)
+    │   └── rules.grl                29 Grule DSL rules (deadlock, high CPU, lock contention, catastrophic thread count, critical lock contention, DB pool, LDAP, OAuth, Hazelcast, low-severity high-CPU backstop, etc.)
     └── ai/
         └── insights.go              Anthropic API call (claude-haiku-4-5), prompt build, JSON response parse
 ```

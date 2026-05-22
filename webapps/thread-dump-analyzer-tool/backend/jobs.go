@@ -281,11 +281,12 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 				usageReader = bytes.NewReader(u.Data)
 			}
 
-			threads, err := parser.ProcessAndCorrelate(bytes.NewReader(d.Data), usageReader)
+			threads, diagnostics, err := parser.ProcessAndCorrelate(bytes.NewReader(d.Data), usageReader, d.FileName)
 			if err != nil {
 				errSlots[index] = append(errSlots[index], fmt.Sprintf("Failed to parse %s: %v", d.FileName, err))
 				return
 			}
+			errSlots[index] = append(errSlots[index], diagnostics...)
 
 			if len(threads) == 0 {
 				errSlots[index] = append(errSlots[index], fmt.Sprintf("Invalid Files. No threads found in %s", d.FileName))
@@ -333,6 +334,7 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 	}
 
 	aggregatedThreads := analyzer.AggregateThreads(parsedFiles)
+	patternMatches := analyzer.ComputePatternMatches(aggregatedThreads)
 
 	usageUploaded := len(usages) > 0
 	aiInsights, err := ai.GetInsights(aggregatedThreads, usageUploaded)
@@ -342,11 +344,12 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 	}
 
 	return &AggregatedAnalysisResponse{
-		SessionID:   uuid.New().String(),
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Threads:     aggregatedThreads,
-		ThreadPools: enricher.PoolMetadata(),
-		AIInsights:  aiInsights,
-		Errors:      errorMessages,
+		SessionID:      uuid.New().String(),
+		Timestamp:      time.Now().Format(time.RFC3339),
+		Threads:        aggregatedThreads,
+		ThreadPools:    enricher.PoolMetadata(),
+		PatternMatches: patternMatches,
+		AIInsights:     aiInsights,
+		Errors:         errorMessages,
 	}
 }

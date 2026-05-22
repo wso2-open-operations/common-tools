@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -103,6 +104,8 @@ type ThreadUsage struct {
 	CPUPercentage float64 `json:"cpu_percent"`
 	UserTime      float64 `json:"user_time_ms"`
 	TID           int64   `json:"tid"`
+	// Owning process from column[0]; used to filter non-JVM rows when `top -H` was captured without `-p <pid>`.
+	PID int64 `json:"pid,omitempty"`
 }
 
 // GlobalStats holds aggregate data for Global Rules
@@ -113,6 +116,8 @@ type GlobalStats struct {
 	PreviousBlockedPercentage float64 // set externally for temporal spike detection
 	ThreadCountGrowth         float64 // set externally for temporal leak detection
 	IsUsageDataProvided       bool
+	// Count of threads with JDBC/Hibernate in stack and ElapsedTime > 5s; gates DatabaseWait HIGH.
+	JDBCStallCount int
 }
 
 var (
@@ -300,25 +305,15 @@ func ParseThreadUsage(r io.Reader) ([]ThreadUsage, error) {
 			continue
 		}
 
-		// Parse TID
-		tidRaw := columns[1]
-		var tidInt int64
-		// Handle hex and decimal TID
-		if strings.HasPrefix(strings.ToLower(tidRaw), "0x") {
-			val, err := strconv.ParseInt(tidRaw[2:], 16, 64)
-			if err != nil {
-				continue
-			}
-			tidInt = val
-		} else {
-			val, err := strconv.Atoi(tidRaw)
-			if err != nil {
-				continue
-			}
-			tidInt = int64(val)
+		pidInt, ok := parseTID(columns[0])
+		if !ok {
+			continue
+		}
+		tidInt, ok := parseTID(columns[1])
+		if !ok {
+			continue
 		}
 
-		// Parse CPU Percentage
 		cpuStr := strings.Trim(columns[2], " %")
 		cpuVal, err := strconv.ParseFloat(cpuStr, 64)
 		if err != nil {
@@ -329,6 +324,7 @@ func ParseThreadUsage(r io.Reader) ([]ThreadUsage, error) {
 		timeMs := timeSeconds * 1000
 
 		usages = append(usages, ThreadUsage{
+			PID:           pidInt,
 			TID:           tidInt,
 			CPUPercentage: cpuVal,
 			UserTime:      timeMs,
@@ -339,6 +335,52 @@ func ParseThreadUsage(r io.Reader) ([]ThreadUsage, error) {
 		return nil, err
 	}
 	return usages, nil
+}
+
+// Parses a TID/PID token, accepting hex (`0x...`) or decimal.
+func parseTID(raw string) (int64, bool) {
+	if strings.HasPrefix(strings.ToLower(raw), "0x") {
+		val, err := strconv.ParseInt(raw[2:], 16, 64)
+		if err != nil {
+			return 0, false
+		}
+		return val, true
+	}
+	val, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return val, true
+}
+
+// Returns usages filtered to the most frequent PID along with that PID and the distinct PID count.
+// When only one PID is present (or none can be inferred) the slice is returned unchanged.
+func FilterUsagesByDominantPID(usages []ThreadUsage) (filtered []ThreadUsage, dominantPID int64, pidCount int) {
+	if len(usages) == 0 {
+		return usages, 0, 0
+	}
+	counts := make(map[int64]int)
+	for _, u := range usages {
+		counts[u.PID]++
+	}
+	if len(counts) <= 1 {
+		for pid := range counts {
+			dominantPID = pid
+		}
+		return usages, dominantPID, len(counts)
+	}
+	for pid, c := range counts {
+		if c > counts[dominantPID] {
+			dominantPID = pid
+		}
+	}
+	filtered = make([]ThreadUsage, 0, counts[dominantPID])
+	for _, u := range usages {
+		if u.PID == dominantPID {
+			filtered = append(filtered, u)
+		}
+	}
+	return filtered, dominantPID, len(counts)
 }
 
 func parseTime(t string) float64 {
@@ -372,35 +414,82 @@ func (t *Thread) HasInStackTrace(keyword string) bool {
 
 /* Correlation Logic */
 
-func ProcessAndCorrelate(dumpReader, usageReader io.Reader) ([]Thread, error) {
+// Joins thread dump with CPU-usage file by NativeID == TID. dumpFileName is for log context only.
+// Returns non-fatal diagnostics (multi-PID filter, zero-match) so the caller can surface them in API errors[].
+func ProcessAndCorrelate(dumpReader, usageReader io.Reader, dumpFileName string) ([]Thread, []string, error) {
+	var diagnostics []string
+
 	threads, err := ParseThread(dumpReader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse dump: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse dump: %w", err)
 	}
 
-	// Provide CPU usage data to threads by matching on NativeID/TID.
 	if usageReader != nil {
 		usages, err := ParseThreadUsage(usageReader)
-		// Handles bad uploads gracefully by proceeding with CPU inference rather than failing outright.
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse thread usage: %w", err)
+			return nil, nil, fmt.Errorf("failed to parse thread usage: %w", err)
 		}
+
+		rawUsageCount := len(usages)
+		filtered, dominantPID, pidCount := FilterUsagesByDominantPID(usages)
+		usages = filtered
+		if pidCount > 1 {
+			msg := fmt.Sprintf("cpu correlation: %s contained %d distinct PIDs; filtered to dominant PID %d (%d/%d rows kept). Capture with `top -H -p <jvm_pid>` to avoid this.",
+				dumpFileName, pidCount, dominantPID, len(usages), rawUsageCount)
+			slog.Warn(msg, "dump_file", dumpFileName, "pid_count", pidCount, "dominant_pid", dominantPID)
+			diagnostics = append(diagnostics, msg)
+		}
+
 		usageMap := make(map[int64]ThreadUsage)
 		for _, u := range usages {
 			usageMap[u.TID] = u
 		}
 
+		matched := 0
+		var unmatchedNativeIDs []int64
 		for i := range threads {
 			t := &threads[i]
 			if usage, ok := usageMap[t.NativeID]; ok {
 				t.CPUPercentage = usage.CPUPercentage
 				t.CPUTime = usage.UserTime
+				matched++
+			} else if len(unmatchedNativeIDs) < 5 {
+				unmatchedNativeIDs = append(unmatchedNativeIDs, t.NativeID)
 			}
+		}
+
+		logAttrs := []any{
+			"dump_file", dumpFileName,
+			"usage_rows", rawUsageCount,
+			"usage_rows_after_pid_filter", len(usages),
+			"usage_map_size", len(usageMap),
+			"threads_parsed", len(threads),
+			"threads_matched", matched,
+		}
+		if matched == 0 && len(usages) > 0 && len(threads) > 0 {
+			var sampleTIDs []int64
+			for i, u := range usages {
+				if i >= 5 {
+					break
+				}
+				sampleTIDs = append(sampleTIDs, u.TID)
+			}
+			slog.Warn("cpu correlation produced zero matches — likely TID/NativeID format mismatch",
+				append(logAttrs,
+					"sample_usage_tids", sampleTIDs,
+					"sample_unmatched_native_ids", unmatchedNativeIDs,
+				)...,
+			)
+			diagnostics = append(diagnostics, fmt.Sprintf(
+				"cpu correlation: 0/%d usage rows matched any thread native_id in %s (sample TIDs %v vs native IDs %v). Likely a TID-format mismatch or wrong PID captured.",
+				len(usages), dumpFileName, sampleTIDs, unmatchedNativeIDs,
+			))
+		} else {
+			slog.Debug("cpu correlation completed", logAttrs...)
 		}
 	}
 
-	// Flag runaway-CPU threads (>= 100%) as CRITICAL natively.
-	// These are unambiguous infinite-loop / busy-spin signals and don't need rule inference.
+	// Flag runaway-CPU threads (>= 100%) as CRITICAL natively; unambiguous infinite-loop / busy-spin.
 	for i := range threads {
 		t := &threads[i]
 		if t.Analyzed {
@@ -414,5 +503,5 @@ func ProcessAndCorrelate(dumpReader, usageReader io.Reader) ([]Thread, error) {
 		}
 	}
 
-	return threads, nil
+	return threads, diagnostics, nil
 }

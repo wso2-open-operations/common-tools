@@ -43,10 +43,10 @@ rule IdleThreadsLong "Threads WAITING for > 10s" salience 70 {
 }
 
 // Rule 5: Database Wait Threads
-// Flags threads that have been running/waiting inside JDBC/SQL drivers for too long
+// Flags JDBC/SQL stalls > 5s; gated on >=2 system-wide so single-thread cases fall to lower-priority rules.
 rule DatabaseWait "Threads stuck waiting for Database" salience 85 {
     when
-        t.Analyzed == false && (t.HasInStackTrace("java.sql") || t.HasInStackTrace("Hibernate") || t.HasInStackTrace("jdbc")) && t.ElapsedTime > 5.0
+        t.Analyzed == false && (t.HasInStackTrace("java.sql") || t.HasInStackTrace("Hibernate") || t.HasInStackTrace("jdbc")) && t.ElapsedTime > 5.0 && global.JDBCStallCount >= 2
     then
         t.RiskLevel = "HIGH";
         t.AddIssue("Thread executing Database/JDBC operations for > 5s");
@@ -138,7 +138,7 @@ rule ThreadLeak "Thread count growing >5% per dump" salience 72 {
         t.Analyzed = true;
 }
 
-// Rule 27: Critical Lock Contention
+// Rule 13: Critical Lock Contention
 // 20+ threads queued on the same monitor is a transport-level serialization failure, not just contention.
 rule CriticalLockContention "20+ threads competing for the same monitor lock" salience 84 {
     when
@@ -150,7 +150,7 @@ rule CriticalLockContention "20+ threads competing for the same monitor lock" sa
         t.Analyzed = true;
 }
 
-// Rule 13: Long Wait on Monitor
+// Rule 14: Long Wait on Monitor
 // Thread has been waiting to acquire a specific lock for an extended period.
 rule LongMonitorWait "Thread waiting to acquire a lock for > 10s" salience 84 {
     when
@@ -162,9 +162,8 @@ rule LongMonitorWait "Thread waiting to acquire a lock for > 10s" salience 84 {
         t.Analyzed = true;
 }
 
-// Rule 28: Catastrophic Thread Count
-// When the JVM hosts 5000+ threads, each is a GC root — GC must scan all stacks on every collection cycle,
-// causing sustained high CPU even though individual threads are idle. Escalates NativeThreadIssue to CRITICAL.
+// Rule 15: Catastrophic Thread Count
+// JVM with 5000+ threads — each is a GC root, GC must scan all stacks, causing high CPU even when idle.
 rule CatastrophicThreadCount "JVM thread count exceeds safe threshold — GC root explosion" salience 82 {
     when
         t.Analyzed == false && t.State == "RUNNABLE" && t.CPUPercentage == 0.0 && global.TotalThreads > 5000 && (t.HasInStackTrace("Native Method") || t.HasInStackTrace("SocketInputStream.read") || t.HasInStackTrace("FileInputStream.read") || t.HasInStackTrace("PlainSocketImpl"))
@@ -175,7 +174,7 @@ rule CatastrophicThreadCount "JVM thread count exceeds safe threshold — GC roo
         t.Analyzed = true;
 }
 
-// Rule 14: High Contention Lock
+// Rule 16: High Contention Lock
 // Multiple threads (>=3) all waiting for the same single monitor address.
 rule HighContentionLock "Many threads contending for the same lock object" salience 83 {
     when
@@ -187,7 +186,7 @@ rule HighContentionLock "Many threads contending for the same lock object" salie
         t.Analyzed = true;
 }
 
-// Rule 15: Recursive Lock Contention
+// Rule 17: Recursive Lock Contention
 // The same thread holds the same lock address more than once in its own call stack.
 rule RecursiveLockContention "Thread holds the same lock object multiple times in its stack" salience 74 {
     when
@@ -199,7 +198,7 @@ rule RecursiveLockContention "Thread holds the same lock object multiple times i
         t.Analyzed = true;
 }
 
-// Rule 16: HTTP Request Bottleneck
+// Rule 18: HTTP Request Bottleneck
 // An HTTP worker thread has been active or blocked for too long — pool saturation risk.
 rule HTTPRequestBottleneck "HTTP worker thread busy or blocked for > 5s" salience 76 {
     when
@@ -211,7 +210,7 @@ rule HTTPRequestBottleneck "HTTP worker thread busy or blocked for > 5s" salienc
         t.Analyzed = true;
 }
 
-// Rule 17: GC Pause Detected
+// Rule 19: GC Pause Detected
 // Thread is waiting on GC-related infrastructure, indicating an active or recent GC pause.
 rule GCPauseDetected "Thread parked or waiting due to garbage collection activity" salience 85 {
     when
@@ -223,7 +222,7 @@ rule GCPauseDetected "Thread parked or waiting due to garbage collection activit
         t.Analyzed = true;
 }
 
-// Rule 18: Timer / Scheduler Blocked
+// Rule 20: Timer / Scheduler Blocked
 // A timer or scheduler thread stuck in BLOCKED state will cause missed or delayed scheduled jobs.
 rule TimerSchedulerBlocked "Timer or scheduler thread stuck in BLOCKED state" salience 79 {
     when
@@ -235,7 +234,7 @@ rule TimerSchedulerBlocked "Timer or scheduler thread stuck in BLOCKED state" sa
         t.Analyzed = true;
 }
 
-// Rule 19: Native Thread Issues
+// Rule 21: Native Thread Issues
 // Thread is RUNNABLE but has 0% CPU because it is blocked inside a native/JNI or socket call.
 rule NativeThreadIssue "Thread stuck in native or JNI call with no CPU activity" salience 73 {
     when
@@ -247,7 +246,7 @@ rule NativeThreadIssue "Thread stuck in native or JNI call with no CPU activity"
         t.Analyzed = true;
 }
 
-// Rule 20: Standalone / Ungrouped Thread (Classification)
+// Rule 22: Standalone / Ungrouped Thread (Classification)
 // Thread does not match any known pool — flag with INFO so it appears in results.
 rule StandaloneThread "Thread does not belong to any known thread pool" salience 10 {
     when
@@ -258,8 +257,20 @@ rule StandaloneThread "Thread does not belong to any known thread pool" salience
         t.Analyzed = true;
 }
 
-// Rule 21: Database Connection Pool Exhaustion
-// Thread is parked inside Tomcat JDBC pool's borrowConnection — the pool is empty and no connections can be handed out.
+// Rule 23: High CPU thread (low-severity backstop)
+// Threads >= 20% CPU not surfaced by any higher-salience rule; salience 15 sits below all bottleneck rules.
+rule HighCPUInfo "Sustained High CPU - verify expected" salience 15 {
+    when
+        t.Analyzed == false && t.CPUPercentage >= 20.0
+    then
+        t.RiskLevel = "INFO";
+        t.AddIssue("Sustained High CPU - verify expected (" + t.CPUPercentage + "%)");
+        t.Recommendation = "Cross-check the thread name against known product threads — sustained CPU on CarbonDeploymentSchedulerThread, Quartz workers, or GC threads is normal product behavior; sustained CPU on application threads is not.";
+        t.Analyzed = true;
+}
+
+// Rule 24: Database Connection Pool Exhaustion
+// Thread parked inside Tomcat JDBC pool's borrowConnection — pool is empty, no connections can be handed out.
 rule DBConnectionPoolExhaustion "Thread waiting for a JDBC connection (pool exhausted)" salience 92 {
     when
         t.Analyzed == false && (t.State == "WAITING" || t.State == "TIMED_WAITING") && t.HasInStackTrace("org.apache.tomcat.jdbc.pool.ConnectionPool.borrowConnection")
@@ -270,8 +281,8 @@ rule DBConnectionPoolExhaustion "Thread waiting for a JDBC connection (pool exha
         t.Analyzed = true;
 }
 
-// Rule 22: PassThrough Message Processor Starvation
-// PassThrough HTTP worker is blocked on backend I/O via the NIO reactor or socket read — backend is slow or unresponsive.
+// Rule 25: PassThrough Message Processor Starvation
+// PassThrough HTTP worker blocked on backend I/O via NIO reactor or socket read — backend slow/unresponsive.
 rule PassThroughStarvation "PassThrough HTTP worker stuck on backend I/O" salience 96 {
     when
         t.Analyzed == false && t.NameStartsWith("PassThroughMessageProcessor-") && (t.HasInStackTrace("org.apache.http.impl.nio.reactor") || t.HasInStackTrace("java.net.SocketInputStream.read"))
@@ -282,7 +293,7 @@ rule PassThroughStarvation "PassThrough HTTP worker stuck on backend I/O" salien
         t.Analyzed = true;
 }
 
-// Rule 23: LDAP / User Store Timeouts
+// Rule 26: LDAP / User Store Timeouts
 // Thread is delayed by a slow JNDI/LDAP/Active Directory user store lookup.
 rule LDAPUserStoreTimeout "Thread delayed by slow LDAP/AD user store" salience 78 {
     when
@@ -294,7 +305,7 @@ rule LDAPUserStoreTimeout "Thread delayed by slow LDAP/AD user store" salience 7
         t.Analyzed = true;
 }
 
-// Rule 24: OAuth Token Validation Bottleneck
+// Rule 27: OAuth Token Validation Bottleneck
 // Thread is BLOCKED or WAITING inside the WSO2 OAuth2 token validation/issuance flow.
 rule OAuth2TokenBottleneck "Thread stuck during OAuth2 token validation/issuance" salience 77 {
     when
@@ -306,7 +317,7 @@ rule OAuth2TokenBottleneck "Thread stuck during OAuth2 token validation/issuance
         t.Analyzed = true;
 }
 
-// Rule 25: Distributed Cache Contention (Hazelcast)
+// Rule 28: Distributed Cache Contention (Hazelcast)
 // Thread is blocked on Hazelcast distributed cache synchronization or WSO2 caching layer.
 rule HazelcastCacheContention "Thread blocked on Hazelcast distributed cache" salience 71 {
     when
@@ -318,8 +329,8 @@ rule HazelcastCacheContention "Thread blocked on Hazelcast distributed cache" sa
         t.Analyzed = true;
 }
 
-// Rule 26: Severe Lock Contention (Generic)
-// Generic catch-all for BLOCKED threads waiting on a monitor lock — fires only when no more specific rule matched.
+// Rule 29: Severe Lock Contention (Generic)
+// Generic catch-all for BLOCKED threads waiting on a monitor lock — fires only when no specific rule matched.
 rule SevereLockContention "Thread BLOCKED waiting for a monitor lock" salience 65 {
     when
         t.Analyzed == false && t.State == "BLOCKED" && t.WaitingToLockAddress != ""

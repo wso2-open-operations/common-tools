@@ -41,14 +41,23 @@ export const uploadThreadDumps = async (
     formData.append("thread_usages", file);
   });
 
-  const response = await fetch(`${API_BASE_URL}/analyze/jobs`, {
-    method: "POST",
-    body: formData,
-    headers: await authHeader(getAccessToken),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/analyze/jobs`, {
+      method: "POST",
+      body: formData,
+      headers: await authHeader(getAccessToken),
+    });
+  } catch {
+    // fetch() rejects only on network-level failure; the gateway timing out a slow upload lands here.
+    throw new Error(
+      "Network error while uploading. The upload may have been cut off by the server or gateway — try again, or upload fewer/smaller files at once."
+    );
+  }
 
   if (!response.ok) {
-    throw new Error(`Upload failed: ${response.statusText}`);
+    const detail = (await response.text().catch(() => "")) || response.statusText;
+    throw new Error(`Upload failed (HTTP ${response.status}): ${detail}`);
   }
 
   return response.json();

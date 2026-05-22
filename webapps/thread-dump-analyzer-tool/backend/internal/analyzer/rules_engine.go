@@ -95,6 +95,13 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		}
 	}
 
+	// Count system-wide JDBC stalls so DatabaseWait can require a minimum share before firing HIGH.
+	for _, t := range threads {
+		if t.ElapsedTime > 5.0 && (t.HasInStackTrace("java.sql") || t.HasInStackTrace("Hibernate") || t.HasInStackTrace("jdbc")) {
+			stats.JDBCStallCount++
+		}
+	}
+
 	// Thread level Concurrency Setup
 	numWorkers := runtime.NumCPU()
 	if numWorkers > len(threads) {
@@ -128,19 +135,16 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 		go func(threadChunk []parser.Thread) {
 			defer wg.Done()
 
-			// One engine per worker
-			// GruleEngine is stateless and thread-safe here, provided each thread uses its own KnowledgeBase clone.
+			// One engine + one KB clone per worker — Grule's Execute() resets WorkingMemory and rule flags on every call.
 			workerEngine := engine.NewGruleEngine()
+			kb, err := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
+			if err != nil {
+				captureErr(fmt.Errorf("knowledge base instance for worker chunk: %w", err))
+				return
+			}
 
 			for j := range threadChunk {
 				t := &threadChunk[j]
-
-				// Get a fresh KnowledgeBase clone so Retract() doesn't break other threads
-				kb, err := e.KnowledgeLibrary.NewKnowledgeBaseInstance("ThreadRules", "0.0.1")
-				if err != nil {
-					captureErr(fmt.Errorf("knowledge base instance for thread %s: %w", t.Name, err))
-					continue
-				}
 
 				dataCtx := ast.NewDataContext()
 				if err := dataCtx.Add("t", t); err != nil {
@@ -152,7 +156,6 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 					continue
 				}
 
-				// Execute rules safely isolated from all other goroutines
 				if err := workerEngine.Execute(dataCtx, kb); err != nil {
 					captureErr(fmt.Errorf("rule execution for thread %s: %w", t.Name, err))
 				}

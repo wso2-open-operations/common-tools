@@ -30,12 +30,13 @@ import (
 
 // Top-level JSON response format for a structured analysis
 type AggregatedAnalysisResponse struct {
-	SessionID   string                       `json:"session_id"`
-	Timestamp   string                       `json:"timestamp"`
-	Threads     []analyzer.AnalyzedThread    `json:"threads"`
-	ThreadPools map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
-	AIInsights  *ai.AIInsights               `json:"ai_insights,omitempty"`
-	Errors      []string                     `json:"errors,omitempty"`
+	SessionID      string                       `json:"session_id"`
+	Timestamp      string                       `json:"timestamp"`
+	Threads        []analyzer.AnalyzedThread    `json:"threads"`
+	ThreadPools    map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
+	PatternMatches []analyzer.PatternMatch      `json:"pattern_matches,omitempty"`
+	AIInsights     *ai.AIInsights               `json:"ai_insights,omitempty"`
+	Errors         []string                     `json:"errors,omitempty"`
 }
 
 // logLevel is shared across the process so the active log level can be adjusted
