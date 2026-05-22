@@ -21,4 +21,6 @@ export interface SignatureData {
   personalPhone: string;
   medium: string;
   linkedin: string;
+  customUrl: string;
+  customUrlLabel: string;
 }

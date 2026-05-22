@@ -36,6 +36,8 @@ const initialData: SignatureData = {
   personalPhone: "",
   medium: "",
   linkedin: "",
+  customUrl: "",
+  customUrlLabel: "",
 };
 
 export default function App() {

@@ -43,6 +43,12 @@ export function generateSignatureHTML(data: SignatureData): string {
       `<a href="${safeUrl}" style="color: #000000; text-decoration: none;">LinkedIn</a>`
     );
   }
+  if (data.customUrl && data.customUrlLabel) {
+    const safeUrl = isSafeUrl(data.customUrl) ? escapeHtml(data.customUrl) : "#";
+    socialLinks.push(
+      `<a href="${safeUrl}" style="color: #000000; text-decoration: none;">${escapeHtml(data.customUrlLabel)}</a>`
+    );
+  }
   const socialText = socialLinks.join(" | ");
 
   let phoneText = "";

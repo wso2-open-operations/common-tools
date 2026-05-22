@@ -25,6 +25,8 @@ const base: SignatureData = {
   personalPhone: "",
   medium: "",
   linkedin: "",
+  customUrl: "",
+  customUrlLabel: "",
 };
 
 describe("generateSignatureHTML", () => {
@@ -99,5 +101,36 @@ describe("generateSignatureHTML", () => {
       linkedin: "https://linkedin.com/in/jane",
     });
     expect(html).toContain("Medium</a> | <a");
+  });
+
+  it("includes custom URL with label when both provided", () => {
+    const html = generateSignatureHTML({
+      ...base,
+      customUrl: "https://github.com/jane",
+      customUrlLabel: "GitHub",
+    });
+    expect(html).toContain('href="https://github.com/jane"');
+    expect(html).toContain(">GitHub<");
+  });
+
+  it("omits custom URL when only URL is provided without a label", () => {
+    const html = generateSignatureHTML({ ...base, customUrl: "https://github.com/jane" });
+    expect(html).not.toContain("https://github.com/jane");
+  });
+
+  it("omits custom URL when only label is provided without a URL", () => {
+    const html = generateSignatureHTML({ ...base, customUrlLabel: "GitHub" });
+    expect(html).not.toContain("GitHub");
+  });
+
+  it("appends custom link after LinkedIn with pipe separator", () => {
+    const html = generateSignatureHTML({
+      ...base,
+      linkedin: "https://linkedin.com/in/jane",
+      customUrl: "https://github.com/jane",
+      customUrlLabel: "GitHub",
+    });
+    expect(html).toContain("LinkedIn</a> | <a");
+    expect(html).toContain(">GitHub<");
   });
 });
