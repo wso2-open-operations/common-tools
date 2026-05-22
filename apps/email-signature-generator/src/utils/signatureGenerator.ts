@@ -79,7 +79,7 @@ export function generateSignatureHTML(data: SignatureData): string {
           <tbody>
             <tr>
               <td style="${tdBase};padding: 0 0 3px 0;">
-                <img src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/wso2-orange-logo.png" alt="WSO2" width="100" style="-ms-interpolation-mode: bicubic;height: auto;outline: none;text-decoration: none;border: 0;display: block;">
+                <a href="https://wso2.com" style="text-decoration: none;border: 0;display: block;"><img src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/wso2-orange-logo.png" alt="WSO2" width="100" style="-ms-interpolation-mode: bicubic;height: auto;outline: none;text-decoration: none;border: 0;display: block;"></a>
               </td>
             </tr>
             <tr>
