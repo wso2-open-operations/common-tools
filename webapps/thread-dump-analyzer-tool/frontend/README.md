@@ -62,7 +62,7 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 
 **Theme** - light/dark/system preference persisted to `localStorage` under key `tdat-theme`. Toggled via the header icon.
 
-**Auth gate** - `AppHandler` checks Asgardeo auth state before rendering the router. Unauthenticated users see `LoginScreen`; loading state shows `PreLoader`.
+**Auth gate** - `AppHandler` checks Asgardeo auth state before rendering the router. Unauthenticated users see `LoginScreen`; loading state shows `PreLoader`. Both backend calls in `api/analyze.ts` attach the Asgardeo access token as an `Authorization: Bearer <jwt>` header (via `getAccessToken` from `useAuthContext`), which the backend requires when `AUTH_ENABLED`.
 
 ## Stack
 

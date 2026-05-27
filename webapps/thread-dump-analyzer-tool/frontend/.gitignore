@@ -12,7 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Agent workspace directories
 .agents/
+
+# Skills dependency lock file
+skills-lock.json
 
 # Editor directories and files
 .vscode/*
@@ -26,9 +30,3 @@ dist-ssr
 *.sw?
 .env
 .env.local
-
-# Markdown files (except README)
-*.md
-!README.md
-
-skills-lock.json

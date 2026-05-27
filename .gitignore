@@ -41,9 +41,3 @@ Config.toml
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
-
-# Markdown files (except README)
-*.md
-!README.md
-!issue_template.md
-!pull_request_template.md

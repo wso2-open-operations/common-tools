@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -86,10 +87,28 @@ func main() {
 	// In-memory registry of asynchronous analysis jobs
 	jobStore := NewJobStore(cfg)
 
+	ipLimiter := NewIPLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, cfg.RateLimitVisitorTTL, cfg.RateLimitJanitorTick)
+	jobLimiter := NewJobLimiter(cfg.MaxConcurrentJobs)
+
+	// Gate the analyze endpoints behind Bearer-JWT auth; fail fast if enabled but unconfigured.
+	var requireAuth func(http.HandlerFunc) http.HandlerFunc
+	if cfg.AuthEnabled {
+		authn, err := NewAuthenticator(context.Background(), cfg)
+		if err != nil {
+			slog.Error("failed to initialize authentication", "error", err)
+			os.Exit(1)
+		}
+		requireAuth = authn.RequireAuth
+		slog.Info("authentication enabled", "issuer", cfg.JWTIssuer, "jwks_url", cfg.JWKSURL, "audience_check", cfg.JWTAudience != "")
+	} else {
+		slog.Warn("AUTHENTICATION DISABLED — analyze endpoints are publicly accessible; never deploy with AUTH_ENABLED=false")
+		requireAuth = func(next http.HandlerFunc) http.HandlerFunc { return next }
+	}
+
 	addr := ":" + cfg.Port
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           NewRouter(cfg, jobStore, engine, enricher),
+		Handler:           NewRouter(cfg, jobStore, engine, enricher, ipLimiter, jobLimiter, requireAuth),
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,

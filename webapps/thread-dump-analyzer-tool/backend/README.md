@@ -8,6 +8,7 @@ Go HTTP server that analyzes Java thread dumps to detect performance issues such
 # Copy the env template and fill in your Anthropic API key
 cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
+# Auth is ON by default — set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
 
 go run .
 # Server starts at http://localhost:8080
@@ -17,7 +18,15 @@ The server logs its listening URL on startup (e.g. `url=http://localhost:8080`) 
 
 If `ANTHROPIC_API_KEY` is not set, analysis still completes and AI insights return a static "unavailable" message instead of failing the job.
 
+**Authentication is on by default** (`AUTH_ENABLED=true`). The server **refuses to start** unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is set, and `/analyze/jobs` then requires a valid Bearer JWT. The built-in HTML form sends no token, so for manual testing set `AUTH_ENABLED=false` to make the analyze endpoints public (local use only). See [Authentication](#authentication) below.
+
 ## API
+
+### Authentication
+
+When `AUTH_ENABLED` (default `true`), `POST /analyze/jobs` and `GET /analyze/jobs/{id}` require an `Authorization: Bearer <jwt>` header. Tokens are validated in `auth.go` against the Asgardeo JWKS — signature plus `exp`/`nbf`/`iss` (and `aud` when `JWT_AUDIENCE` is set) — using a cached, auto-refreshing key set with 60s clock skew. Missing or invalid tokens get `401` with a `WWW-Authenticate: Bearer` challenge. `GET /health` and the `GET /` HTML form stay open. CORS wraps the mux, so preflight `OPTIONS` is answered before auth and `401`s still carry CORS headers.
+
+Set `ASGARDEO_BASE_URL` and the JWKS endpoint + issuer are derived (`<base>/oauth2/jwks`, `<base>/oauth2/token`); override either with `JWT_JWKS_URL` / `JWT_ISSUER`. With `AUTH_ENABLED=false` the analyze endpoints are public — local testing only.
 
 ### `POST /analyze/jobs`
 
@@ -66,6 +75,13 @@ Poll for job status and result.
 ### `GET /health`
 
 Returns `200 OK` with body `OK`. Used for liveness probes.
+
+### Rate Limiting
+
+`POST /analyze/jobs` is gated by two independent layers, both returning HTTP `429`:
+
+- **Per-IP token bucket** (`IPLimiter` in `router.go`): default 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Tune via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
+- **Concurrent-job semaphore** (`JobLimiter` in `jobs.go`): caps in-flight analyses at `MAX_CONCURRENT_JOBS` (default 10). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
 
 ## How It Works
 
@@ -122,23 +138,34 @@ Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineer
 | Variable | Default | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | _(unset)_ | Required for AI insights. If unset, the job still completes and `ai_insights` returns a static "unavailable" message. |
+| `AUTH_ENABLED` | `true` | Require a Bearer JWT on `/analyze/jobs` (POST + GET). `false` makes those endpoints public — local testing only. When `true`, the server refuses to start unless the issuer/JWKS below resolve. |
+| `ASGARDEO_BASE_URL` | _(unset)_ | Asgardeo tenant base URL, e.g. `https://api.asgardeo.io/t/<org>`. JWKS (`/oauth2/jwks`) and issuer (`/oauth2/token`) are derived from it. Required when auth is on unless the two below are set. |
+| `JWT_JWKS_URL` | _(derived)_ | Explicit JWKS endpoint; overrides the value derived from `ASGARDEO_BASE_URL`. |
+| `JWT_ISSUER` | _(derived)_ | Expected `iss` claim; overrides the value derived from `ASGARDEO_BASE_URL`. |
+| `JWT_AUDIENCE` | _(unset)_ | Expected `aud` claim (set to the app's client ID). Empty = `aud` not checked. |
 | `LOG_LEVEL` | `INFO` | slog level: `DEBUG` / `INFO` / `WARN` / `ERROR`. |
 | `PORT` | `8080` | HTTP listen port. |
 | `PUBLIC_URL` | `http://localhost:${PORT}` | Public base URL logged at startup for click-to-test. Set this when running behind a public hostname or reverse proxy. |
-| `READ_HEADER_TIMEOUT` | `5s` | Go `time.Duration` string. |
-| `READ_TIMEOUT` | `60s` | Go `time.Duration` string. |
-| `WRITE_TIMEOUT` | `60s` | Go `time.Duration` string. |
-| `IDLE_TIMEOUT` | `120s` | Go `time.Duration` string. |
+| `READ_HEADER_TIMEOUT` | `30s` | Go `time.Duration` string. |
+| `READ_TIMEOUT` | `10m` | Go `time.Duration` string. Bounds the full multipart upload window — keep generous for large uploads. |
+| `WRITE_TIMEOUT` | `10m` | Go `time.Duration` string. Counts from header receipt, so also bounds the upload window. |
+| `IDLE_TIMEOUT` | `5m` | Go `time.Duration` string. Keep-alive idle timeout between polling GETs. |
 | `RULES_PATH` | `./internal/rules/rules.grl` | Grule rules file. |
 | `THREAD_POOLS_PATH` | `./config/thread_pools.yaml` | Pool-definition YAML. |
-| `CORS_ALLOWED_ORIGINS` | `*` | Comma-separated. |
-| `CORS_ALLOWED_METHODS` | `GET,POST,OPTIONS,PUT,DELETE` | Comma-separated. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated. Restrictive by default — set to your frontend origin(s) in prod; never use `*` without backend auth. |
+| `CORS_ALLOWED_METHODS` | `GET,POST,OPTIONS` | Comma-separated. |
 | `CORS_ALLOWED_HEADERS` | `Accept,Content-Type,Content-Length,Accept-Encoding,X-CSRF-Token,Authorization` | Comma-separated. |
 | `CORS_DEBUG` | `false` | When `true`, rs/cors emits per-request debug lines through slog (so they only appear if `LOG_LEVEL=DEBUG`). |
 | `MAX_UPLOAD_BYTES` | `100MB` | Multipart upload cap. Accepts `B`, `K`/`KB`/`KiB`, `M`/`MB`/`MiB`, `G`/`GB`/`GiB`. |
 | `JOB_TTL` | `1h` | How long terminal (`completed` / `failed`) jobs stay queryable. `pending`/`running` jobs are never expired. |
 | `JOB_STORE_MAX_SIZE` | `200` | Max jobs retained in memory. When exceeded, the janitor evicts the oldest **terminal** jobs first; in-flight (`pending`/`running`) jobs are never evicted. |
 | `JOB_JANITOR_TICK` | `1m` | Eviction sweep interval. |
+| `JOB_TIMEOUT` | `2m` | Per-job deadline. On expiry the job is marked `failed` and the pipeline aborts at its next checkpoint. |
+| `MAX_CONCURRENT_JOBS` | `10` | Counting semaphore on in-flight analyses; excess POSTs get `429`. |
+| `RATE_LIMIT_RPS` | `0.5` | Per-IP token-bucket refill rate (requests/sec) for POST `/analyze/jobs`. |
+| `RATE_LIMIT_BURST` | `5` | Per-IP token-bucket burst capacity. |
+| `RATE_LIMIT_VISITOR_TTL` | `1h` | How long an idle IP's bucket is remembered before eviction. |
+| `RATE_LIMIT_JANITOR_TICK` | `5m` | Background sweep interval for IP visitor eviction. |
 
 ### Other config
 
@@ -154,14 +181,24 @@ go build                    # Build binary (output: ./backend)
 go mod tidy                 # Sync dependencies
 ```
 
+## Testing
+
+```bash
+go test ./...               # Run all unit tests
+```
+
+Unit tests live in `*_test.go` files beside the code they cover: parser, enricher, rules engine, aggregator, pattern matching, and AI prompt construction under `internal/`, plus job store, rate/concurrency limiters, and JWT auth at the package root.
+
 ## File Structure
 
 ```
 backend/
 ├── main.go                          Entrypoint: .env load, slog setup, engine/enricher/jobStore wiring, http.Server start; AggregatedAnalysisResponse type
-├── router.go                        NewRouter (ServeMux + CORS middleware) and the manual-testing HTML form (serveHTML)
+├── router.go                        NewRouter (ServeMux + CORS middleware), IPLimiter (per-IP rate limit), and the manual-testing HTML form (serveHTML)
+├── auth.go                          Authenticator — Bearer-JWT validation against the Asgardeo JWKS (RequireAuth middleware)
 ├── settings.go                      Config struct + LoadConfig — env-var parsing with sensible defaults
-├── jobs.go                          Job/JobStore (TTL + max-size + background janitor), async handlers, runAnalysis pipeline
+├── jobs.go                          Job/JobStore (TTL + max-size + background janitor), JobLimiter (concurrency semaphore), async handlers, runAnalysis pipeline
+├── *_test.go                        Unit tests (auth, jobs, limiters; plus per-package tests under internal/)
 ├── go.mod / go.sum                  Go module definition and dependency lock
 ├── .env.example                     Tracked template — copy to .env and fill in
 ├── .env                             Local secrets (gitignored, loaded via godotenv)

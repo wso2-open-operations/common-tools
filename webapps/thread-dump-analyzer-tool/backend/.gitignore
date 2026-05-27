@@ -36,7 +36,3 @@ bin/
 dist/
 /backend
 __debug_bin*
-
-# Markdown files (except README)
-*.md
-!README.md

@@ -18,11 +18,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend/internal/ai"
@@ -123,6 +127,36 @@ func isTerminal(s JobStatus) bool {
 	return s == JobCompleted || s == JobFailed
 }
 
+// JobLimiter caps in-flight analysis jobs via a counting semaphore so a burst of
+// uploads cannot exhaust memory or goroutine budget regardless of source.
+type JobLimiter struct {
+	sem chan struct{}
+}
+
+func NewJobLimiter(max int) *JobLimiter {
+	if max <= 0 {
+		max = 1
+	}
+	return &JobLimiter{sem: make(chan struct{}, max)}
+}
+
+func (l *JobLimiter) TryAcquire() bool {
+	select {
+	case l.sem <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// Release frees one slot; defensive non-blocking receive guards against double-release bugs.
+func (l *JobLimiter) Release() {
+	select {
+	case <-l.sem:
+	default:
+	}
+}
+
 func (s *JobStore) Create() *Job {
 	now := time.Now()
 	j := &Job{
@@ -182,11 +216,15 @@ func readMultipartFiles(headers []*multipart.FileHeader) ([]filePayload, error) 
 	return out, nil
 }
 
-func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes int64) {
+func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes int64, jobTimeout time.Duration, jobLimiter *JobLimiter) {
+	// reqID correlates the generic client message with the full server-side log entry.
+	reqID := uuid.NewString()
+
 	// Cap body size so ParseMultipartForm keeps file parts in RAM, not $TMPDIR.
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
-		http.Error(w, fmt.Sprintf("Files too large. Limit is %d MiB.", maxUploadBytes>>20), http.StatusBadRequest)
+		slog.Warn("multipart parse failed", "request_id", reqID, "error", err)
+		http.Error(w, fmt.Sprintf("Could not process upload. Limit is %d MiB (ref=%s)", maxUploadBytes>>20, reqID), http.StatusBadRequest)
 		return
 	}
 
@@ -200,39 +238,89 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore,
 
 	dumps, err := readMultipartFiles(dumpHeaders)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Warn("failed to read thread_dumps upload", "request_id", reqID, "error", err)
+		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
 		return
 	}
 	usages, err := readMultipartFiles(usageHeaders)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Warn("failed to read thread_usages upload", "request_id", reqID, "error", err)
+		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
+		return
+	}
+
+	if !jobLimiter.TryAcquire() {
+		http.Error(w, "Server busy, too many concurrent analyses; try again shortly", http.StatusTooManyRequests)
 		return
 	}
 
 	job := store.Create()
-
-	go func(jobID string) {
-		store.Update(jobID, func(j *Job) { j.Status = JobRunning })
-
-		defer func() {
-			if rec := recover(); rec != nil {
-				store.Update(jobID, func(j *Job) {
-					j.Status = JobFailed
-					j.Error = fmt.Sprintf("internal error: %v", rec)
-				})
-			}
-		}()
-
-		result := runAnalysis(dumps, usages, eng, enricher)
-		store.Update(jobID, func(j *Job) {
-			j.Status = JobCompleted
-			j.Result = result
-		})
-	}(job.ID)
+	go func() {
+		defer jobLimiter.Release()
+		runJob(job.ID, dumps, usages, store, eng, enricher, jobTimeout)
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID})
+}
+
+type analysisResult struct {
+	resp  *AggregatedAnalysisResponse
+	rec   any
+	stack []byte
+}
+
+// runJob drives one analysis under a deadline. The inner sub-goroutine respects ctx
+// at every phase boundary so it exits soon after timeout; the buffered done channel keeps it leak-free.
+func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
+	defer cancel()
+
+	store.Update(jobID, func(j *Job) { j.Status = JobRunning })
+
+	done := make(chan analysisResult, 1)
+	go func() {
+		var resp *AggregatedAnalysisResponse
+		var rec any
+		var stack []byte
+		defer func() {
+			if r := recover(); r != nil {
+				rec = r
+				stack = debug.Stack()
+			}
+			done <- analysisResult{resp: resp, rec: rec, stack: stack}
+		}()
+		resp = runAnalysis(ctx, dumps, usages, eng, enricher)
+	}()
+
+	select {
+	case r := <-done:
+		if r.rec != nil {
+			slog.Error("analysis panicked", "job_id", jobID, "panic", fmt.Sprintf("%v", r.rec), "stack", string(r.stack))
+			store.Update(jobID, func(j *Job) {
+				j.Status = JobFailed
+				j.Error = fmt.Sprintf("internal error (ref=%s)", jobID)
+			})
+			return
+		}
+		if ctx.Err() != nil {
+			store.Update(jobID, func(j *Job) {
+				j.Status = JobFailed
+				j.Error = fmt.Sprintf("analysis timed out after %s", jobTimeout)
+			})
+			return
+		}
+		store.Update(jobID, func(j *Job) {
+			j.Status = JobCompleted
+			j.Result = r.resp
+		})
+	case <-ctx.Done():
+		store.Update(jobID, func(j *Job) {
+			j.Status = JobFailed
+			j.Error = fmt.Sprintf("analysis timed out after %s", jobTimeout)
+		})
+	}
 }
 
 func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *JobStore) {
@@ -258,7 +346,7 @@ type preppedFile struct {
 }
 
 // Two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
-func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) *AggregatedAnalysisResponse {
+func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) *AggregatedAnalysisResponse {
 	prepped := make([]*preppedFile, len(dumps))
 	errSlots := make([][]string, len(dumps))
 	var wg sync.WaitGroup
@@ -268,6 +356,10 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 		wg.Add(1)
 		go func(index int, d filePayload) {
 			defer wg.Done()
+
+			if ctx.Err() != nil {
+				return
+			}
 
 			var usageReader io.Reader
 			if index < len(usages) {
@@ -293,7 +385,7 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 				return
 			}
 
-			enricher.Enrich(threads)
+			enricher.Enrich(ctx, threads)
 
 			prepped[index] = &preppedFile{
 				fileName:          d.FileName,
@@ -317,9 +409,13 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 		if p == nil {
 			continue
 		}
+		if ctx.Err() != nil {
+			errorMessages = append(errorMessages, fmt.Sprintf("Rule analysis skipped for %s: %v", p.fileName, ctx.Err()))
+			continue
+		}
 
-		stats, err := eng.AnalyzeThreads(p.threads, p.usageDataProvided, prevBlockedPct, prevTotalThreads)
-		if err != nil {
+		stats, err := eng.AnalyzeThreads(ctx, p.threads, p.usageDataProvided, prevBlockedPct, prevTotalThreads)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			errorMessages = append(errorMessages, fmt.Sprintf("Rule analysis failed for %s: %v", p.fileName, err))
 		}
 		if stats != nil {
@@ -336,11 +432,14 @@ func runAnalysis(dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher
 	aggregatedThreads := analyzer.AggregateThreads(parsedFiles)
 	patternMatches := analyzer.ComputePatternMatches(aggregatedThreads)
 
-	usageUploaded := len(usages) > 0
-	aiInsights, err := ai.GetInsights(aggregatedThreads, usageUploaded)
-	if err != nil {
-		msg := fmt.Sprintf("AI insights unavailable: %v", err)
-		errorMessages = append(errorMessages, msg)
+	var aiInsights *ai.AIInsights
+	if ctx.Err() == nil {
+		usageUploaded := len(usages) > 0
+		var err error
+		aiInsights, err = ai.GetInsights(ctx, aggregatedThreads, usageUploaded)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			errorMessages = append(errorMessages, fmt.Sprintf("AI insights unavailable: %v", err))
+		}
 	}
 
 	return &AggregatedAnalysisResponse{

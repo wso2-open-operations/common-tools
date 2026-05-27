@@ -17,6 +17,7 @@
 package analyzer
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -94,8 +95,8 @@ func NewThreadEnricher(configPath string) (*ThreadEnricher, error) {
 	}, nil
 }
 
-// Enrich iterates through threads and categorizes them in-place.
-func (te *ThreadEnricher) Enrich(threads []parser.Thread) {
+// Enrich iterates through threads and categorizes them in-place; honors ctx so callers can abort.
+func (te *ThreadEnricher) Enrich(ctx context.Context, threads []parser.Thread) {
 	numWorkers := runtime.NumCPU()
 	if numWorkers > len(threads) {
 		numWorkers = len(threads)
@@ -123,6 +124,9 @@ func (te *ThreadEnricher) Enrich(threads []parser.Thread) {
 			defer wg.Done()
 
 			for j := range threadChunk {
+				if ctx.Err() != nil {
+					return
+				}
 				t := &threadChunk[j]
 				matched := false
 

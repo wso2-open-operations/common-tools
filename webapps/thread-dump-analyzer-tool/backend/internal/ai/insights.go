@@ -41,8 +41,8 @@ type AIInsights struct {
 }
 
 // GetInsights calls the Anthropic API to produce a plain-English executive summary of the thread dumps.
-// usageProvided indicates whether thread usage/CPU files were uploaded alongside the dumps.
-func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsights, error) {
+// parentCtx caps the call (capped further to 30s); usageProvided indicates whether CPU files were uploaded.
+func GetInsights(parentCtx context.Context, threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsights, error) {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
 		return &AIInsights{
@@ -61,8 +61,7 @@ func GetInsights(threads []analyzer.AnalyzedThread, usageProvided bool) (*AIInsi
 	// Call Anthropic API
 	client := anthropic.NewClient(option.WithAPIKey(apiKey))
 
-	// Using Claude 4.5 Haiku
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 
 	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
@@ -177,7 +176,7 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 			fmt.Fprintf(&sb, " cpu=%.1f%%", worst.CPUPercentage)
 		}
 		if len(worst.Issues) > 0 {
-			fmt.Fprintf(&sb, " issues=%s", strings.Join(worst.Issues, ","))
+			fmt.Fprintf(&sb, " issues=[%s]", strings.Join(quoteAll(worst.Issues), ","))
 		}
 		// Top 3 stack frames only
 		frames := worst.StackTrace
@@ -185,12 +184,22 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 			frames = frames[:3]
 		}
 		if len(frames) > 0 {
-			fmt.Fprintf(&sb, " stack=[%s]", strings.Join(frames, " | "))
+			fmt.Fprintf(&sb, " stack=[%s]", strings.Join(quoteAll(frames), " | "))
 		}
 		fmt.Fprintf(&sb, "\n")
 	}
 
 	return sb.String()
+}
+
+// quoteAll applies %q to each string so user-controlled fields (issues, stack frames)
+// can't break out of the prompt context with quotes, newlines, or instruction-like text.
+func quoteAll(ss []string) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = fmt.Sprintf("%q", s)
+	}
+	return out
 }
 
 func normalizeRisk(level string) string {

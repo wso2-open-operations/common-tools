@@ -17,6 +17,7 @@
 package analyzer
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"sync"
@@ -47,9 +48,9 @@ func NewEngine(ruleFilePath string) (*RuleEngine, error) {
 	}, nil
 }
 
-// Applies rules concurrently with prev metrics for temporal rules.
+// Applies rules concurrently with prev metrics for temporal rules; honors ctx between threads.
 // Caller should pass the returned GlobalStats as prev values on next invocation.
-func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided bool, prevBlockedPct float64, prevTotalThreads int) (*parser.GlobalStats, error) {
+func (e *RuleEngine) AnalyzeThreads(ctx context.Context, threads []parser.Thread, usageDataProvided bool, prevBlockedPct float64, prevTotalThreads int) (*parser.GlobalStats, error) {
 
 	if !usageDataProvided {
 		for i := range threads {
@@ -144,6 +145,10 @@ func (e *RuleEngine) AnalyzeThreads(threads []parser.Thread, usageDataProvided b
 			}
 
 			for j := range threadChunk {
+				if err := ctx.Err(); err != nil {
+					captureErr(err)
+					return
+				}
 				t := &threadChunk[j]
 
 				dataCtx := ast.NewDataContext()

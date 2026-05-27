@@ -28,12 +28,17 @@ cd backend
 # Copy the env template and fill in your Anthropic API key
 cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
+# Auth is ON by default — set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
 
 go run .
 # Server starts at http://localhost:8080
 ```
 
-If `ANTHROPIC_API_KEY` is not set, the server still runs and analysis completes - AI insights will return a static "unavailable" message instead of an error.
+If `ANTHROPIC_API_KEY` is not set, the server still runs and analysis completes — AI insights will return a static "unavailable" message instead of an error.
+
+**Authentication is enabled by default** (`AUTH_ENABLED=true`): the `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header validated against Asgardeo, and the server **refuses to start** unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is configured. For local testing without an identity provider, set `AUTH_ENABLED=false` to make the endpoints public.
+
+CORS defaults to allowing only `http://localhost:5173`. For other origins set `CORS_ALLOWED_ORIGINS` in `.env` (comma-separated).
 
 ### Frontend
 
@@ -58,7 +63,9 @@ GET  /health                        # Liveness probe
 GET  /                              # HTML upload form for manual testing
 ```
 
-The analysis runs asynchronously. Poll the status endpoint until `status` is `completed` or `failed`.
+When `AUTH_ENABLED` (the default), both `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header (validated against Asgardeo) and return `401` otherwise; `GET /health` and the `GET /` form stay open.
+
+The analysis runs asynchronously. Poll the status endpoint until `status` is `completed` or `failed`. Jobs run under a configurable deadline (`JOB_TIMEOUT`, default 2m); on expiry the job is marked `failed` and the pipeline exits at the next checkpoint.
 
 **Upload fields (multipart/form-data):**
 - `thread_dumps` - required, one or more Java thread dump `.txt`/`.log` files
@@ -84,6 +91,10 @@ Dump and usage files are paired client-side by a normalized filename key (`utils
 ```
 
 `pattern_matches[]` gives the frontend authoritative per-rule unique-thread counts without having to substring-scan `issues[]`. Omitted when no rule fired.
+
+**Rate limiting** — `POST /analyze/jobs` is gated by two independent layers, both returning HTTP 429:
+- **Per-IP token bucket** (`IPLimiter` in `router.go`): defaults to 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Configurable via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
+- **Concurrent job semaphore** (`JobLimiter` in `jobs.go`): caps in-flight analyses to prevent memory exhaustion under burst load. Defaults to 10 (`MAX_CONCURRENT_JOBS`). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
 
 ## Features
 
@@ -124,6 +135,8 @@ The frontend derives the full lock contention graph directly from the raw thread
 ### AI Insights
 
 After rule analysis, the backend sends a summarized thread report (up to 40 non-INFO threads, top 3 stack frames each) to Anthropic's `claude-haiku-4-5-20251001` model. The system prompt is tailored for WSO2/Java performance engineering, instructing the model to cite specific thread names and packages. The response is structured JSON with `executive_summary`, `pattern_recognition`, and `recommended_actions`.
+
+User-controlled fields in the prompt (issue strings, stack frames) are wrapped with `%q` via a `quoteAll` helper to prevent prompt injection from adversarial thread names or stack frames.
 
 ## License
 

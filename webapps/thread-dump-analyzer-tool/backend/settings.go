@@ -47,12 +47,40 @@ type Config struct {
 	JobTTL          time.Duration
 	JobStoreMaxSize int
 	JobJanitorTick  time.Duration
+	JobTimeout      time.Duration
+
+	MaxConcurrentJobs    int
+	RateLimitRPS         float64
+	RateLimitBurst       int
+	RateLimitVisitorTTL  time.Duration
+	RateLimitJanitorTick time.Duration
+
+	// When AuthEnabled, /analyze/jobs requires a Bearer JWT validated against JWKSURL
+	// with matching JWTIssuer (and JWTAudience if set). Derived from ASGARDEO_BASE_URL.
+	AuthEnabled bool
+	JWKSURL     string
+	JWTIssuer   string
+	JWTAudience string
 }
 
 // LoadConfig reads env vars, falling back to defaults when unset or malformed.
 // Malformed values produce a slog.Warn so misconfiguration surfaces in logs.
 func LoadConfig() *Config {
 	port := getEnv("PORT", "8080")
+
+	// Derive JWKS + issuer from the Asgardeo tenant base URL; explicit overrides win.
+	asgardeoBaseURL := strings.TrimRight(getEnv("ASGARDEO_BASE_URL", ""), "/")
+	jwksURL := getEnv("JWT_JWKS_URL", "")
+	jwtIssuer := getEnv("JWT_ISSUER", "")
+	if asgardeoBaseURL != "" {
+		if jwksURL == "" {
+			jwksURL = asgardeoBaseURL + "/oauth2/jwks"
+		}
+		if jwtIssuer == "" {
+			jwtIssuer = asgardeoBaseURL + "/oauth2/token"
+		}
+	}
+
 	return &Config{
 		Port:              port,
 		PublicURL:         strings.TrimRight(getEnv("PUBLIC_URL", "http://localhost:"+port), "/"),
@@ -65,8 +93,8 @@ func LoadConfig() *Config {
 		RulesPath:       getEnv("RULES_PATH", "./internal/rules/rules.grl"),
 		ThreadPoolsPath: getEnv("THREAD_POOLS_PATH", "./config/thread_pools.yaml"),
 
-		CORSAllowedOrigins: getEnvList("CORS_ALLOWED_ORIGINS", []string{"*"}),
-		CORSAllowedMethods: getEnvList("CORS_ALLOWED_METHODS", []string{"GET", "POST", "OPTIONS", "PUT", "DELETE"}),
+		CORSAllowedOrigins: getEnvList("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
+		CORSAllowedMethods: getEnvList("CORS_ALLOWED_METHODS", []string{"GET", "POST", "OPTIONS"}),
 		CORSAllowedHeaders: getEnvList("CORS_ALLOWED_HEADERS", []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}),
 		CORSDebug:          strings.EqualFold(strings.TrimSpace(os.Getenv("CORS_DEBUG")), "true"),
 
@@ -74,7 +102,51 @@ func LoadConfig() *Config {
 		JobTTL:          getEnvDuration("JOB_TTL", 1*time.Hour),
 		JobStoreMaxSize: getEnvInt("JOB_STORE_MAX_SIZE", 200),
 		JobJanitorTick:  getEnvDuration("JOB_JANITOR_TICK", 1*time.Minute),
+		JobTimeout:      getEnvDuration("JOB_TIMEOUT", 2*time.Minute),
+
+		MaxConcurrentJobs:    getEnvInt("MAX_CONCURRENT_JOBS", 10),
+		RateLimitRPS:         getEnvFloat("RATE_LIMIT_RPS", 0.5),
+		RateLimitBurst:       getEnvInt("RATE_LIMIT_BURST", 5),
+		RateLimitVisitorTTL:  getEnvDuration("RATE_LIMIT_VISITOR_TTL", 1*time.Hour),
+		RateLimitJanitorTick: getEnvDuration("RATE_LIMIT_JANITOR_TICK", 5*time.Minute),
+
+		AuthEnabled: getEnvBool("AUTH_ENABLED", true),
+		JWKSURL:     jwksURL,
+		JWTIssuer:   jwtIssuer,
+		JWTAudience: getEnv("JWT_AUDIENCE", ""),
 	}
+}
+
+// getEnvBool parses a boolean (true/false/1/0/yes/no/on/off, case-insensitive);
+// warns and falls back on malformed input.
+func getEnvBool(key string, def bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return def
+	}
+	switch strings.ToLower(raw) {
+	case "1", "t", "true", "yes", "y", "on":
+		return true
+	case "0", "f", "false", "no", "n", "off":
+		return false
+	default:
+		slog.Warn("invalid boolean, using default", "key", key, "value", raw, "default", def)
+		return def
+	}
+}
+
+// getEnvFloat parses a float64; warns and falls back on malformed input.
+func getEnvFloat(key string, def float64) float64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return def
+	}
+	f, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		slog.Warn("invalid float, using default", "key", key, "value", raw, "default", def)
+		return def
+	}
+	return f
 }
 
 // getEnvInt parses a base-10 integer; warns and falls back on malformed input.
