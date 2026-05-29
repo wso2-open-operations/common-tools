@@ -1,0 +1,521 @@
+// Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+import type { AnalysisResponse, Thread, ThreadSnapshot, AiInsights } from '@/types/api';
+import { deriveLockOwnerCentricData } from './lockContentionAnalysis';
+import {
+    type FindingSeverity,
+    SEVERITY_ORDER,
+    categorizeIssue,
+    CRITICAL_RISK_FALLBACK,
+} from './ruleCategories';
+
+const LINE_WIDTH = 80;
+const DIVIDER = '='.repeat(LINE_WIDTH);
+
+// Helpers
+
+function centerText(text: string, width: number = LINE_WIDTH): string {
+    const pad = Math.max(0, Math.floor((width - text.length) / 2));
+    return ' '.repeat(pad) + text;
+}
+
+function kvLine(key: string, value: string | number, keyWidth: number = 22): string {
+    return `  ${String(key + ':').padEnd(keyWidth)} ${value}`;
+}
+
+function truncate(text: string, maxLen: number): string {
+    if (text.length <= maxLen) return text;
+    return text.slice(0, maxLen - 3) + '...';
+}
+
+function sectionHeader(title: string): string {
+    return `${DIVIDER}
+  ${title}
+${DIVIDER}`;
+}
+
+function formatDuration(seconds: number): string {
+    if (seconds >= 3600) return `${(seconds / 3600).toFixed(1)}h`;
+    if (seconds >= 60) return `${(seconds / 60).toFixed(1)}m`;
+    return `${seconds.toFixed(1)}s`;
+}
+
+function formatWaitTime(ms: number): string {
+    if (ms >= 60_000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms >= 1_000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${ms}ms`;
+}
+
+function waitSeverityTag(ms: number): string {
+    if (ms >= 60_000) return '[CRITICAL]';
+    if (ms >= 10_000) return '[HIGH]';
+    if (ms >= 1_000) return '[WARN]';
+    return '[OK]';
+}
+
+// Table Generator
+
+interface TableColumn {
+    header: string;
+    maxWidth?: number;
+    align?: 'left' | 'right';
+}
+
+function formatTable(columns: TableColumn[], rows: string[][]): string {
+    if (rows.length === 0) return '  (none)\n';
+
+    const widths = columns.map((col, i) => {
+        const contentMax = Math.max(
+            col.header.length,
+            ...rows.map(row => (row[i] ?? '').length),
+        );
+        return col.maxWidth ? Math.min(contentMax, col.maxWidth) : contentMax;
+    });
+
+    const border = '+' + widths.map(w => '-'.repeat(w + 2)).join('+') + '+';
+
+    const fmtRow = (cells: string[]): string => {
+        const formatted = cells.map((cell, i) => {
+            const t = truncate(cell, widths[i]);
+            return columns[i].align === 'right'
+                ? t.padStart(widths[i])
+                : t.padEnd(widths[i]);
+        });
+        return '| ' + formatted.join(' | ') + ' |';
+    };
+
+    return [
+        border,
+        fmtRow(columns.map(c => c.header)),
+        border,
+        ...rows.map(row => fmtRow(row)),
+        border,
+    ].join('\n') + '\n';
+}
+
+// Computation
+
+// Extract the most relevant executing method from stack trace (first "at" line) for clustering threads.
+function getClusterKey(stackTrace: string[]): string {
+    for (const line of stackTrace) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('at ')) return trimmed.substring(3).trim();
+    }
+    return stackTrace[0]?.trim() || 'Unknown';
+}
+
+function getLatestDumpSnapshots(threads: Thread[]): Array<{ thread: Thread; snapshot: ThreadSnapshot }> {
+    const dumpNames = new Set<string>();
+    threads.forEach(t => t.snapshots.forEach(s => dumpNames.add(s.dump_name)));
+    const sorted = [...dumpNames].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const latestDump = sorted[sorted.length - 1] ?? '';
+
+    const result: Array<{ thread: Thread; snapshot: ThreadSnapshot }> = [];
+    threads.forEach(t => {
+        const snap = t.snapshots.find(s => s.dump_name === latestDump);
+        if (snap) result.push({ thread: t, snapshot: snap });
+    });
+    return result;
+}
+
+// Section Formatters
+
+function formatHeader(sessionId: string, timestamp: string): string {
+    return [
+        DIVIDER,
+        centerText('THREAD DUMP ANALYSIS REPORT'),
+        DIVIDER,
+        `  Generated:   ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`,
+        `  Session:     ${sessionId}`,
+        `  Snapshot:    ${timestamp}`,
+    ].join('\n');
+}
+
+function formatExecutiveSummary(aiInsights?: AiInsights): string {
+    const header = sectionHeader('EXECUTIVE SUMMARY');
+    const body = aiInsights?.executive_summary?.trim()
+        || 'No executive summary available.';
+    return `${header}
+
+${body}`;
+}
+
+function formatMetrics(
+    threadCount: number,
+    healthScore: number,
+    blockedCount: number,
+    criticalCount: number,
+    deadlockCycles: number,
+    maxWaitTimeMs: number,
+    stateDistribution: Record<string, number>,
+): string {
+    const header = sectionHeader('METRICS');
+    const lines = [
+        kvLine('Total Threads', threadCount),
+        kvLine('Health Score', `${healthScore} / 100`),
+        kvLine('Blocked Threads', blockedCount > 0 ? `${blockedCount}  ⚠` : String(blockedCount)),
+        kvLine('Deadlock Cycles', deadlockCycles > 0 ? `${deadlockCycles}  ⚠` : String(deadlockCycles)),
+        kvLine('CRITICAL Risk Threads', criticalCount > 0 ? `${criticalCount}  ⚠` : String(criticalCount)),
+        ...(maxWaitTimeMs > 0 ? [kvLine('Max Wait Time', `${formatWaitTime(maxWaitTimeMs)}  ${waitSeverityTag(maxWaitTimeMs)}`)] : []),
+        '',
+        '  State Distribution:',
+        ...Object.entries(stateDistribution)
+            .sort((a, b) => b[1] - a[1])
+            .map(([state, count]) =>
+                `    ${state.padEnd(18)} ${String(count).padStart(5)}  (${((count / threadCount) * 100).toFixed(1)}%)`,
+            ),
+    ];
+    return `${header}
+
+${lines.join('\n')}`;
+}
+
+const SEVERITY_TAG: Record<FindingSeverity, string> = {
+    critical: 'CRITICAL',
+    high: 'HIGH',
+    medium: 'MEDIUM',
+    info: 'INFO',
+};
+
+// Mirrors DashboardHome.keyFindings: per-issue rule categorization with a CRITICAL-risk fallback bucket.
+function formatKeyFindings(threads: Thread[]): string {
+    const header = sectionHeader('KEY FINDINGS');
+
+    type FindingItem = { label: string; description: string; severity: FindingSeverity; affectedThreads: string[] };
+    const buckets = new Map<string, FindingItem>();
+
+    threads.forEach(t => {
+        const seen = new Set<string>();
+        let matchedCritical = false;
+        t.snapshots.forEach(s => {
+            (s.issues ?? []).forEach(issue => {
+                const cat = categorizeIssue(issue);
+                if (!cat || seen.has(cat.label)) return;
+                seen.add(cat.label);
+                if (cat.severity === 'critical') matchedCritical = true;
+
+                let bucket = buckets.get(cat.label);
+                if (!bucket) {
+                    bucket = { label: cat.label, description: cat.description, severity: cat.severity, affectedThreads: [] };
+                    buckets.set(cat.label, bucket);
+                }
+                bucket.affectedThreads.push(t.name);
+            });
+        });
+
+        if (!matchedCritical && t.snapshots.some(s => s.risk_level === 'CRITICAL')) {
+            const { label, description, severity } = CRITICAL_RISK_FALLBACK;
+            let bucket = buckets.get(label);
+            if (!bucket) {
+                bucket = { label, description, severity, affectedThreads: [] };
+                buckets.set(label, bucket);
+            }
+            bucket.affectedThreads.push(t.name);
+        }
+    });
+
+    const findings = [...buckets.values()].sort((a, b) => {
+        const sev = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
+        return sev !== 0 ? sev : b.affectedThreads.length - a.affectedThreads.length;
+    });
+
+    if (findings.length === 0) {
+        return `${header}
+
+  No critical findings detected.`;
+    }
+
+    const body = findings.map(f => {
+        const affectedPreview = f.affectedThreads.slice(0, 5).join(', ');
+        const overflow = f.affectedThreads.length > 5 ? `, ... +${f.affectedThreads.length - 5} more` : '';
+        return [
+            `  [${SEVERITY_TAG[f.severity]}] ${f.label}`,
+            `    ${f.description}`,
+            `    Affected (${f.affectedThreads.length}): ${affectedPreview}${overflow}`,
+        ].join('\n');
+    }).join('\n\n');
+
+    return `${header}
+
+${body}`;
+}
+
+function formatAiInsights(aiInsights?: AiInsights): string {
+    const header = sectionHeader('AI INSIGHTS');
+
+    const pattern = aiInsights?.pattern_recognition?.trim()
+        ? `  --- Pattern Recognition ---
+
+${aiInsights.pattern_recognition.trim()}`
+        : '  --- Pattern Recognition ---\n\n  No specific patterns detected.';
+
+    const actions = aiInsights?.recommended_actions?.trim()
+        ? `  --- Recommended Actions ---
+
+${aiInsights.recommended_actions.trim()}`
+        : '  --- Recommended Actions ---\n\n  No specific recommendations available.';
+
+    return `${header}
+
+${pattern}
+
+${actions}`;
+}
+
+function formatThreadClusters(
+    snapshots: Array<{ thread: Thread; snapshot: ThreadSnapshot }>,
+): string {
+    const header = sectionHeader('THREAD CLUSTERS');
+
+    const clusterMap = new Map<string, Array<{ thread: Thread; snapshot: ThreadSnapshot }>>();
+    snapshots.forEach(({ thread, snapshot }) => {
+        const key = getClusterKey(snapshot.stack_trace);
+        if (!clusterMap.has(key)) clusterMap.set(key, []);
+        clusterMap.get(key)!.push({ thread, snapshot });
+    });
+
+    const clusters = [...clusterMap.entries()]
+        .map(([key, items]) => {
+            const stateCounts: Record<string, number> = {};
+            items.forEach(({ snapshot }) => {
+                const st = snapshot.state?.trim() || 'N/A';
+                stateCounts[st] = (stateCounts[st] ?? 0) + 1;
+            });
+            const dominantState = Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'N/A';
+            return { clusterName: key, count: items.length, dominantState };
+        })
+        .filter(c => c.count > 1)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+
+    const columns: TableColumn[] = [
+        { header: '#', maxWidth: 4, align: 'right' },
+        { header: 'Count', maxWidth: 6, align: 'right' },
+        { header: 'Top Executing Method', maxWidth: 48 },
+        { header: 'State', maxWidth: 14 },
+    ];
+
+    const rows = clusters.map((c, i) => [
+        String(i + 1),
+        String(c.count),
+        c.clusterName,
+        c.dominantState,
+    ]);
+
+    return `${header}
+
+${formatTable(columns, rows)}`;
+}
+
+function formatLongRunning(
+    snapshots: Array<{ thread: Thread; snapshot: ThreadSnapshot }>,
+): string {
+    const header = sectionHeader('LONG-RUNNING THREADS');
+
+    const longRunning = [...snapshots]
+        .filter(({ snapshot }) => snapshot.elapsed_time_s > 0)
+        .sort((a, b) => b.snapshot.elapsed_time_s - a.snapshot.elapsed_time_s)
+        .slice(0, 25);
+
+    const columns: TableColumn[] = [
+        { header: '#', maxWidth: 4, align: 'right' },
+        { header: 'Thread Name', maxWidth: 42 },
+        { header: 'State', maxWidth: 14 },
+        { header: 'Duration', maxWidth: 10, align: 'right' },
+    ];
+
+    const rows = longRunning.map(({ thread, snapshot }, i) => [
+        String(i + 1),
+        thread.name,
+        snapshot.state?.trim() || 'N/A',
+        formatDuration(snapshot.elapsed_time_s),
+    ]);
+
+    return `${header}
+
+${formatTable(columns, rows)}`;
+}
+
+function formatHighCpu(
+    snapshots: Array<{ thread: Thread; snapshot: ThreadSnapshot }>,
+): string {
+    const header = sectionHeader('HIGH CPU THREADS');
+
+    const highCpu = [...snapshots]
+        .filter(({ snapshot }) => snapshot.cpu_percent > 0)
+        .sort((a, b) => b.snapshot.cpu_percent - a.snapshot.cpu_percent)
+        .slice(0, 25);
+
+    const columns: TableColumn[] = [
+        { header: '#', maxWidth: 4, align: 'right' },
+        { header: 'Thread Name', maxWidth: 42 },
+        { header: 'State', maxWidth: 14 },
+        { header: 'CPU %', maxWidth: 8, align: 'right' },
+        { header: 'CPU Time', maxWidth: 10, align: 'right' },
+    ];
+
+    const rows = highCpu.map(({ thread, snapshot }, i) => [
+        String(i + 1),
+        thread.name,
+        snapshot.state?.trim() || 'N/A',
+        `${snapshot.cpu_percent.toFixed(1)}%`,
+        `${snapshot.cpu_time_ms}ms`,
+    ]);
+
+    return `${header}
+
+${formatTable(columns, rows)}`;
+}
+
+function formatLockContention(threads: Thread[]): string {
+    const header = sectionHeader('LOCK CONTENTION');
+    const { lockOwners, unownedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
+
+    if (lockOwners.length === 0 && unownedLocks.length === 0 && deadlocks.length === 0) {
+        return `${header}
+
+  No lock contention detected.`;
+    }
+
+    const sections: string[] = [];
+
+    // Deadlocks
+    if (deadlocks.length > 0) {
+        sections.push(`  [CRITICAL] ${deadlocks.length} Deadlock Cycle${deadlocks.length !== 1 ? 's' : ''} Detected`);
+        deadlocks.forEach((cycle, i) => {
+            sections.push(`
+  Cycle ${i + 1}:`);
+            cycle.threads.forEach(t => {
+                sections.push(`    "${t.thread.name}" waiting on <${t.waitingOnAddress}> (${t.lockClassName})`);
+            });
+        });
+        sections.push('');
+    }
+
+    // Lock Owners
+    const totalBlocked = lockOwners.reduce((acc, owner) => acc + owner.totalBlocked, 0);
+    sections.push(`  --- Lock Owners (${lockOwners.length} owner${lockOwners.length !== 1 ? 's' : ''}, ${totalBlocked} blocked) ---`);
+
+    if (lockOwners.length === 0) {
+        sections.push('\n  No lock owners identified.');
+    } else {
+        lockOwners.forEach(entry => {
+            sections.push(`
+  Owner: "${truncate(entry.thread.name, 60)}" [${entry.snapshot.state}]`);
+            sections.push(`    Holding ${entry.heldLocks.length} monitor${entry.heldLocks.length !== 1 ? 's' : ''}, blocking ${entry.totalBlocked} thread${entry.totalBlocked !== 1 ? 's' : ''}`);
+            entry.heldLocks.forEach(lock => {
+                const shortName = lock.className.split('.').pop() ?? lock.className;
+                sections.push(`
+    Monitor: ${shortName} <${lock.address}>`);
+                lock.blockedThreads.forEach(bt => {
+                    const waitStr = bt.waitTimeMs > 0
+                        ? `  wait: ${formatWaitTime(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
+                        : '';
+                    sections.push(`      - ${truncate(bt.thread.name, 50)} [${bt.snapshot.state}]${waitStr}`);
+                });
+            });
+        });
+    }
+
+    // Unowned Monitors
+    if (unownedLocks.length > 0) {
+        sections.push('');
+        sections.push(`  --- Unowned Monitors (${unownedLocks.length}) ---`);
+        sections.push('  Monitors with blocked threads but no owner thread visible in this snapshot.');
+
+        unownedLocks.forEach(lock => {
+            const shortName = lock.className.split('.').pop() ?? lock.className;
+            sections.push(`
+  Monitor: ${shortName} <${lock.address}>`);
+            sections.push(`    ${lock.blockedThreads.length} blocked thread${lock.blockedThreads.length !== 1 ? 's' : ''}:`);
+            lock.blockedThreads.slice(0, 10).forEach(bt => {
+                const waitStr = bt.waitTimeMs > 0
+                    ? `  wait: ${formatWaitTime(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
+                    : '';
+                sections.push(`      - ${truncate(bt.thread.name, 50)} [${bt.snapshot.state}]${waitStr}`);
+            });
+            if (lock.blockedThreads.length > 10) {
+                sections.push(`      ... +${lock.blockedThreads.length - 10} more`);
+            }
+        });
+    }
+
+    return `${header}
+
+${sections.join('\n')}`;
+}
+
+function formatFooter(): string {
+    return `${DIVIDER}
+${centerText('END OF REPORT')}
+${DIVIDER}`;
+}
+
+// Main Entry Point
+
+export function generateReport(data: AnalysisResponse): string {
+    const threads = data.threads ?? [];
+    const aiInsights = data.ai_insights;
+
+    const snapshots = getLatestDumpSnapshots(threads);
+    const latestSnapshots = threads.flatMap(t =>
+        t.snapshots.length > 0 ? [t.snapshots[t.snapshots.length - 1]] : [],
+    );
+
+    const threadCount = snapshots.length;
+    const healthScore = data.health_score ?? 100;
+    const blockedCount = latestSnapshots.filter(s => s.state === 'BLOCKED').length;
+    const criticalCount = threads.filter(t =>
+        t.snapshots.some(s => s.risk_level === 'CRITICAL'),
+    ).length;
+
+    const { lockOwners, unownedLocks, deadlocks } = deriveLockOwnerCentricData(threads);
+    const deadlockCycles = deadlocks.length;
+
+    let maxWaitTimeMs = 0;
+    for (const owner of lockOwners) {
+        for (const lock of owner.heldLocks) {
+            for (const bt of lock.blockedThreads) {
+                if (bt.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = bt.waitTimeMs;
+            }
+        }
+    }
+    for (const o of unownedLocks) {
+        for (const bt of o.blockedThreads) {
+            if (bt.waitTimeMs > maxWaitTimeMs) maxWaitTimeMs = bt.waitTimeMs;
+        }
+    }
+
+    const stateDistribution: Record<string, number> = {};
+    snapshots.forEach(({ snapshot }) => {
+        const state = snapshot.state?.trim() || 'N/A';
+        stateDistribution[state] = (stateDistribution[state] ?? 0) + 1;
+    });
+
+    return [
+        formatHeader(data.session_id, data.timestamp),
+        formatExecutiveSummary(aiInsights),
+        formatMetrics(threadCount, healthScore, blockedCount, criticalCount, deadlockCycles, maxWaitTimeMs, stateDistribution),
+        formatKeyFindings(threads),
+        formatAiInsights(aiInsights),
+        formatThreadClusters(snapshots),
+        formatLongRunning(snapshots),
+        formatHighCpu(snapshots),
+        formatLockContention(threads),
+        formatFooter(),
+    ].join('\n\n');
+}
