@@ -90,7 +90,7 @@ Returns `200 OK` with body `OK`. Used for liveness probes.
 
 ## How It Works
 
-```
+```text
 POST /analyze/jobs
   └─ Background goroutine:
        ├─ Per file (concurrent): parse dump → correlate CPU usage (DEBUG-logs match counts;
@@ -213,7 +213,7 @@ Unit tests live in `*_test.go` files beside the code they cover: parser, enriche
 
 ## File Structure
 
-```
+```text
 backend/
 ├── main.go                          Entrypoint: .env load, slog setup, engine/enricher/jobStore wiring, http.Server start; AggregatedAnalysisResponse type
 ├── router.go                        NewRouter (ServeMux + CORS middleware), IPLimiter (per-IP rate limit), and the manual-testing HTML form (serveHTML)
@@ -246,7 +246,7 @@ backend/
 
 This project is licensed under the **Apache License 2.0**. See the main repository for the complete LICENSE file.
 
-```
+```text
 Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
 Licensed under the Apache License, Version 2.0.
 ```

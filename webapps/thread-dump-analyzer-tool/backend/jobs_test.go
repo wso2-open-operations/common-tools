@@ -26,6 +26,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend/internal/analyzer"
 )
 
 func newTestConfig() *Config {
@@ -194,15 +196,21 @@ func TestJobStore_TerminalEvictionUnderPressure(t *testing.T) {
 	}
 }
 
-// runJob must mark the job failed with a generic message when ctx times out.
+// runJob must mark the job failed with the timeout message when runAnalysis blocks past the deadline.
 func TestRunJob_TimeoutMarksFailed(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.JobTimeout = 50 * time.Millisecond
 	store := NewJobStore(cfg)
 	job := store.Create()
 
-	originalSleep := time.Now()
-	_ = originalSleep
+	// Swap runAnalysisFn for a stub that blocks until ctx is cancelled, so the deadline path is the only way out.
+	prev := runAnalysisFn
+	t.Cleanup(func() { runAnalysisFn = prev })
+	runAnalysisFn = func(ctx context.Context, _, _ []filePayload, _ *analyzer.RuleEngine, _ *analyzer.ThreadEnricher) *AggregatedAnalysisResponse {
+		<-ctx.Done()
+		return nil
+	}
+
 	done := make(chan struct{})
 	go func() {
 		runJob(job.ID, nil, nil, store, nil, nil, cfg.JobTimeout)
@@ -218,11 +226,12 @@ func TestRunJob_TimeoutMarksFailed(t *testing.T) {
 	if !ok {
 		t.Fatalf("job missing")
 	}
-	if got.Status != JobFailed && got.Status != JobCompleted {
-		t.Errorf("status=%s, want terminal", got.Status)
+	if got.Status != JobFailed {
+		t.Fatalf("status=%s, want %s", got.Status, JobFailed)
 	}
-	if got.Status == JobFailed && strings.Contains(got.Error, "panic") {
-		t.Errorf("Job.Error leaks panic details: %q", got.Error)
+	wantErr := "analysis timed out after " + cfg.JobTimeout.String()
+	if got.Error != wantErr {
+		t.Errorf("Job.Error=%q, want %q", got.Error, wantErr)
 	}
 }
 

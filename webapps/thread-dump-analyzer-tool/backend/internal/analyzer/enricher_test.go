@@ -106,6 +106,7 @@ func TestEnrich_HonorsCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
+	// Context is cancelled before Enrich starts, so no thread should be classified; a non-zero count means cancellation was checked too late.
 	enr.Enrich(ctx, threads)
 
 	classified := 0
@@ -114,8 +115,8 @@ func TestEnrich_HonorsCancelledContext(t *testing.T) {
 			classified++
 		}
 	}
-	if classified == len(threads) {
-		t.Errorf("expected cancellation to short-circuit classification; all %d classified", classified)
+	if classified != 0 {
+		t.Errorf("expected cancellation before any classification; got %d classified threads", classified)
 	}
 }
 

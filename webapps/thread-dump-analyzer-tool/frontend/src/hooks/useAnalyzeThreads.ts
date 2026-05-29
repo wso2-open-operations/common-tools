@@ -62,6 +62,7 @@ export const useAnalyzeThreads = () => {
     }
     if (query.data?.status === "failed") {
       console.error("[TDAT] analysis job reported failed status", { jobId });
+      setJobId(null);
     }
   }, [query.data]);
 

@@ -271,6 +271,9 @@ type analysisResult struct {
 	stack []byte
 }
 
+// Indirection seam so tests can swap runAnalysis for a blocking stub to drive the timeout path deterministically.
+var runAnalysisFn = runAnalysis
+
 // runJob drives one analysis under a deadline. The inner sub-goroutine respects ctx
 // at every phase boundary so it exits soon after timeout; the buffered done channel keeps it leak-free.
 func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration) {
@@ -291,7 +294,7 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 			}
 			done <- analysisResult{resp: resp, rec: rec, stack: stack}
 		}()
-		resp = runAnalysis(ctx, dumps, usages, eng, enricher)
+		resp = runAnalysisFn(ctx, dumps, usages, eng, enricher)
 	}()
 
 	select {

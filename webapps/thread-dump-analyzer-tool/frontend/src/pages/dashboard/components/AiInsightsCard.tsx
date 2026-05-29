@@ -56,7 +56,7 @@ const AiInsightsCard: React.FC<AiInsightsCardProps> = ({ aiInsights }) => {
 
             {!aiInsights ? (
                 <Typography variant="caption" color="text.secondary" fontStyle="italic">
-                    AI insights unavailable: ensure GROQ_API_KEY is set and a valid dump was uploaded.
+                    AI insights unavailable: ensure ANTHROPIC_API_KEY is set and a valid dump was uploaded.
                 </Typography>
             ) : (
                 <>

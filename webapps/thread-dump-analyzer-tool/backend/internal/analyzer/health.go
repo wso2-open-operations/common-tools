@@ -85,10 +85,14 @@ func ComputeHealth(threads []AnalyzedThread) (int, []HealthFactor) {
 	}
 
 	var factors []HealthFactor
+	remaining := 100
 	add := func(label string, penalty int) {
-		if penalty > 0 {
-			factors = append(factors, HealthFactor{Label: label, Penalty: penalty})
+		if penalty <= 0 || remaining == 0 {
+			return
 		}
+		applied := min(penalty, remaining)
+		factors = append(factors, HealthFactor{Label: label, Penalty: applied})
+		remaining -= applied
 	}
 	add(fmt.Sprintf("%d blocked threads", blocked), blockedPen)
 	add(fmt.Sprintf("%d threads waiting", waiting), waitingPen)
@@ -98,11 +102,7 @@ func ComputeHealth(threads []AnalyzedThread) (int, []HealthFactor) {
 		add(fmt.Sprintf("Thread count grew %.0f%%", growthPct), growthPen)
 	}
 
-	score := 100 - (blockedPen + waitingPen + timedPen + criticalPen + growthPen)
-	if score < 0 {
-		score = 0
-	}
-	return score, factors
+	return remaining, factors
 }
 
 // threadGrowthPct returns the percentage change in thread count from the previous dump to the latest; 0 when there is no prior dump.

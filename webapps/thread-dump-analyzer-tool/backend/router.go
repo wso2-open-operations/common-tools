@@ -106,12 +106,16 @@ func (l *IPLimiter) limitByIP(next http.HandlerFunc) http.HandlerFunc {
 func NewRouter(cfg *Config, jobStore *JobStore, engine *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, ipLimiter *IPLimiter, jobLimiter *JobLimiter, requireAuth func(http.HandlerFunc) http.HandlerFunc) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /{$}", serveHTML)
+	// The manual-testing form sends no Authorization header, so only expose it when auth is off.
+	if !cfg.AuthEnabled {
+		mux.HandleFunc("GET /{$}", serveHTML)
+	}
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
-	mux.HandleFunc("POST /analyze/jobs", requireAuth(ipLimiter.limitByIP(func(w http.ResponseWriter, r *http.Request) {
+	// IP rate-limit wraps auth so unauthenticated floods can't burn JWT verification cycles.
+	mux.HandleFunc("POST /analyze/jobs", ipLimiter.limitByIP(requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		analyzeJobsHandler(w, r, jobStore, engine, enricher, cfg.MaxUploadBytes, cfg.JobTimeout, jobLimiter)
 	})))
 	mux.HandleFunc("GET /analyze/jobs/{id}", requireAuth(func(w http.ResponseWriter, r *http.Request) {

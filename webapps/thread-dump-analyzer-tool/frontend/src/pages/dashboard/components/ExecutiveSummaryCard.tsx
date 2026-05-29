@@ -47,7 +47,7 @@ const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights 
         <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, whiteSpace: 'pre-wrap' }}>
             {!aiInsights ? (
                 <Typography variant="caption" color="text.secondary" fontStyle="italic">
-                    Executive summary unavailable: ensure GROQ_API_KEY is set and a valid dump was uploaded.
+                    Executive summary unavailable: ensure ANTHROPIC_API_KEY is set and a valid dump was uploaded.
                 </Typography>
             ) : (
                 aiInsights.executive_summary

@@ -81,7 +81,7 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 
 ## File Structure
 
-```
+```text
 frontend/
 ├── index.html                              Vite entry HTML
 ├── package.json                            Dependencies and scripts
@@ -178,7 +178,7 @@ pnpm format    # Format all TypeScript/TSX files
 
 This project is licensed under the **Apache License 2.0**. See the main repository for the complete LICENSE file.
 
-```
+```text
 Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
 Licensed under the Apache License, Version 2.0.
 ```

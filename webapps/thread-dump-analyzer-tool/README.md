@@ -57,7 +57,7 @@ The frontend reads the backend URL from `public/config.js` at runtime via `windo
 
 ## API
 
-```
+```text
 POST /analyze/jobs          # Upload files → returns { job_id } (202 Accepted)
 GET  /analyze/jobs/{id}     # Poll for result → { status, result }
 GET  /health                        # Liveness probe
@@ -154,7 +154,7 @@ User-controlled fields in the prompt (issue strings, stack frames) are wrapped w
 
 This project is licensed under the **Apache License 2.0**. See LICENSE file for details.
 
-```
+```text
 Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
 ```
 
