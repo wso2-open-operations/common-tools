@@ -8,7 +8,7 @@ Go HTTP server that analyzes Java thread dumps to detect performance issues such
 # Copy the env template and fill in your Anthropic API key
 cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
-# Auth is ON by default — set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
+# Auth is ON by default: set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
 
 go run .
 # Server starts at http://localhost:8080
@@ -24,9 +24,9 @@ If `ANTHROPIC_API_KEY` is not set, analysis still completes and AI insights retu
 
 ### Authentication
 
-When `AUTH_ENABLED` (default `true`), `POST /analyze/jobs` and `GET /analyze/jobs/{id}` require an `Authorization: Bearer <jwt>` header. Tokens are validated in `auth.go` against the Asgardeo JWKS — signature plus `exp`/`nbf`/`iss` (and `aud` when `JWT_AUDIENCE` is set) — using a cached, auto-refreshing key set with 60s clock skew. Missing or invalid tokens get `401` with a `WWW-Authenticate: Bearer` challenge. `GET /health` and the `GET /` HTML form stay open. CORS wraps the mux, so preflight `OPTIONS` is answered before auth and `401`s still carry CORS headers.
+When `AUTH_ENABLED` (default `true`), `POST /analyze/jobs` and `GET /analyze/jobs/{id}` require an `Authorization: Bearer <jwt>` header. Tokens are validated in `auth.go` against the Asgardeo JWKS (signature plus `exp`/`nbf`/`iss`, and `aud` when `JWT_AUDIENCE` is set) using a cached, auto-refreshing key set with 60s clock skew. Missing or invalid tokens get `401` with a `WWW-Authenticate: Bearer` challenge. `GET /health` and the `GET /` HTML form stay open. CORS wraps the mux, so preflight `OPTIONS` is answered before auth and `401`s still carry CORS headers.
 
-Set `ASGARDEO_BASE_URL` and the JWKS endpoint + issuer are derived (`<base>/oauth2/jwks`, `<base>/oauth2/token`); override either with `JWT_JWKS_URL` / `JWT_ISSUER`. With `AUTH_ENABLED=false` the analyze endpoints are public — local testing only.
+Set `ASGARDEO_BASE_URL` and the JWKS endpoint + issuer are derived (`<base>/oauth2/jwks`, `<base>/oauth2/token`); override either with `JWT_JWKS_URL` / `JWT_ISSUER`. With `AUTH_ENABLED=false` the analyze endpoints are public (local testing only).
 
 ### `POST /analyze/jobs`
 
@@ -60,6 +60,11 @@ Poll for job status and result.
     "timestamp": "2026-04-22T10:00:00Z",
     "threads": [ ...AnalyzedThread ],
     "thread_pools": { "Pool Name": { "description": "...", "expected_behavior": "..." } },
+    "health_score": 82,
+    "health_factors": [
+      { "label": "3 blocked threads", "penalty": 8 },
+      { "label": "2 critical-risk threads", "penalty": 24 }
+    ],
     "pattern_matches": [
       { "rule_name": "DatabaseWait", "issue_prefix": "Thread executing Database/JDBC operations for > 5s", "matched_thread_count": 3 }
     ],
@@ -92,6 +97,7 @@ POST /analyze/jobs
        │                         WARN on zero matches) → classify thread pool → run Grule rules
        ├─ Aggregate: pivot file-centric results into thread-centric history across dumps
        ├─ Pattern matches: per-rule unique-thread counts for the frontend
+       ├─ Health: deterministic 0-100 score + named penalty factors from the latest dump
        └─ AI: send top threads to Anthropic Claude for executive summary
 ```
 
@@ -111,7 +117,7 @@ Both also set `Analyzed = true` so the rule engine skips them. The corresponding
 | CRITICAL | Deadlock (parser), runaway CPU ≥100% (parser), thread starvation (>95% CPU), WSO2 PassThrough stuck on socket I/O, PassThrough starvation on backend I/O, DB connection pool exhaustion, critical lock contention (20+ threads on same monitor), catastrophic thread count (5,000+ live threads - GC root explosion) |
 | HIGH | Prolonged BLOCKED (>10s), sustained high CPU (>30%), DB wait (>5s, gated on ≥2 system-wide stalls), >25% threads blocked system-wide, HTTP worker busy (>5s), high lock contention (3-19 threads on same monitor), generic BLOCKED on monitor, GC activity, LDAP/AD timeouts, OAuth2 token bottleneck, Hazelcast cache contention |
 | MEDIUM | Idle threads (>10s), native/socket block with 0% CPU, recursive lock, thread leak |
-| INFO | Threads not belonging to any known pool; sustained CPU ≥20% with no other rule match (low-severity backstop — cross-check against known benign product threads) |
+| INFO | Threads not belonging to any known pool; sustained CPU ≥20% with no other rule match (low-severity backstop; cross-check against known benign product threads) |
 
 ### Thread Pool Classification
 
@@ -127,7 +133,23 @@ Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineer
 
 ### Pattern Matches
 
-`result.pattern_matches[]` exposes per-rule unique-thread counts so the frontend can render rule-level summaries without substring-scanning `issues[]`. Each entry has `{rule_name, issue_prefix, matched_thread_count}` and is populated only when a rule fired. The rule→issue-prefix registry lives in `internal/analyzer/patterns.go` and must stay in lockstep with `rules.grl` — adding a rule means appending one entry.
+`result.pattern_matches[]` exposes per-rule unique-thread counts so the frontend can render rule-level summaries without substring-scanning `issues[]`. Each entry has `{rule_name, issue_prefix, matched_thread_count}` and is populated only when a rule fired. The rule to issue-prefix registry lives in `internal/analyzer/patterns.go` and must stay in lockstep with `rules.grl`; adding a rule means appending one entry.
+
+### Health Score
+
+`internal/analyzer/health.go#ComputeHealth` returns a deterministic 0-100 `health_score` plus the `health_factors[]` behind it, both computed from the latest dump's threads only. The latest dump is chosen by natural-sorting dump filenames (so `dump_2` sorts before `dump_10`), mirroring the frontend so the rendered score matches.
+
+The score starts at 100 and subtracts:
+
+| Penalty | Basis | Weight / Cap |
+|---|---|---|
+| Blocked threads | share of latest-dump threads | weight 50 |
+| Waiting threads | share of latest-dump threads | weight 15 |
+| Timed-waiting threads | share of latest-dump threads | weight 5 |
+| Critical-risk threads | count (not share), so one acute thread still moves the needle | 12 each, capped at 45 |
+| Thread-count growth | percent growth vs. the previous dump | growth% / 2, capped at 15 |
+
+Each penalty greater than 0 becomes a `health_factor` (`{label, penalty}`); the penalties sum to `100 - health_score`. With no dumps or no threads the score is 100 and `health_factors` is omitted.
 
 ## Configuration
 
@@ -138,7 +160,7 @@ Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineer
 | Variable | Default | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | _(unset)_ | Required for AI insights. If unset, the job still completes and `ai_insights` returns a static "unavailable" message. |
-| `AUTH_ENABLED` | `true` | Require a Bearer JWT on `/analyze/jobs` (POST + GET). `false` makes those endpoints public — local testing only. When `true`, the server refuses to start unless the issuer/JWKS below resolve. |
+| `AUTH_ENABLED` | `true` | Require a Bearer JWT on `/analyze/jobs` (POST + GET). `false` makes those endpoints public (local testing only). When `true`, the server refuses to start unless the issuer/JWKS below resolve. |
 | `ASGARDEO_BASE_URL` | _(unset)_ | Asgardeo tenant base URL, e.g. `https://api.asgardeo.io/t/<org>`. JWKS (`/oauth2/jwks`) and issuer (`/oauth2/token`) are derived from it. Required when auth is on unless the two below are set. |
 | `JWT_JWKS_URL` | _(derived)_ | Explicit JWKS endpoint; overrides the value derived from `ASGARDEO_BASE_URL`. |
 | `JWT_ISSUER` | _(derived)_ | Expected `iss` claim; overrides the value derived from `ASGARDEO_BASE_URL`. |
@@ -147,12 +169,12 @@ Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineer
 | `PORT` | `8080` | HTTP listen port. |
 | `PUBLIC_URL` | `http://localhost:${PORT}` | Public base URL logged at startup for click-to-test. Set this when running behind a public hostname or reverse proxy. |
 | `READ_HEADER_TIMEOUT` | `30s` | Go `time.Duration` string. |
-| `READ_TIMEOUT` | `10m` | Go `time.Duration` string. Bounds the full multipart upload window — keep generous for large uploads. |
+| `READ_TIMEOUT` | `10m` | Go `time.Duration` string. Bounds the full multipart upload window; keep generous for large uploads. |
 | `WRITE_TIMEOUT` | `10m` | Go `time.Duration` string. Counts from header receipt, so also bounds the upload window. |
 | `IDLE_TIMEOUT` | `5m` | Go `time.Duration` string. Keep-alive idle timeout between polling GETs. |
 | `RULES_PATH` | `./internal/rules/rules.grl` | Grule rules file. |
 | `THREAD_POOLS_PATH` | `./config/thread_pools.yaml` | Pool-definition YAML. |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated. Restrictive by default — set to your frontend origin(s) in prod; never use `*` without backend auth. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated. Restrictive by default; set to your frontend origin(s) in prod; never use `*` without backend auth. |
 | `CORS_ALLOWED_METHODS` | `GET,POST,OPTIONS` | Comma-separated. |
 | `CORS_ALLOWED_HEADERS` | `Accept,Content-Type,Content-Length,Accept-Encoding,X-CSRF-Token,Authorization` | Comma-separated. |
 | `CORS_DEBUG` | `false` | When `true`, rs/cors emits per-request debug lines through slog (so they only appear if `LOG_LEVEL=DEBUG`). |
@@ -187,7 +209,7 @@ go mod tidy                 # Sync dependencies
 go test ./...               # Run all unit tests
 ```
 
-Unit tests live in `*_test.go` files beside the code they cover: parser, enricher, rules engine, aggregator, pattern matching, and AI prompt construction under `internal/`, plus job store, rate/concurrency limiters, and JWT auth at the package root.
+Unit tests live in `*_test.go` files beside the code they cover: parser, enricher, rules engine, aggregator, pattern matching, health scoring, and AI prompt construction under `internal/`, plus job store, rate/concurrency limiters, and JWT auth at the package root.
 
 ## File Structure
 
@@ -195,12 +217,12 @@ Unit tests live in `*_test.go` files beside the code they cover: parser, enriche
 backend/
 ├── main.go                          Entrypoint: .env load, slog setup, engine/enricher/jobStore wiring, http.Server start; AggregatedAnalysisResponse type
 ├── router.go                        NewRouter (ServeMux + CORS middleware), IPLimiter (per-IP rate limit), and the manual-testing HTML form (serveHTML)
-├── auth.go                          Authenticator — Bearer-JWT validation against the Asgardeo JWKS (RequireAuth middleware)
-├── settings.go                      Config struct + LoadConfig — env-var parsing with sensible defaults
+├── auth.go                          Authenticator: Bearer-JWT validation against the Asgardeo JWKS (RequireAuth middleware)
+├── settings.go                      Config struct + LoadConfig: env-var parsing with sensible defaults
 ├── jobs.go                          Job/JobStore (TTL + max-size + background janitor), JobLimiter (concurrency semaphore), async handlers, runAnalysis pipeline
 ├── *_test.go                        Unit tests (auth, jobs, limiters; plus per-package tests under internal/)
 ├── go.mod / go.sum                  Go module definition and dependency lock
-├── .env.example                     Tracked template — copy to .env and fill in
+├── .env.example                     Tracked template: copy to .env and fill in
 ├── .env                             Local secrets (gitignored, loaded via godotenv)
 ├── openapi.yaml                     OpenAPI 3.0 specification for REST API
 ├── config/
@@ -211,8 +233,9 @@ backend/
     ├── analyzer/
     │   ├── enricher.go              ThreadEnricher: loads YAML, classifies threads into pools
     │   ├── rules_engine.go          Grule integration, GlobalStats (incl. JDBCStallCount), AnalyzeThreads
-    │   ├── aggregator.go            AggregateThreads: file-centric → thread-centric pivot
-    │   └── patterns.go              PatternMatch + ComputePatternMatches: per-rule unique-thread counts
+    │   ├── aggregator.go            AggregateThreads: file-centric to thread-centric pivot
+    │   ├── patterns.go              PatternMatch + ComputePatternMatches: per-rule unique-thread counts
+    │   └── health.go                ComputeHealth: deterministic 0-100 score + named penalty factors
     ├── rules/
     │   └── rules.grl                29 Grule DSL rules (deadlock, high CPU, lock contention, catastrophic thread count, critical lock contention, DB pool, LDAP, OAuth, Hazelcast, low-severity high-CPU backstop, etc.)
     └── ai/

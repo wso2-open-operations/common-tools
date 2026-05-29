@@ -42,7 +42,7 @@ pnpm preview    # Preview production build
 Drag-and-drop upload of thread dump files and optional CPU usage metric files. Dump/usage files are paired by a normalized filename key (`utils/uploadValidation.ts#extractFileKey`) - known prefixes (`threaddump`, `threadusage`, `dump`, `usage`, `td`, `tu`, etc.) are stripped only when followed by a `_`/`-`/`.` boundary or end-of-string, so generic prefixes like `td` do not eat into unrelated names such as `today.log`. Triggers async analysis and polls for completion before navigating to the dashboard.
 
 ### Dashboard (`/dashboard`)
-Summary cards (thread counts by state and risk), state distribution chart, key findings from the rule engine, thread activity heatmap, and AI-generated insights rendered as formatted markdown.
+Summary cards (thread counts by state and risk, plus a health-score gauge with a penalty-breakdown tooltip), state distribution chart, key findings (rule engine issues mapped to dashboard-friendly titles, descriptions, and severities via `utils/ruleCategories.ts`), thread activity heatmap, and AI-generated insights rendered as formatted markdown.
 
 ### Thread Explorer (`/thread-explorer`)
 Browse all threads grouped by pool. Sort and filter by state, risk level, or name. Each row expands to show a per-snapshot timeline with stack traces, CPU %, and rule engine findings.
@@ -55,6 +55,10 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 **Session state** - analysis results are held in plain in-memory React state in `AnalysisContext`. A page refresh clears the session and the user must re-upload. Persistence (originally via `localforage`/IndexedDB) was removed deliberately so customer thread-dump data is not stored at rest in the browser.
 
 **Job polling** - `useAnalyzeThreads` uses TanStack React Query's `refetchInterval` to poll `GET /analyze/jobs/{id}` every 3 seconds. Polling stops automatically on `completed` or `failed` status.
+
+**Health score** - the backend sends an authoritative 0-100 `health_score` and a `health_factors[]` breakdown. The dashboard renders the number and breakdown verbatim (gauge + tooltip in `SummaryCards`); it does not recompute the score client-side.
+
+**Finding categorization** - `utils/ruleCategories.ts` maps raw backend Grule issue strings to dashboard-friendly titles, descriptions, and severities (`critical`/`high`/`medium`/`info`) via an ordered first-match-wins regex list. `categorizeIssue` is used by `DashboardHome` to group key findings; keep `RULE_CATEGORIES` aligned with the issue strings emitted in the backend's `rules.grl`.
 
 **Lock contention** - computed entirely in the browser from raw snapshot data (`utils/lockContentionAnalysis.ts`). The backend does not pre-aggregate contention.
 
@@ -154,6 +158,7 @@ frontend/
     ├── utils/
     │   ├── lockParsing.ts                  Regex constants, findWaitingLock, findHeldLocks
     │   ├── lockContentionAnalysis.ts       deriveLockOwnerCentricData, detectDeadlocks
+    │   ├── ruleCategories.ts               Maps backend issue strings to titled, described, severity-tagged finding categories
     │   ├── reportFormatter.ts              Plain-text report from AnalysisResponse
     │   └── uploadValidation.ts             validateFiles, extractFileKey (boundary-safe prefix strip), PairedFile type
     └── types/

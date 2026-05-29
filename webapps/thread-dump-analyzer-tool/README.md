@@ -7,6 +7,7 @@ A full-stack tool for analyzing Java thread dumps to detect performance issues l
 Upload one or more Java thread dump files (and optionally CPU usage metrics) and get:
 
 - Per-thread risk classification (CRITICAL / HIGH / MEDIUM / INFO) via a Grule rule engine
+- A deterministic 0-100 health score with named penalty factors (blocked/waiting shares, critical-risk count, thread growth)
 - Thread pool identification (Tomcat, WSO2, Disruptor, RabbitMQ, MINA, etc.)
 - Lock contention graph mapping each lock owner to the threads it is blocking, plus deadlock cycle detection
 - Chronological thread history when multiple dumps are uploaded
@@ -28,13 +29,13 @@ cd backend
 # Copy the env template and fill in your Anthropic API key
 cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
-# Auth is ON by default — set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
+# Auth is ON by default: set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
 
 go run .
 # Server starts at http://localhost:8080
 ```
 
-If `ANTHROPIC_API_KEY` is not set, the server still runs and analysis completes — AI insights will return a static "unavailable" message instead of an error.
+If `ANTHROPIC_API_KEY` is not set, the server still runs and analysis completes (AI insights will return a static "unavailable" message instead of an error).
 
 **Authentication is enabled by default** (`AUTH_ENABLED=true`): the `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header validated against Asgardeo, and the server **refuses to start** unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is configured. For local testing without an identity provider, set `AUTH_ENABLED=false` to make the endpoints public.
 
@@ -82,6 +83,11 @@ Dump and usage files are paired client-side by a normalized filename key (`utils
   "timestamp": "RFC3339",
   "threads": [ ...AnalyzedThread ],
   "thread_pools": { "Pool Name": { "description": "...", "expected_behavior": "..." } },
+  "health_score": 82,
+  "health_factors": [
+    { "label": "3 blocked threads", "penalty": 8 },
+    { "label": "2 critical-risk threads", "penalty": 24 }
+  ],
   "pattern_matches": [
     { "rule_name": "DatabaseWait", "issue_prefix": "Thread executing Database/JDBC operations for > 5s", "matched_thread_count": 3 }
   ],
@@ -92,7 +98,9 @@ Dump and usage files are paired client-side by a normalized filename key (`utils
 
 `pattern_matches[]` gives the frontend authoritative per-rule unique-thread counts without having to substring-scan `issues[]`. Omitted when no rule fired.
 
-**Rate limiting** — `POST /analyze/jobs` is gated by two independent layers, both returning HTTP 429:
+`health_score` is a deterministic 0-100 score computed by the backend from the latest dump, and `health_factors[]` lists the named penalties behind it (the penalties sum to `100 - health_score`). The frontend renders these directly as a gauge with a breakdown tooltip, so the displayed number always matches the backend.
+
+**Rate limiting**: `POST /analyze/jobs` is gated by two independent layers, both returning HTTP 429:
 - **Per-IP token bucket** (`IPLimiter` in `router.go`): defaults to 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Configurable via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
 - **Concurrent job semaphore** (`JobLimiter` in `jobs.go`): caps in-flight analyses to prevent memory exhaustion under burst load. Defaults to 10 (`MAX_CONCURRENT_JOBS`). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
 
@@ -120,6 +128,10 @@ Rules are defined in `backend/internal/rules/rules.grl` using the Grule DSL. Eac
 - **Hazelcast cache contention** - threads blocked on `com.hazelcast` or `org.wso2.carbon.caching` (salience 71)
 - **Severe lock contention (generic)** - fallback for any BLOCKED thread waiting on a monitor (salience 65)
 - **High CPU info backstop** - threads at ≥20% CPU not surfaced by any other rule, INFO-level so the frontend's KNOWN_WSO2_THREADS classifier can flag them as benign product threads vs. application work (salience 15)
+
+### Health Scoring
+
+`backend/internal/analyzer/health.go#ComputeHealth` derives a deterministic 0-100 health score from the latest dump's threads (latest dump chosen by natural-sorting dump filenames, so `dump_2` sorts before `dump_10`). The score starts at 100 and subtracts named penalties: blocked-thread share (weight 50), waiting share (weight 15), timed-waiting share (weight 5), a count-based critical-risk penalty (12 per thread, capped at 45), and thread-count growth versus the previous dump (capped at 15). Each penalty over 0 is returned as a `health_factor`, and the penalties sum to `100 - health_score`. The backend is the authoritative source; the frontend renders the score and breakdown verbatim.
 
 ### Thread Pool Classification
 
