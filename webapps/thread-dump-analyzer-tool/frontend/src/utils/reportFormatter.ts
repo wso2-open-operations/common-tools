@@ -14,8 +14,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { AnalysisResponse, Thread, ThreadSnapshot, AIInsights } from '@/types/api';
+import type { AnalysisResponse, Thread, ThreadSnapshot, AiInsights } from '@/types/api';
 import { deriveLockOwnerCentricData } from './lockContentionAnalysis';
+import {
+    type FindingSeverity,
+    SEVERITY_ORDER,
+    categorizeIssue,
+    CRITICAL_RISK_FALLBACK,
+} from './ruleCategories';
 
 const LINE_WIDTH = 80;
 const DIVIDER = '='.repeat(LINE_WIDTH);
@@ -101,18 +107,7 @@ function formatTable(columns: TableColumn[], rows: string[][]): string {
     ].join('\n') + '\n';
 }
 
-// Computation (mirrors DashboardHome)
-
-// Health score is 100 minus weighted penalties: BLOCKED threads (50 pts), WAITING (15 pts), TIMED_WAITING (5 pts).
-function computeHealthScore(snapshots: ThreadSnapshot[]): number {
-    if (snapshots.length === 0) return 100;
-    const total = snapshots.length;
-    const blocked = snapshots.filter(s => s.state === 'BLOCKED').length;
-    const waiting = snapshots.filter(s => s.state === 'WAITING').length;
-    const timedWaiting = snapshots.filter(s => s.state === 'TIMED_WAITING').length;
-    const penalty = (blocked / total) * 50 + (waiting / total) * 15 + (timedWaiting / total) * 5;
-    return Math.max(0, Math.round(100 - penalty));
-}
+// Computation
 
 // Extract the most relevant executing method from stack trace (first "at" line) for clustering threads.
 function getClusterKey(stackTrace: string[]): string {
@@ -137,12 +132,6 @@ function getLatestDumpSnapshots(threads: Thread[]): Array<{ thread: Thread; snap
     return result;
 }
 
-function getDumpNames(threads: Thread[]): string[] {
-    const names = new Set<string>();
-    threads.forEach(t => t.snapshots.forEach(s => names.add(s.dump_name)));
-    return [...names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-}
-
 // Section Formatters
 
 function formatHeader(sessionId: string, timestamp: string): string {
@@ -156,7 +145,7 @@ function formatHeader(sessionId: string, timestamp: string): string {
     ].join('\n');
 }
 
-function formatExecutiveSummary(aiInsights?: AIInsights): string {
+function formatExecutiveSummary(aiInsights?: AiInsights): string {
     const header = sectionHeader('EXECUTIVE SUMMARY');
     const body = aiInsights?.executive_summary?.trim()
         || 'No executive summary available.';
@@ -195,65 +184,54 @@ function formatMetrics(
 ${lines.join('\n')}`;
 }
 
-function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
+const SEVERITY_TAG: Record<FindingSeverity, string> = {
+    critical: 'CRITICAL',
+    high: 'HIGH',
+    medium: 'MEDIUM',
+    info: 'INFO',
+};
+
+// Mirrors DashboardHome.keyFindings: per-issue rule categorization with a CRITICAL-risk fallback bucket.
+function formatKeyFindings(threads: Thread[]): string {
     const header = sectionHeader('KEY FINDINGS');
 
-    type Finding = { severity: string; label: string; description: string; affected: string[] };
-    const findings: Finding[] = [];
+    type FindingItem = { label: string; description: string; severity: FindingSeverity; affectedThreads: string[] };
+    const buckets = new Map<string, FindingItem>();
 
-    const deadlocked = threads.filter(t =>
-        t.snapshots.some(s => s.issues?.some(i => i.toLowerCase().includes('deadlock'))),
-    );
-    if (deadlocked.length > 0) {
-        findings.push({
-            severity: 'CRITICAL',
-            label: 'Deadlock Detected',
-            description: 'Threads are permanently blocked waiting on each other\'s locks. The JVM cannot self-recover — a restart is likely required.',
-            affected: deadlocked.map(t => t.name),
-        });
-    }
+    threads.forEach(t => {
+        const seen = new Set<string>();
+        let matchedCritical = false;
+        t.snapshots.forEach(s => {
+            (s.issues ?? []).forEach(issue => {
+                const cat = categorizeIssue(issue);
+                if (!cat || seen.has(cat.label)) return;
+                seen.add(cat.label);
+                if (cat.severity === 'critical') matchedCritical = true;
 
-    const deadlockedSet = new Set(deadlocked.map(t => t.name));
-    const critical = threads.filter(t =>
-        !deadlockedSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'CRITICAL'),
-    );
-    if (critical.length > 0) {
-        findings.push({
-            severity: 'CRITICAL',
-            label: 'Critical Risk Threads',
-            description: 'Threads flagged as CRITICAL risk by the analysis engine. Open in Thread Explorer to inspect the stack trace and recommendation.',
-            affected: critical.map(t => t.name),
-        });
-    }
-
-    const criticalSet = new Set([...deadlocked, ...critical].map(t => t.name));
-    const high = threads.filter(t =>
-        !criticalSet.has(t.name) && t.snapshots.some(s => s.risk_level === 'HIGH'),
-    );
-    if (high.length > 0) {
-        findings.push({
-            severity: 'WARNING',
-            label: 'High Risk',
-            description: 'Threads with significant performance issues such as prolonged lock waits, database/JDBC stalls, HTTP worker saturation, or GC pressure.',
-            affected: high.map(t => t.name),
-        });
-    }
-
-    if (dumpNames.length > 0) {
-        const lastDump = dumpNames[dumpNames.length - 1];
-        const blocked = threads.filter(t => {
-            const snap = t.snapshots.find(s => s.dump_name === lastDump);
-            return snap?.state === 'BLOCKED' && !criticalSet.has(t.name) && !high.some(x => x.name === t.name);
-        });
-        if (blocked.length > 0) {
-            findings.push({
-                severity: 'WARNING',
-                label: 'Blocked Threads',
-                description: 'Threads waiting to acquire a monitor lock currently held by another thread in the latest snapshot. Indicates contention on a shared resource.',
-                affected: blocked.map(t => t.name),
+                let bucket = buckets.get(cat.label);
+                if (!bucket) {
+                    bucket = { label: cat.label, description: cat.description, severity: cat.severity, affectedThreads: [] };
+                    buckets.set(cat.label, bucket);
+                }
+                bucket.affectedThreads.push(t.name);
             });
+        });
+
+        if (!matchedCritical && t.snapshots.some(s => s.risk_level === 'CRITICAL')) {
+            const { label, description, severity } = CRITICAL_RISK_FALLBACK;
+            let bucket = buckets.get(label);
+            if (!bucket) {
+                bucket = { label, description, severity, affectedThreads: [] };
+                buckets.set(label, bucket);
+            }
+            bucket.affectedThreads.push(t.name);
         }
-    }
+    });
+
+    const findings = [...buckets.values()].sort((a, b) => {
+        const sev = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
+        return sev !== 0 ? sev : b.affectedThreads.length - a.affectedThreads.length;
+    });
 
     if (findings.length === 0) {
         return `${header}
@@ -262,12 +240,12 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
     }
 
     const body = findings.map(f => {
-        const affectedPreview = f.affected.slice(0, 5).join(', ');
-        const overflow = f.affected.length > 5 ? `, ... +${f.affected.length - 5} more` : '';
+        const affectedPreview = f.affectedThreads.slice(0, 5).join(', ');
+        const overflow = f.affectedThreads.length > 5 ? `, ... +${f.affectedThreads.length - 5} more` : '';
         return [
-            `  [${f.severity}] ${f.label}`,
+            `  [${SEVERITY_TAG[f.severity]}] ${f.label}`,
             `    ${f.description}`,
-            `    Affected (${f.affected.length}): ${affectedPreview}${overflow}`,
+            `    Affected (${f.affectedThreads.length}): ${affectedPreview}${overflow}`,
         ].join('\n');
     }).join('\n\n');
 
@@ -276,7 +254,7 @@ function formatKeyFindings(threads: Thread[], dumpNames: string[]): string {
 ${body}`;
 }
 
-function formatAIInsights(aiInsights?: AIInsights): string {
+function formatAiInsights(aiInsights?: AiInsights): string {
     const header = sectionHeader('AI INSIGHTS');
 
     const pattern = aiInsights?.pattern_recognition?.trim()
@@ -497,10 +475,9 @@ export function generateReport(data: AnalysisResponse): string {
     const latestSnapshots = threads.flatMap(t =>
         t.snapshots.length > 0 ? [t.snapshots[t.snapshots.length - 1]] : [],
     );
-    const dumpNames = getDumpNames(threads);
 
     const threadCount = snapshots.length;
-    const healthScore = computeHealthScore(latestSnapshots);
+    const healthScore = data.health_score ?? 100;
     const blockedCount = latestSnapshots.filter(s => s.state === 'BLOCKED').length;
     const criticalCount = threads.filter(t =>
         t.snapshots.some(s => s.risk_level === 'CRITICAL'),
@@ -533,8 +510,8 @@ export function generateReport(data: AnalysisResponse): string {
         formatHeader(data.session_id, data.timestamp),
         formatExecutiveSummary(aiInsights),
         formatMetrics(threadCount, healthScore, blockedCount, criticalCount, deadlockCycles, maxWaitTimeMs, stateDistribution),
-        formatKeyFindings(threads, dumpNames),
-        formatAIInsights(aiInsights),
+        formatKeyFindings(threads),
+        formatAiInsights(aiInsights),
         formatThreadClusters(snapshots),
         formatLongRunning(snapshots),
         formatHighCpu(snapshots),

@@ -90,9 +90,6 @@ const ThreadExplorer: React.FC = () => {
         setHasInitialized(true);
     }, [threadsByPool, location.state, data, hasInitialized]);
 
-    // Reset pagination on filter/pool change
-    useEffect(() => { setPage(1); }, [selectedPools, searchQuery, stateFilter, rowsPerPage]);
-
     const handleRequestSort = (property: SortableKeys) => {
         const isAsc = orderBy === property && order === 'asc';
         setOrder(isAsc ? 'desc' : 'asc');
@@ -118,7 +115,7 @@ const ThreadExplorer: React.FC = () => {
             current = current.filter(e => e.lastState === stateFilter);
         }
 
-        // Apply search query filter — matches thread name/id or any stack-trace frame
+        // Apply search query filter: matches thread name/id or any stack-trace frame
         // so the Dashboard "Top Executing Method" click can pre-filter by method name.
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
@@ -177,10 +174,12 @@ const ThreadExplorer: React.FC = () => {
         setSelectedPools(prev =>
             prev.includes(pool) ? prev.filter(p => p !== pool) : [...prev, pool]
         );
+        setPage(1);
     };
 
     const toggleSelectAll = () => {
         setSelectedPools(allSelected ? [] : poolKeys);
+        setPage(1);
     };
 
     const headerTitle = (() => {
@@ -220,7 +219,7 @@ const ThreadExplorer: React.FC = () => {
                     {stateFilter && (
                         <Chip
                             label={`State: ${stateFilter}`}
-                            onDelete={() => setStateFilter(null)}
+                            onDelete={() => { setStateFilter(null); setPage(1); }}
                             sx={(theme) => ({
                                 bgcolor: theme.palette.brand.softBg,
                                 color: theme.palette.brand.softText,
@@ -233,12 +232,12 @@ const ThreadExplorer: React.FC = () => {
                         size="small"
                         placeholder="Search by Thread ID or Name..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                         slotProps={{
                             input: {
                                 startAdornment: (
                                     <InputAdornment position="start">
-                                        <SearchIcon sx={(theme) => ({ color: theme.palette.text.disabled })} />
+                                        <SearchIcon sx={(theme) => ({ color: theme.palette.text.secondary })} />
                                     </InputAdornment>
                                 ),
                             },
@@ -277,7 +276,7 @@ const ThreadExplorer: React.FC = () => {
                     totalPages={totalPages}
                     rowsPerPage={rowsPerPage}
                     onPageChange={setPage}
-                    onRowsPerPageChange={setRowsPerPage}
+                    onRowsPerPageChange={(n) => { setRowsPerPage(n); setPage(1); }}
                 />
             </Box>
         </Box>

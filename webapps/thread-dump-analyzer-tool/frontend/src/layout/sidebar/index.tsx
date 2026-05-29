@@ -82,9 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                 sx={(theme) => ({
                   color: theme.palette.mode === 'light' ? '#000000' : theme.palette.text.primary,
                   fontWeight: 600,
-                  fontSize: '0.65rem',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
+                  fontSize: '0.75rem',
                 })}
               >
                 Navigation

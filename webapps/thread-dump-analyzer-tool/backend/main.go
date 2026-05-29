@@ -35,6 +35,8 @@ type AggregatedAnalysisResponse struct {
 	Timestamp      string                       `json:"timestamp"`
 	Threads        []analyzer.AnalyzedThread    `json:"threads"`
 	ThreadPools    map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
+	HealthScore    int                          `json:"health_score"`
+	HealthFactors  []analyzer.HealthFactor      `json:"health_factors,omitempty"`
 	PatternMatches []analyzer.PatternMatch      `json:"pattern_matches,omitempty"`
 	AIInsights     *ai.AIInsights               `json:"ai_insights,omitempty"`
 	Errors         []string                     `json:"errors,omitempty"`

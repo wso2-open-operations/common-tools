@@ -17,10 +17,10 @@
 import React from 'react';
 import { Box, Paper, Typography } from '@mui/material';
 import { parseBlocks, renderBlocks } from '@component/ui/aiMarkdown';
-import type { AIInsights } from '@/types/api';
+import type { AiInsights } from '@/types/api';
 
 interface ExecutiveSummaryCardProps {
-    aiInsights: AIInsights | undefined;
+    aiInsights: AiInsights | undefined;
 }
 
 const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights }) => (
@@ -46,8 +46,8 @@ const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights 
 
         <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, whiteSpace: 'pre-wrap' }}>
             {!aiInsights ? (
-                <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                    Executive summary unavailable — ensure GROQ_API_KEY is set and a valid dump was uploaded.
+                <Typography variant="caption" color="text.secondary" fontStyle="italic">
+                    Executive summary unavailable: ensure GROQ_API_KEY is set and a valid dump was uploaded.
                 </Typography>
             ) : (
                 aiInsights.executive_summary
@@ -55,7 +55,7 @@ const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({ aiInsights 
                         highlightBoldParagraphs: true,
                         emphasizeFirstParagraph: true,
                     })
-                    : <Typography variant="caption" color="text.disabled" fontStyle="italic">—</Typography>
+                    : <Typography variant="caption" color="text.secondary" fontStyle="italic">-</Typography>
             )}
         </Box>
     </Paper>

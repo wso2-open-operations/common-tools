@@ -39,7 +39,7 @@ export interface ThreadPoolInfo {
   expected_behavior: string;
 }
 
-export interface AIInsights {
+export interface AiInsights {
   executive_summary: string;
   pattern_recognition: string;
   recommended_actions: string;
@@ -49,13 +49,20 @@ export interface JobInitResponse {
   job_id: string;
 }
 
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
+
 export interface JobStatusResponse {
   job_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: JobStatus;
   created_at?: string;
   updated_at?: string;
   result?: AnalysisResponse;
   error?: string;
+}
+
+export interface HealthFactor {
+  label: string;
+  penalty: number;
 }
 
 export interface AnalysisResponse {
@@ -63,6 +70,8 @@ export interface AnalysisResponse {
   timestamp: string;
   threads: Thread[];
   thread_pools?: Record<string, ThreadPoolInfo>;
-  ai_insights?: AIInsights;
+  health_score: number;
+  health_factors?: HealthFactor[];
+  ai_insights?: AiInsights;
   errors?: string[];
 }

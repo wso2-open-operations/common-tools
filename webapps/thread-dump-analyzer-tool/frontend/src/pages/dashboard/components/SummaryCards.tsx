@@ -15,7 +15,7 @@
 // under the License.
 
 import React from 'react';
-import { Box, Grid, Paper, Typography, Chip, CircularProgress as MuiCircularProgress, useTheme } from '@mui/material';
+import { Box, Grid, Paper, Typography, Chip, CircularProgress as MuiCircularProgress, Tooltip, useTheme } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -70,6 +70,20 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, onBlockedClick }) 
     const theme = useTheme();
     const healthTier = getHealthTier(summary.healthScore);
     const healthMeta = getHealthMeta(healthTier, theme);
+
+    const healthBreakdown = summary.healthFactors.length > 0 ? (
+        <Box sx={{ py: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+                Score deductions
+            </Typography>
+            {summary.healthFactors.map((f) => (
+                <Box key={f.label} display="flex" justifyContent="space-between" gap={1.5}>
+                    <Typography variant="caption">{f.label}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>{`-${f.penalty}`}</Typography>
+                </Box>
+            ))}
+        </Box>
+    ) : 'No deductions — all clear';
 
     return (
         <Grid container spacing={2.5}>
@@ -276,7 +290,8 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, onBlockedClick }) 
                         Health Score
                     </Typography>
                     <Box display="flex" flexDirection="column" alignItems="center" mt={0.75}>
-                        <Box sx={{ position: 'relative', display: 'inline-flex', mb: 0.75 }}>
+                        <Tooltip title={healthBreakdown} arrow placement="top">
+                        <Box sx={{ position: 'relative', display: 'inline-flex', mb: 0.75, cursor: 'help' }}>
                             <MuiCircularProgress
                                 variant="determinate"
                                 value={100}
@@ -307,6 +322,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary, onBlockedClick }) 
                                 </Typography>
                             </Box>
                         </Box>
+                        </Tooltip>
                         <Typography
                             variant="caption"
                             sx={{ color: healthMeta.labelColor, fontWeight: 600, fontSize: '0.75rem' }}

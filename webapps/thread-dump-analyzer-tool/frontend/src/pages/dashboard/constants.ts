@@ -35,9 +35,8 @@ export function stateColors(theme: Theme): Record<string, string> {
 export function tableHeadCellSx(theme: Theme) {
     return {
         fontWeight: 700,
-        fontSize: '0.71rem',
+        fontSize: '0.78rem',
         color: theme.palette.text.secondary,
-        letterSpacing: '0.05em',
         bgcolor: theme.palette.surface.inset,
         borderBottom: `1px solid ${theme.palette.surface.border}`,
     } as const;

@@ -101,7 +101,7 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                         </Typography>
                         <Typography variant="caption" color="text.secondary" display="block" mb={expanded ? 2 : 0}>
                             Critical issues and patterns detected by the analysis engine
-                            {!expanded && keyFindings.length > 0 && ` — ${keyFindings.length} ${keyFindings.length === 1 ? 'issue' : 'issues'}`}
+                            {!expanded && keyFindings.length > 0 && ` - ${keyFindings.length} ${keyFindings.length === 1 ? 'issue' : 'issues'}`}
                         </Typography>
                     </Box>
                     <IconButton
@@ -120,7 +120,7 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                 </Box>
                 <Collapse in={expanded} timeout="auto" unmountOnExit>
                 {keyFindings.length === 0 ? (
-                    <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                    <Typography variant="caption" color="text.secondary" fontStyle="italic">
                         No critical issues detected in this analysis.
                     </Typography>
                 ) : (
@@ -164,7 +164,7 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                                             {SEVERITY_TITLE[severity]}
                                         </Typography>
                                         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 400 }}>
-                                            — {findings.length} {findings.length === 1 ? 'issue' : 'issues'}, {totalThreads} thread{totalThreads !== 1 ? 's' : ''} affected
+                                            - {findings.length} {findings.length === 1 ? 'issue' : 'issues'}, {totalThreads} thread{totalThreads !== 1 ? 's' : ''} affected
                                         </Typography>
                                     </Box>
 
@@ -192,7 +192,7 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                                                             {finding.label}
                                                         </Typography>
                                                         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 400 }}>
-                                                            — {finding.affectedThreads.length} thread{finding.affectedThreads.length !== 1 ? 's' : ''}
+                                                            - {finding.affectedThreads.length} thread{finding.affectedThreads.length !== 1 ? 's' : ''}
                                                         </Typography>
                                                     </Box>
 
@@ -300,7 +300,7 @@ const KeyFindingsCard: React.FC<KeyFindingsCardProps> = ({ keyFindings, onThread
                                 fontWeight={700}
                                 sx={(theme) => ({ color: theme.palette.severity[selectedFinding.severity].text })}
                             >
-                                {selectedFinding.label} — All Affected Threads
+                                {selectedFinding.label}: All Affected Threads
                             </Typography>
                             <Typography variant="caption" sx={{ color: 'text.secondary', ml: 0.5 }}>
                                 ({selectedFinding.affectedThreads.length})

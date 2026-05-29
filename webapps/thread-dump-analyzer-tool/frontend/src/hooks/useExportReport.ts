@@ -24,7 +24,10 @@ export function useExportReport() {
     const [exported, setExported] = useState(false);
 
     const exportReport = useCallback(() => {
-        if (!data) return;
+        if (!data) {
+            console.warn('[TDAT] useExportReport: export called with no analysis data');
+            return;
+        }
 
         setIsExporting(true);
         try {
@@ -46,6 +49,8 @@ export function useExportReport() {
 
             setExported(true);
             setTimeout(() => setExported(false), 2000);
+        } catch (err) {
+            console.error('[TDAT] useExportReport: failed to generate or download report', err);
         } finally {
             setIsExporting(false);
         }

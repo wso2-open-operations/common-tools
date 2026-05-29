@@ -95,17 +95,17 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                     <Table stickyHeader size="small">
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={thSx}>TOP EXECUTING METHOD</TableCell>
-                                <TableCell align="center" sx={{ ...thSx, width: 120 }}>THREAD COUNT</TableCell>
-                                <TableCell align="center" sx={{ ...thSx, width: 160 }}>DOMINANT STATE</TableCell>
+                                <TableCell sx={thSx}>Top Executing Method</TableCell>
+                                <TableCell align="center" sx={{ ...thSx, width: 120 }}>Thread Count</TableCell>
+                                <TableCell align="center" sx={{ ...thSx, width: 160 }}>Dominant State</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {threadClusters.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={3} align="center" sx={{ py: 5 }}>
-                                        <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                                            No clusters detected — requires &gt;1 thread sharing the same top stack frame.
+                                        <Typography variant="caption" color="text.secondary" fontStyle="italic">
+                                            No clusters detected; requires &gt;1 thread sharing the same top stack frame.
                                         </Typography>
                                     </TableCell>
                                 </TableRow>
@@ -160,16 +160,16 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                     <Table stickyHeader size="small">
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={thSx}>THREAD NAME</TableCell>
-                                <TableCell align="center" sx={{ ...thSx, width: 160 }}>STATE</TableCell>
-                                <TableCell align="right" sx={{ ...thSx, width: 160 }}>ELAPSED TIME</TableCell>
+                                <TableCell sx={thSx}>Thread Name</TableCell>
+                                <TableCell align="center" sx={{ ...thSx, width: 160 }}>State</TableCell>
+                                <TableCell align="right" sx={{ ...thSx, width: 160 }}>Elapsed Time</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {longRunningThreads.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={3} align="center" sx={{ py: 5 }}>
-                                        <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                                        <Typography variant="caption" color="text.secondary" fontStyle="italic">
                                             No elapsed-time data available for this snapshot.
                                         </Typography>
                                     </TableCell>
@@ -228,18 +228,18 @@ const ThreadActivityCard: React.FC<ThreadActivityCardProps> = ({
                     <Table stickyHeader size="small">
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={thSx}>THREAD NAME</TableCell>
-                                <TableCell align="center" sx={{ ...thSx, width: 160 }}>STATE</TableCell>
+                                <TableCell sx={thSx}>Thread Name</TableCell>
+                                <TableCell align="center" sx={{ ...thSx, width: 160 }}>State</TableCell>
                                 <TableCell align="right" sx={{ ...thSx, width: 140 }}>CPU %</TableCell>
-                                <TableCell align="right" sx={{ ...thSx, width: 140 }}>CPU TIME</TableCell>
+                                <TableCell align="right" sx={{ ...thSx, width: 140 }}>CPU Time</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {highCpuThreads.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={4} align="center" sx={{ py: 5 }}>
-                                        <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                                            No CPU usage data available — upload thread dump with CPU metrics.
+                                        <Typography variant="caption" color="text.secondary" fontStyle="italic">
+                                            No CPU usage data available; upload thread dump with CPU metrics.
                                         </Typography>
                                     </TableCell>
                                 </TableRow>

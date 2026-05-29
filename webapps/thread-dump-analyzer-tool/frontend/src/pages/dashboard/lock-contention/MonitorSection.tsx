@@ -62,7 +62,7 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({ lock, onThreadClick }) 
                 <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary, fontSize: '0.73rem' })}>
                     ( {lock.className} )
                 </Typography>
-                <Typography variant="caption" sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.text.disabled, fontSize: '0.72rem' })}>
+                <Typography variant="caption" sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.text.secondary, fontSize: '0.72rem' })}>
                     &lt;{lock.address}&gt;
                 </Typography>
                 <Typography variant="caption" sx={(theme) => ({ ml: 'auto', color: theme.palette.text.secondary, whiteSpace: 'nowrap' })}>

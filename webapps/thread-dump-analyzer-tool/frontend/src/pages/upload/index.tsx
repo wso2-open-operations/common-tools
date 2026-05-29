@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import {
@@ -27,7 +27,7 @@ import { extractFileKey, type PairedFile } from '../../utils/uploadValidation';
 import UploadCard from './components/UploadCard';
 import Header from '@src/layout/header';
 
-function UploadPage() {
+const UploadPage: React.FC = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -91,16 +91,19 @@ function UploadPage() {
         if (query.data?.status === 'completed' && query.data.result) {
             const result = query.data.result;
             if (result.errors && result.errors.length > 0) {
+                console.warn('[TDAT] upload: analysis completed with parser errors', { errors: result.errors });
                 setErrorMsg(`Invalid file(s) uploaded: ${result.errors.join(' | ')}. Please ensure you upload proper thread dumps.`);
                 return;
             }
             if (!result.threads || result.threads.length === 0) {
+                console.warn('[TDAT] upload: analysis completed but no threads were parsed');
                 setErrorMsg('Invalid file(s) uploaded: No threads were found in the provided files. Please re-upload proper thread dumps.');
                 return;
             }
             navigate('/dashboard');
         }
         if (query.data?.status === 'failed') {
+            console.error('[TDAT] upload: analysis job failed', { error: query.data.error });
             setErrorMsg('Analysis failed: the server could not process the uploaded files.');
         }
     }, [query.data?.status]);
@@ -109,7 +112,12 @@ function UploadPage() {
         if (dumps.length === 0) return;
         mutation.mutate(
             { dumps: sortedDumps, usages: sortedUsages },
-            { onError: (err) => setErrorMsg(`Upload failed: ${err.message}`) }
+            {
+                onError: (err) => {
+                    console.error('[TDAT] upload: mutation onError', err);
+                    setErrorMsg(`Upload failed: ${err.message}`);
+                },
+            }
         );
     };
 
@@ -290,5 +298,6 @@ function UploadPage() {
             </Container>
         </Box>
     );
-}
+};
+
 export default UploadPage;

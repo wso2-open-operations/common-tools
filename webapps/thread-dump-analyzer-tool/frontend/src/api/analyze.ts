@@ -48,15 +48,17 @@ export const uploadThreadDumps = async (
       body: formData,
       headers: await authHeader(getAccessToken),
     });
-  } catch {
+  } catch (err) {
     // fetch() rejects only on network-level failure; the gateway timing out a slow upload lands here.
+    console.error("[TDAT] uploadThreadDumps network failure", { dumps: dumps.length, usages: usages.length, error: err });
     throw new Error(
-      "Network error while uploading. The upload may have been cut off by the server or gateway — try again, or upload fewer/smaller files at once."
+      "Network error while uploading. The upload may have been cut off by the server or gateway, try again, or upload fewer/smaller files at once."
     );
   }
 
   if (!response.ok) {
     const detail = (await response.text().catch(() => "")) || response.statusText;
+    console.error("[TDAT] uploadThreadDumps HTTP error", { status: response.status, detail });
     throw new Error(`Upload failed (HTTP ${response.status}): ${detail}`);
   }
 
@@ -72,6 +74,7 @@ export const getJobStatus = async (
   });
 
   if (!response.ok) {
+    console.error("[TDAT] getJobStatus HTTP error", { jobId, status: response.status, statusText: response.statusText });
     throw new Error(`Job status check failed: ${response.statusText}`);
   }
 

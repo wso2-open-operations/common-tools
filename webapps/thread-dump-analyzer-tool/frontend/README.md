@@ -52,7 +52,7 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 
 ## Key Implementation Details
 
-**Session persistence** - analysis results are stored in IndexedDB via `localforage` under key `tdat_analysis_session`. The app shows a full-screen loader until hydration completes, so the dashboard is always available after a page refresh.
+**Session state** - analysis results are held in plain in-memory React state in `AnalysisContext`. A page refresh clears the session and the user must re-upload. Persistence (originally via `localforage`/IndexedDB) was removed deliberately so customer thread-dump data is not stored at rest in the browser.
 
 **Job polling** - `useAnalyzeThreads` uses TanStack React Query's `refetchInterval` to poll `GET /analyze/jobs/{id}` every 3 seconds. Polling stops automatically on `completed` or `failed` status.
 
@@ -72,7 +72,6 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 | MUI v7 | Component library and theming |
 | TanStack React Query v5 | Server state, mutation, and polling |
 | `@asgardeo/auth-react` | Authentication |
-| `localforage` | IndexedDB-backed session persistence |
 | `react-router-dom` v7 | Client-side routing |
 | Vite 7 | Build tool and dev server |
 
@@ -110,7 +109,7 @@ frontend/
     ├── config/
     │   └── authConfig.ts                   Asgardeo client config
     ├── context/
-    │   ├── AnalysisContext.tsx             Session state, persisted to IndexedDB via localforage
+    │   ├── AnalysisContext.tsx             Session state, in-memory React state (not persisted)
     │   └── ColorModeContext.tsx            Light/dark theme context, persisted to localStorage
     ├── hooks/
     │   ├── useAnalyzeThreads.ts            Upload mutation + 3s polling query
@@ -138,7 +137,7 @@ frontend/
     │       │   ├── StateDistributionCard.tsx
     │       │   ├── KeyFindingsCard.tsx
     │       │   ├── ThreadActivityCard.tsx
-    │       │   ├── AIInsightsCard.tsx
+    │       │   ├── AiInsightsCard.tsx
     │       │   └── ExecutiveSummaryCard.tsx
     │       ├── lock-contention/            LockContention sub-components
     │       │   ├── LockOwnerAccordion.tsx  One row per thread holding a contended monitor

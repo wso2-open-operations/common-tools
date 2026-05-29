@@ -431,6 +431,7 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 
 	aggregatedThreads := analyzer.AggregateThreads(parsedFiles)
 	patternMatches := analyzer.ComputePatternMatches(aggregatedThreads)
+	healthScore, healthFactors := analyzer.ComputeHealth(aggregatedThreads)
 
 	var aiInsights *ai.AIInsights
 	if ctx.Err() == nil {
@@ -447,6 +448,8 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 		Timestamp:      time.Now().Format(time.RFC3339),
 		Threads:        aggregatedThreads,
 		ThreadPools:    enricher.PoolMetadata(),
+		HealthScore:    healthScore,
+		HealthFactors:  healthFactors,
 		PatternMatches: patternMatches,
 		AIInsights:     aiInsights,
 		Errors:         errorMessages,

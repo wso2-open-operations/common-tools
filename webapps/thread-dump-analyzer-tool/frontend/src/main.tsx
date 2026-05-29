@@ -26,6 +26,5 @@ createRoot(document.getElementById('root')!).render(
     <AuthProvider config={authConfig}>
       <App />
     </AuthProvider>
-
   </StrictMode>,
 )

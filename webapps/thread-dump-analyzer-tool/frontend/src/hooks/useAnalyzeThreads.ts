@@ -28,7 +28,13 @@ export const useAnalyzeThreads = () => {
 
   const mutation = useMutation<JobInitResponse, Error, { dumps: File[]; usages: File[] }>({
     mutationFn: ({ dumps, usages }) => uploadThreadDumps(dumps, usages, getAccessToken),
-    onSuccess: ({ job_id }) => setJobId(job_id),
+    onSuccess: ({ job_id }) => {
+      console.info("[TDAT] analysis job submitted", { jobId: job_id });
+      setJobId(job_id);
+    },
+    onError: (err) => {
+      console.error("[TDAT] analysis job submission failed", err);
+    },
   });
 
   // Poll job status every 3s; dynamic refetchInterval returns false when job reaches terminal state, stopping polls.
@@ -43,9 +49,19 @@ export const useAnalyzeThreads = () => {
   });
 
   useEffect(() => {
+    if (query.error) {
+      console.error("[TDAT] job status poll error", { jobId, error: query.error });
+    }
+  }, [query.error, jobId]);
+
+  useEffect(() => {
     if (query.data?.status === "completed" && query.data.result) {
+      console.info("[TDAT] analysis job completed", { jobId, threads: query.data.result.threads?.length ?? 0, errors: query.data.result.errors?.length ?? 0 });
       setAnalysisData(query.data.result);
       setJobId(null);
+    }
+    if (query.data?.status === "failed") {
+      console.error("[TDAT] analysis job reported failed status", { jobId });
     }
   }, [query.data]);
 

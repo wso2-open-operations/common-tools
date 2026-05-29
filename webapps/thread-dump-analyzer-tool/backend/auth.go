@@ -69,9 +69,9 @@ func NewAuthenticator(ctx context.Context, cfg *Config) (*Authenticator, error) 
 // RequireAuth wraps a handler, rejecting any request without a valid Bearer JWT.
 func (a *Authenticator) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		raw, err := bearerToken(r)
+		raw, err := extractToken(r)
 		if err != nil {
-			unauthorized(w, "missing or malformed Authorization header")
+			unauthorized(w, "missing or malformed credentials")
 			return
 		}
 
@@ -95,11 +95,14 @@ func (a *Authenticator) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// bearerToken extracts the token from an "Authorization: Bearer <token>" header.
-func bearerToken(r *http.Request) (string, error) {
+// extractToken prefers Choreo's "x-jwt-assertion" header, falls back to "Authorization: Bearer".
+func extractToken(r *http.Request) (string, error) {
+	if assertion := strings.TrimSpace(r.Header.Get("x-jwt-assertion")); assertion != "" {
+		return assertion, nil
+	}
 	h := r.Header.Get("Authorization")
 	if h == "" {
-		return "", errors.New("no Authorization header")
+		return "", errors.New("no Authorization or x-jwt-assertion header")
 	}
 	const prefix = "Bearer "
 	if len(h) < len(prefix) || !strings.EqualFold(h[:len(prefix)], prefix) {

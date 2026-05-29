@@ -145,7 +145,7 @@ const PoolHeaderCard: React.FC<PoolHeaderCardProps> = ({
                                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                                     {pool}
                                                 </Typography>
-                                                <Typography variant="caption" sx={{ ml: 1, color: 'text.disabled', alignSelf: 'center' }}>
+                                                <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary', alignSelf: 'center' }}>
                                                     ({threadsByPool[pool]?.length || 0} threads)
                                                 </Typography>
                                             </AccordionSummary>

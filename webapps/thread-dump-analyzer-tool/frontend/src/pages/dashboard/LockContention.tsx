@@ -150,7 +150,7 @@ const LockContention: React.FC = () => {
                                 input: {
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            <SearchIcon sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: 20 })} />
+                                            <SearchIcon sx={(theme) => ({ color: theme.palette.text.secondary, fontSize: 20 })} />
                                         </InputAdornment>
                                     ),
                                 },
@@ -158,6 +158,7 @@ const LockContention: React.FC = () => {
                             sx={(theme) => ({
                                 width: 360,
                                 bgcolor: theme.palette.surface.translucent,
+                                borderRadius: 2.5,
                                 flexShrink: 0,
                                 '& .MuiOutlinedInput-root': { borderRadius: 2.5 },
                                 '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.surface.border },
@@ -242,7 +243,7 @@ const LockContention: React.FC = () => {
                 {deadlocks.length > 0 && (
                     <Alert severity="error" variant="filled" icon={<WarningAmberIcon />} sx={{ mb: 3, borderRadius: 3 }}>
                         <AlertTitle sx={{ fontWeight: 700 }}>
-                            Deadlock Detected — {deadlocks.length} cycle{deadlocks.length !== 1 ? 's' : ''}
+                            Deadlock Detected: {deadlocks.length} cycle{deadlocks.length !== 1 ? 's' : ''}
                         </AlertTitle>
                         {deadlocks.map((cycle, i) => {
                             const names = cycle.threads.map((t) => t.thread.name);
@@ -272,7 +273,7 @@ const LockContention: React.FC = () => {
                             fontWeight={600}
                             sx={(theme) => ({ color: theme.palette.severity.success.text })}
                         >
-                            All clear — no lock contention detected.
+                            All clear: no lock contention detected.
                         </Typography>
                         <Typography variant="body2" color="text.secondary" mt={0.5}>
                             All threads are running without observable lock conflicts.
@@ -299,11 +300,11 @@ const LockContention: React.FC = () => {
                             boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                         })}
                     >
-                        <SearchIcon sx={(theme) => ({ fontSize: 40, color: theme.palette.text.disabled, mb: 1 })} />
+                        <SearchIcon sx={(theme) => ({ fontSize: 40, color: theme.palette.text.secondary, mb: 1 })} />
                         <Typography variant="body1" sx={(theme) => ({ fontWeight: 600, color: theme.palette.text.secondary })}>
                             No results for "{searchQuery}"
                         </Typography>
-                        <Typography variant="body2" sx={(theme) => ({ color: theme.palette.text.disabled, mt: 0.5 })}>
+                        <Typography variant="body2" sx={(theme) => ({ color: theme.palette.text.secondary, mt: 0.5 })}>
                             Try searching by thread name, thread ID, monitor address, or class name.
                         </Typography>
                     </Paper>
@@ -314,7 +315,7 @@ const LockContention: React.FC = () => {
                     <Box sx={{ mb: 4 }}>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
                             <Typography variant="h6" fontWeight={700} sx={(theme) => ({ color: theme.palette.text.primary })}>Lock Owners</Typography>
-                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredLockOwners.length} match{filteredLockOwners.length !== 1 ? 'es' : ''})</Typography>}
+                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary })}>({filteredLockOwners.length} match{filteredLockOwners.length !== 1 ? 'es' : ''})</Typography>}
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.75 }}>
                             Threads holding locks/monitors and blocking other threads, sorted by impact.
@@ -331,10 +332,10 @@ const LockContention: React.FC = () => {
                                     gap: 1.5,
                                 })}
                             >
-                                <LockOutlinedIcon sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: 22, flexShrink: 0 })} />
+                                <LockOutlinedIcon sx={(theme) => ({ color: theme.palette.text.secondary, fontSize: 22, flexShrink: 0 })} />
                                 <Box>
                                     <Typography variant="body2" fontWeight={600} sx={(theme) => ({ color: theme.palette.text.secondary })}>No lock owners identified</Typography>
-                                    <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>
+                                    <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary })}>
                                         {q ? 'No lock owners match your search query.' : 'No thread was found actively holding a lock that is blocking others. The monitors below may be unowned or already released.'}
                                     </Typography>
                                 </Box>
@@ -350,7 +351,7 @@ const LockContention: React.FC = () => {
                     <Box>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
                             <Typography variant="h6" fontWeight={700} sx={(theme) => ({ color: theme.palette.text.primary })}>Unowned Monitors</Typography>
-                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled })}>({filteredUnownedLocks.length} match{filteredUnownedLocks.length !== 1 ? 'es' : ''})</Typography>}
+                            {q && <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary })}>({filteredUnownedLocks.length} match{filteredUnownedLocks.length !== 1 ? 'es' : ''})</Typography>}
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                             Monitors with blocked threads but no owner thread visible in this snapshot.

@@ -32,7 +32,8 @@ function readStoredMode(): ThemeMode {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     return isValidMode(stored) ? stored : 'light';
-  } catch {
+  } catch (err) {
+    console.warn('[TDAT] ColorModeContext: failed to read theme from localStorage, defaulting to light', err);
     return 'light';
   }
 }
@@ -56,8 +57,9 @@ export const ColorModeProvider = ({ children }: ColorModeProviderProps) => {
     setModeState(value);
     try {
       window.localStorage.setItem(STORAGE_KEY, value);
-    } catch {
-      // Storage might be unavailable; ignore.
+    } catch (err) {
+      // Storage might be unavailable (private mode, quota), preference won't persist across sessions.
+      console.warn('[TDAT] ColorModeContext: failed to persist theme to localStorage', { value, error: err });
     }
   }, []);
 
@@ -66,8 +68,8 @@ export const ColorModeProvider = ({ children }: ColorModeProviderProps) => {
       const next: ThemeMode = prev === 'dark' ? 'light' : 'dark';
       try {
         window.localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        // ignore
+      } catch (err) {
+        console.warn('[TDAT] ColorModeContext: failed to persist theme toggle to localStorage', { next, error: err });
       }
       return next;
     });

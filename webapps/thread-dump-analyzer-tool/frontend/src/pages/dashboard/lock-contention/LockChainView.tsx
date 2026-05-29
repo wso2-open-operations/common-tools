@@ -89,6 +89,7 @@ const DeadlockChain: React.FC<DeadlockChainProps> = ({ cycle, index, onThreadCli
                                     borderRadius: 2,
                                     display: 'flex',
                                     alignItems: 'center',
+                                    justifyContent: 'flex-start',
                                     gap: 1,
                                     minWidth: 0,
                                     '&:hover': { bgcolor: theme.palette.accent.blockedBgHover },
@@ -118,18 +119,18 @@ const DeadlockChain: React.FC<DeadlockChainProps> = ({ cycle, index, onThreadCli
                                 <Box sx={(theme) => ({ width: 2, bgcolor: theme.palette.surface.border, minHeight: 28 })} />
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.5 }}>
-                                <ArrowForwardIcon sx={(theme) => ({ fontSize: 14, color: theme.palette.text.disabled, transform: 'rotate(90deg)' })} />
-                                <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: '0.68rem', fontStyle: 'italic' })}>
+                                <ArrowForwardIcon sx={(theme) => ({ fontSize: 14, color: theme.palette.text.secondary, transform: 'rotate(90deg)' })} />
+                                <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary, fontSize: '0.68rem', fontStyle: 'italic' })}>
                                     waiting for
                                 </Typography>
                                 <LockOutlinedIcon sx={(theme) => ({ fontSize: 13, color: theme.palette.accent.monitor })} />
                                 <Typography variant="caption" sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.accent.monitor, fontWeight: 600, fontSize: '0.7rem' })}>
                                     {shortClass}
                                 </Typography>
-                                <Typography variant="caption" sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.text.disabled, fontSize: '0.65rem' })}>
+                                <Typography variant="caption" sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.text.secondary, fontSize: '0.65rem' })}>
                                     &lt;{entry.waitingOnAddress}&gt;
                                 </Typography>
-                                <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: '0.68rem', fontStyle: 'italic' })}>
+                                <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary, fontSize: '0.68rem', fontStyle: 'italic' })}>
                                     held by
                                 </Typography>
                                 <Typography variant="caption" sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.accent.link, fontWeight: 600, fontSize: '0.7rem' })}>
@@ -224,6 +225,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ lockOwner, onThreadCl
                         borderRadius: 2,
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'flex-start',
                         gap: 1,
                         minWidth: 0,
                         flex: 1,
@@ -283,12 +285,12 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ lockOwner, onThreadCl
                                 </Typography>
                                 <Typography
                                     variant="caption"
-                                    sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.text.disabled, fontSize: '0.65rem' })}
+                                    sx={(theme) => ({ fontFamily: 'monospace', color: theme.palette.text.secondary, fontSize: '0.65rem' })}
                                 >
                                     &lt;{lock.address}&gt;
                                 </Typography>
-                                <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.disabled, fontSize: '0.68rem' })}>
-                                    — {lock.blockedThreads.length} blocked
+                                <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary, fontSize: '0.68rem' })}>
+                                    · {lock.blockedThreads.length} blocked
                                 </Typography>
                             </Box>
                         </Box>
@@ -311,6 +313,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ lockOwner, onThreadCl
                                         borderRadius: 2,
                                         display: 'flex',
                                         alignItems: 'center',
+                                        justifyContent: 'flex-start',
                                         gap: 1,
                                         minWidth: 0,
                                         '&:hover': { bgcolor: theme.palette.accent.blockedBgHover },
@@ -335,7 +338,7 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ lockOwner, onThreadCl
                                             variant="caption"
                                             sx={(theme) => ({
                                                 fontFamily: 'monospace',
-                                                color: bt.waitTimeMs >= 10000 ? theme.palette.severity.critical.text : theme.palette.text.disabled,
+                                                color: bt.waitTimeMs >= 10000 ? theme.palette.severity.critical.text : theme.palette.text.secondary,
                                                 fontSize: '0.65rem',
                                                 flexShrink: 0,
                                             })}
@@ -364,14 +367,14 @@ const ContentionChain: React.FC<ContentionChainProps> = ({ lockOwner, onThreadCl
                                     className="expand-label"
                                     variant="caption"
                                     sx={(theme) => ({
-                                        color: theme.palette.text.disabled,
+                                        color: theme.palette.text.secondary,
                                         fontSize: '0.68rem',
                                         ml: 1,
                                         py: 0.25,
                                         userSelect: 'none',
                                     })}
                                 >
-                                    {isExpanded ? '— Show fewer' : `+ ${remainingCount} more blocked threads`}
+                                    {isExpanded ? '- Show fewer' : `+ ${remainingCount} more blocked threads`}
                                 </Typography>
                             </ButtonBase>
                         )}
@@ -403,7 +406,7 @@ const LockChainView: React.FC<LockChainViewProps> = ({ deadlocks, lockOwners, on
                 Chain Map
             </Typography>
             <Typography variant="body2" sx={(theme) => ({ color: theme.palette.text.secondary, mb: 2 })}>
-                Visual flow of lock dependencies — follow the chain to trace contention from owner to blocked threads.
+                Visual flow of lock dependencies; follow the chain to trace contention from owner to blocked threads.
             </Typography>
 
             {deadlocks.length > 0 && (
@@ -445,7 +448,7 @@ const LockChainView: React.FC<LockChainViewProps> = ({ deadlocks, lockOwners, on
                         <Typography
                             variant="caption"
                             sx={(theme) => ({
-                                color: theme.palette.text.disabled,
+                                color: theme.palette.text.secondary,
                                 display: 'block',
                                 textAlign: 'center',
                                 mt: 1,

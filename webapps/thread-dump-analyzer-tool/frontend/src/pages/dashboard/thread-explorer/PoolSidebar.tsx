@@ -140,7 +140,7 @@ const PoolSidebar: React.FC<PoolSidebarProps> = ({
                                     </Typography>
                                     <Typography
                                         variant="caption"
-                                        sx={(theme) => ({ color: theme.palette.text.disabled })}
+                                        sx={(theme) => ({ color: theme.palette.text.secondary })}
                                     >
                                         {threadsByPool[pool].length} threads
                                     </Typography>

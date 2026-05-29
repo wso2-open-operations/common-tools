@@ -151,7 +151,7 @@ const StateDistributionCard: React.FC<StateDistributionCardProps> = ({
                     </Box>
                 </Box>
             ) : (
-                <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                <Typography variant="caption" color="text.secondary" fontStyle="italic">
                     No thread data available for this snapshot.
                 </Typography>
             )}

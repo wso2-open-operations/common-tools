@@ -78,8 +78,8 @@ export function renderInline(text: string, onThreadClick?: (name: string) => voi
     );
 }
 
-// Strips all markdown heading markers (##, ###, etc.) — including standalone ones with no
-// following text — before line splitting so they never reach the renderer as literal characters.
+// Strips all markdown heading markers (##, ###, etc.), including standalone ones with no
+// following text, before line splitting so they never reach the renderer as literal characters.
 function sanitize(raw: string): string {
     return raw
         // leading hashes on any line

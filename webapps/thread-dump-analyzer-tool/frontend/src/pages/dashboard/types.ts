@@ -14,11 +14,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import type { HealthFactor } from '@/types/api';
+
 export interface DashboardSummary {
     threadCount: number;
     criticalIssues: number;
     blockedThreads: number;
     healthScore: number;
+    healthFactors: HealthFactor[];
     trendPercent: number | null;
 }
 

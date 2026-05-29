@@ -57,7 +57,11 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
     const processFiles = (incomingFiles: File[]) => {
         const { valid, invalid } = validateFiles(incomingFiles);
-        if (invalid) onError('Invalid file types. Only .txt and .log files are allowed.');
+        if (invalid) {
+            const rejected = incomingFiles.filter(f => !valid.includes(f)).map(f => f.name);
+            console.warn('[TDAT] UploadCard: rejected files with disallowed extensions', { kind: fileTypeLabel, rejected });
+            onError('Invalid file types. Only .txt and .log files are allowed.');
+        }
         if (valid.length > 0) onAddFiles(valid);
     };
 

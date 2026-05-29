@@ -21,16 +21,16 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import { parseBlocks, renderBlocks } from '@component/ui/aiMarkdown';
 import { useNavigateToThread } from '@hooks/useNavigateToThread';
-import type { AIInsights } from '@/types/api';
+import type { AiInsights } from '@/types/api';
 
-interface AIInsightsCardProps {
-    aiInsights: AIInsights | undefined;
+interface AiInsightsCardProps {
+    aiInsights: AiInsights | undefined;
 }
 
 const infoIcon = <InfoOutlinedIcon sx={{ fontSize: 13, color: 'inherit' }} />;
 const lightbulbIcon = <LightbulbOutlinedIcon sx={{ fontSize: 13, color: 'inherit' }} />;
 
-const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => {
+const AiInsightsCard: React.FC<AiInsightsCardProps> = ({ aiInsights }) => {
     const navigateToThread = useNavigateToThread();
 
     return (
@@ -55,8 +55,8 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => {
             </Typography>
 
             {!aiInsights ? (
-                <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                    AI insights unavailable — ensure GROQ_API_KEY is set and a valid dump was uploaded.
+                <Typography variant="caption" color="text.secondary" fontStyle="italic">
+                    AI insights unavailable: ensure GROQ_API_KEY is set and a valid dump was uploaded.
                 </Typography>
             ) : (
                 <>
@@ -77,7 +77,7 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => {
                                 listIcon: infoIcon,
                                 onThreadClick: navigateToThread,
                             })
-                            : <Typography variant="caption" color="text.disabled" fontStyle="italic">—</Typography>
+                            : <Typography variant="caption" color="text.secondary" fontStyle="italic">-</Typography>
                         }
                     </Box>
 
@@ -100,7 +100,7 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => {
                                 listIcon: lightbulbIcon,
                                 onThreadClick: navigateToThread,
                             })
-                            : <Typography variant="caption" color="text.disabled" fontStyle="italic">—</Typography>
+                            : <Typography variant="caption" color="text.secondary" fontStyle="italic">-</Typography>
                         }
                     </Box>
                 </>
@@ -109,4 +109,4 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ aiInsights }) => {
     );
 };
 
-export default AIInsightsCard;
+export default AiInsightsCard;

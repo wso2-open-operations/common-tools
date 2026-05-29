@@ -46,7 +46,7 @@ const LockOwnerAccordion: React.FC<LockOwnerAccordionProps> = ({ entry, onThread
             })}
         >
             <AccordionSummary
-                expandIcon={<ExpandMoreIcon sx={(theme) => ({ color: theme.palette.text.disabled })} />}
+                expandIcon={<ExpandMoreIcon sx={(theme) => ({ color: theme.palette.text.secondary })} />}
                 sx={{
                     px: 2,
                     minHeight: 48,
@@ -94,7 +94,7 @@ const LockOwnerAccordion: React.FC<LockOwnerAccordionProps> = ({ entry, onThread
                     </Typography>
                     <Typography
                         variant="caption"
-                        sx={(theme) => ({ color: theme.palette.text.disabled, mx: 0.25 })}
+                        sx={(theme) => ({ color: theme.palette.text.secondary, mx: 0.25 })}
                     >
                         |
                     </Typography>
