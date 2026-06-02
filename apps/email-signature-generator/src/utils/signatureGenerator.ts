@@ -34,19 +34,21 @@ export function generateSignatureHTML(data: SignatureData): string {
   if (data.medium) {
     const safeUrl = isSafeUrl(data.medium) ? escapeHtml(data.medium) : "#";
     socialLinks.push(
-      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">Medium</a>`
+      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">Medium</a>`,
     );
   }
   if (data.linkedin) {
     const safeUrl = isSafeUrl(data.linkedin) ? escapeHtml(data.linkedin) : "#";
     socialLinks.push(
-      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">LinkedIn</a>`
+      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">LinkedIn</a>`,
     );
   }
   if (data.customUrl && data.customUrlLabel) {
-    const safeUrl = isSafeUrl(data.customUrl) ? escapeHtml(data.customUrl) : "#";
+    const safeUrl = isSafeUrl(data.customUrl)
+      ? escapeHtml(data.customUrl)
+      : "#";
     socialLinks.push(
-      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">${escapeHtml(data.customUrlLabel)}</a>`
+      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">${escapeHtml(data.customUrlLabel)}</a>`,
     );
   }
   const socialText = socialLinks.join(" | ");
@@ -97,7 +99,7 @@ export function generateSignatureHTML(data: SignatureData): string {
                 : ""
             }
             <tr>
-              <td style="${tdBase};padding: 0 0 3px 0;border-bottom: 4px solid #F14E23;line-height: 0;font-size: 0;"></td>
+              <td style="${tdBase};padding: 0 0 1px 0;border-bottom: 4px solid #F14E23;line-height: 0;font-size: 0;"></td>
             </tr>
             ${
               phoneText
