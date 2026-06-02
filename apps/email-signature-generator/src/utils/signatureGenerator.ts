@@ -73,7 +73,7 @@ export function generateSignatureHTML(data: SignatureData): string {
   const textTd = (extra: string = "") =>
     `${tdBase};color: #000000 !important;font-family: Inter, Arial, sans-serif;line-height: 1.4;padding: 0 0 3px 0;${extra}`;
 
-  return `<table border="0" cellpadding="0" cellspacing="0" style="${tdBase};font-family: Arial, sans-serif;max-width: 400px;" width="100%">
+  return `<table border="0" cellpadding="0" cellspacing="0" style="${tdBase};font-family: Arial, sans-serif;">
   <tbody>
     <tr>
       <td style="${tdBase};padding: 0;margin: 0;">
@@ -100,7 +100,7 @@ export function generateSignatureHTML(data: SignatureData): string {
             }
             <tr>
               <td style="${tdBase};padding: 0 0 3px 0;">
-                <hr style="border: none; border-top: 4px solid #F14E23; margin: 0; padding: 0; width: 100%;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;"><tbody><tr><td height="4" style="background-color: #F14E23; font-size: 0; line-height: 0; padding: 0; height: 4px;"></td></tr></tbody></table>
               </td>
             </tr>
             ${
