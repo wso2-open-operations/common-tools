@@ -23,10 +23,12 @@ import Typography from "@mui/material/Typography";
 import { motion } from "framer-motion";
 import {
   Briefcase,
+  Link,
   Linkedin,
   NotebookPen,
   Phone,
   Smartphone,
+  Tag,
   User,
 } from "lucide-react";
 import type { SignatureData } from "../types";
@@ -88,6 +90,21 @@ const fields: {
     placeholder: "https://linkedin.com/in/yourusername",
     type: "url",
     helper: "Your LinkedIn profile link",
+  },
+  {
+    id: "customUrl",
+    label: "Custom URL",
+    icon: <Link className="lucide" size={16} />,
+    placeholder: "https://github.com/yourusername",
+    type: "url",
+    helper: "Any other link you'd like to include",
+  },
+  {
+    id: "customUrlLabel",
+    label: "Link Label",
+    icon: <Tag className="lucide" size={16} />,
+    placeholder: "GitHub",
+    helper: "Display name for the link above",
   },
 ];
 
@@ -180,6 +197,7 @@ export default function SignatureForm({ data, onChange }: Props) {
             field.id === "designation" ||
             field.id === "medium" ||
             field.id === "linkedin";
+
           return (
             <Box
               key={field.id}

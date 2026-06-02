@@ -34,13 +34,21 @@ export function generateSignatureHTML(data: SignatureData): string {
   if (data.medium) {
     const safeUrl = isSafeUrl(data.medium) ? escapeHtml(data.medium) : "#";
     socialLinks.push(
-      `<a href="${safeUrl}" style="color: #000000; text-decoration: none;">Medium</a>`
+      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">Medium</a>`,
     );
   }
   if (data.linkedin) {
     const safeUrl = isSafeUrl(data.linkedin) ? escapeHtml(data.linkedin) : "#";
     socialLinks.push(
-      `<a href="${safeUrl}" style="color: #000000; text-decoration: none;">LinkedIn</a>`
+      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">LinkedIn</a>`,
+    );
+  }
+  if (data.customUrl && data.customUrlLabel) {
+    const safeUrl = isSafeUrl(data.customUrl)
+      ? escapeHtml(data.customUrl)
+      : "#";
+    socialLinks.push(
+      `<a href="${safeUrl}" style="color: #F04E23; text-decoration: none;">${escapeHtml(data.customUrlLabel)}</a>`,
     );
   }
   const socialText = socialLinks.join(" | ");
@@ -65,7 +73,7 @@ export function generateSignatureHTML(data: SignatureData): string {
   const textTd = (extra: string = "") =>
     `${tdBase};color: #000000 !important;font-family: Inter, Arial, sans-serif;line-height: 1.4;padding: 0 0 3px 0;${extra}`;
 
-  return `<table border="0" cellpadding="0" cellspacing="0" style="${tdBase};font-family: Arial, sans-serif;max-width: 400px;" width="100%">
+  return `<table border="0" cellpadding="0" cellspacing="0" style="${tdBase};font-family: Arial, sans-serif;">
   <tbody>
     <tr>
       <td style="${tdBase};padding: 0;margin: 0;">
@@ -73,7 +81,7 @@ export function generateSignatureHTML(data: SignatureData): string {
           <tbody>
             <tr>
               <td style="${tdBase};padding: 0 0 3px 0;">
-                <img src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/wso2-orange-logo.png" alt="WSO2" width="100" style="-ms-interpolation-mode: bicubic;height: auto;outline: none;text-decoration: none;border: 0;display: block;">
+                <a href="https://wso2.com" style="text-decoration: none;border: 0;display: block;"><img src="https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/wso2-orange-logo.png" alt="WSO2" width="100" height="25" style="-ms-interpolation-mode: bicubic;width: 100px;height: auto;outline: none;text-decoration: none;border: 0;display: block;"></a>
               </td>
             </tr>
             <tr>
@@ -92,7 +100,7 @@ export function generateSignatureHTML(data: SignatureData): string {
             }
             <tr>
               <td style="${tdBase};padding: 0 0 3px 0;">
-                <hr style="border: none; border-top: 4px solid #F14E23; margin: 0; padding: 0; width: 100%; max-width: 400px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;"><tbody><tr><td height="4" style="background-color: #F14E23; font-size: 0; line-height: 0; padding: 0; height: 4px;"></td></tr></tbody></table>
               </td>
             </tr>
             ${
