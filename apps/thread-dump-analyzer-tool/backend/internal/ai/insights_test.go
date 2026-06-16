@@ -20,8 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend/internal/analyzer"
-	"github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend/internal/parser"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 )
 
 func mkThread(name, risk, pool string, issues, stack []string) analyzer.AnalyzedThread {

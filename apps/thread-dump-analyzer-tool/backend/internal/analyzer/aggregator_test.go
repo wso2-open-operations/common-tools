@@ -19,7 +19,7 @@ package analyzer
 import (
 	"testing"
 
-	"github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend/internal/parser"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 )
 
 func TestAggregateThreads_PerThreadSnapshotsPerFile(t *testing.T) {

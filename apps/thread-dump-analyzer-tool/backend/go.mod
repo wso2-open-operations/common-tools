@@ -1,4 +1,4 @@
-module github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend
+module github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend
 
 go 1.24.4
 

@@ -17,7 +17,7 @@
 package analyzer
 
 import (
-	"github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend/internal/parser"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 )
 
 // A thread's state at a single point in time from one dump file

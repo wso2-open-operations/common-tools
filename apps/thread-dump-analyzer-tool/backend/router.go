@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wso2-open-operations/common-tools/webapps/thread-dump-analyzer-tool/backend/internal/analyzer"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
 
 	"github.com/rs/cors"
 	"golang.org/x/time/rate"
