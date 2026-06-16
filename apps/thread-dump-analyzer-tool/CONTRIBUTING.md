@@ -10,7 +10,7 @@ This tool lives in the `wso2-open-operations/common-tools` monorepo at `apps/thr
 
 ## Prerequisites
 
-- Go >= 1.24 (matches `backend/go.mod`)
+- Go >= 1.25 (matches `backend/go.mod`)
 - Node.js >= 20
 - pnpm >= 9 (the frontend's package manager)
 - Docker + Docker Compose (optional, for the full-stack run)
