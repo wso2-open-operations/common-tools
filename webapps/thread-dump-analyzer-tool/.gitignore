@@ -1,4 +1,3 @@
 # Ignore local markdown in this tool (CLAUDE.md, drafts, planning notes, agent skills);
-# commit only the allowlisted docs below.
 *.md
-!README.md
+!README.md, !CONTRIBUTING.md

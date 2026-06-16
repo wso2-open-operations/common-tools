@@ -29,8 +29,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-// Authenticator validates inbound Bearer JWTs against a cached, auto-refreshing
-// JWKS (the IdP's signing keys) plus the expected issuer/audience claims.
+// Authenticator validates inbound Bearer JWTs against a cached, auto-refreshing JWKS plus expected issuer/audience claims.
 type Authenticator struct {
 	keySet   jwk.Set
 	issuer   string
@@ -38,8 +37,7 @@ type Authenticator struct {
 	skew     time.Duration
 }
 
-// NewAuthenticator wires a background-refreshing JWKS cache. It fails fast if the
-// required config (JWKS URL, issuer) is missing so an unconfigured server never boots.
+// NewAuthenticator wires a background-refreshing JWKS cache, failing fast on missing config so an unconfigured server never boots.
 func NewAuthenticator(ctx context.Context, cfg *Config) (*Authenticator, error) {
 	if cfg.JWKSURL == "" || cfg.JWTIssuer == "" {
 		return nil, errors.New("auth enabled but unconfigured: set ASGARDEO_BASE_URL (or JWT_JWKS_URL + JWT_ISSUER)")
@@ -50,8 +48,7 @@ func NewAuthenticator(ctx context.Context, cfg *Config) (*Authenticator, error) 
 		return nil, fmt.Errorf("register JWKS url: %w", err)
 	}
 
-	// Best-effort prime so a wrong URL shows up at boot; transient failures are
-	// tolerated since the cache keeps retrying in the background.
+	// Best-effort prime so a wrong URL shows up at boot; transient failures are tolerated since the cache retries in background.
 	primeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if _, err := cache.Refresh(primeCtx, cfg.JWKSURL); err != nil {

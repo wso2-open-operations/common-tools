@@ -55,8 +55,7 @@ type Config struct {
 	RateLimitVisitorTTL  time.Duration
 	RateLimitJanitorTick time.Duration
 
-	// When AuthEnabled, /analyze/jobs requires a Bearer JWT validated against JWKSURL
-	// with matching JWTIssuer (and JWTAudience if set). Derived from ASGARDEO_BASE_URL.
+	// When AuthEnabled, /analyze/jobs requires a Bearer JWT validated against JWKSURL with matching JWTIssuer (and JWTAudience if set).
 	AuthEnabled bool
 	JWKSURL     string
 	JWTIssuer   string
@@ -117,8 +116,7 @@ func LoadConfig() *Config {
 	}
 }
 
-// getEnvBool parses a boolean (true/false/1/0/yes/no/on/off, case-insensitive);
-// warns and falls back on malformed input.
+// getEnvBool parses a boolean (true/false/1/0/yes/no/on/off, case-insensitive); warns and falls back on malformed input.
 func getEnvBool(key string, def bool) bool {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
@@ -212,8 +210,7 @@ func getEnv(key, def string) string {
 	return def
 }
 
-// getEnvDuration parses Go duration strings (e.g. "5s", "1m", "500ms"). On
-// parse failure it logs a warning and returns the default.
+// getEnvDuration parses Go duration strings (e.g. "5s", "1m", "500ms"); logs a warning and returns the default on parse failure.
 func getEnvDuration(key string, def time.Duration) time.Duration {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
@@ -227,8 +224,7 @@ func getEnvDuration(key string, def time.Duration) time.Duration {
 	return d
 }
 
-// getEnvList parses a comma-separated list. Empty entries are dropped; if the
-// result is empty the default is returned.
+// getEnvList parses a comma-separated list; empty entries are dropped and an empty result returns the default.
 func getEnvList(key string, def []string) []string {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {

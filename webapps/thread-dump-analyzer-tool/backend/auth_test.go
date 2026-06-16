@@ -121,8 +121,7 @@ func sign(t *testing.T, priv jwk.Key, tok jwt.Token) string {
 	return string(signed)
 }
 
-// callAuth runs a request with the given Authorization header through RequireAuth,
-// returning the status code and whether the protected handler ran.
+// callAuth runs a request through RequireAuth, returning the status and whether the handler ran.
 func callAuth(authn *Authenticator, authzHeader string) (int, bool) {
 	called := false
 	h := authn.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +160,7 @@ func TestRequireAuth_BearerSchemeIsCaseInsensitive(t *testing.T) {
 func TestRequireAuth_RejectsBadRequests(t *testing.T) {
 	priv := newSigningKey(t)
 	authn := newTestAuth(t, priv, testAudience)
-	otherKey := newSigningKey(t) // valid kid, but not the JWKS key → signature mismatch
+	otherKey := newSigningKey(t) // valid kid, but not the JWKS key: signature mismatch
 
 	expired := validToken(t)
 	expired.Set(jwt.ExpirationKey, time.Now().Add(-10*time.Minute))
@@ -205,7 +204,7 @@ func TestRequireAuth_RejectsBadRequests(t *testing.T) {
 
 func TestRequireAuth_AudienceSkippedWhenUnset(t *testing.T) {
 	priv := newSigningKey(t)
-	authn := newTestAuth(t, priv, "") // no audience configured → aud not enforced
+	authn := newTestAuth(t, priv, "") // no audience configured: aud not enforced
 
 	tok := validToken(t)
 	tok.Set(jwt.AudienceKey, []string{"unrelated-app"})

@@ -78,8 +78,7 @@ func NewJobStore(cfg *Config) *JobStore {
 	return s
 }
 
-// janitor periodically evicts terminal jobs older than ttl and trims the store
-// to maxSize. Runs for the lifetime of the process.
+// janitor periodically evicts terminal jobs older than ttl and trims the store to maxSize for the process lifetime.
 func (s *JobStore) janitor() {
 	ticker := time.NewTicker(s.janitorTick)
 	defer ticker.Stop()
@@ -127,8 +126,7 @@ func isTerminal(s JobStatus) bool {
 	return s == JobCompleted || s == JobFailed
 }
 
-// JobLimiter caps in-flight analysis jobs via a counting semaphore so a burst of
-// uploads cannot exhaust memory or goroutine budget regardless of source.
+// JobLimiter caps in-flight analysis jobs via a counting semaphore so an upload burst cannot exhaust memory or goroutines.
 type JobLimiter struct {
 	sem chan struct{}
 }
@@ -274,8 +272,7 @@ type analysisResult struct {
 // Indirection seam so tests can swap runAnalysis for a blocking stub to drive the timeout path deterministically.
 var runAnalysisFn = runAnalysis
 
-// runJob drives one analysis under a deadline. The inner sub-goroutine respects ctx
-// at every phase boundary so it exits soon after timeout; the buffered done channel keeps it leak-free.
+// runJob drives one analysis under a deadline; the inner sub-goroutine respects ctx at phase boundaries and a buffered done channel keeps it leak-free.
 func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
 	defer cancel()

@@ -42,12 +42,10 @@ type AggregatedAnalysisResponse struct {
 	Errors         []string                     `json:"errors,omitempty"`
 }
 
-// logLevel is shared across the process so the active log level can be adjusted
-// at runtime (e.g. via a future admin endpoint) without rebuilding the handler.
+// logLevel is a package-level LevelVar so the active log level can be adjusted at runtime.
 var logLevel = new(slog.LevelVar)
 
-// initLogger installs a slog text handler as the default logger, honoring the
-// LOG_LEVEL env var (DEBUG/INFO/WARN/ERROR; defaults to INFO on empty/invalid).
+// initLogger sets a slog text handler as default, honoring LOG_LEVEL (defaults to INFO).
 func initLogger() {
 	if raw := strings.TrimSpace(os.Getenv("LOG_LEVEL")); raw != "" {
 		if err := logLevel.UnmarshalText([]byte(strings.ToUpper(raw))); err != nil {
@@ -62,8 +60,7 @@ func initLogger() {
 }
 
 func main() {
-	// Load .env file if present (ignore error if not found). godotenv must run
-	// before initLogger so LOG_LEVEL from .env is honored.
+	// godotenv must run before initLogger so LOG_LEVEL from .env is honored.
 	envErr := godotenv.Load()
 	initLogger()
 	if envErr != nil {
