@@ -55,6 +55,64 @@ pnpm dev
 
 The frontend reads the backend URL from `public/config.js` at runtime via `window.configs.apiUrl`. For local development, update that file to point to `http://localhost:8080`.
 
+## Run with Docker
+
+Both services ship as container images. No host- or tenant-specific values are baked in: the API URL, Asgardeo tenant, CORS origins, and listen port are all supplied at runtime, so one build runs unchanged on localhost, a VPS, Kubernetes, or Choreo.
+
+### Quick start (docker compose)
+
+```bash
+cp .env.example .env
+# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID
+docker compose up --build
+```
+
+Frontend on `http://localhost:8081`, backend on `http://localhost:8080`. The SPA always signs in through Asgardeo, so `ASGARDEO_BASE_URL` and `ASGARDEO_CLIENT_ID` must be set even for a local run. (To exercise the backend API alone, set `AUTH_ENABLED=false` and use `curl` or the built-in form at the backend's `GET /`.)
+
+### Runtime configuration
+
+| Variable | Service | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | backend | AI insights key; jobs still complete (insights omitted) when unset |
+| `ASGARDEO_BASE_URL` | both | Asgardeo tenant base URL; backend derives JWKS + issuer, frontend uses it to sign in |
+| `ASGARDEO_CLIENT_ID` | frontend | Asgardeo SPA client ID (public) |
+| `AUTH_ENABLED` | backend | `true` (default) requires a Bearer JWT on `/analyze/jobs` |
+| `API_URL` | frontend | Browser-facing backend URL, injected into `config.js` at start |
+| `CORS_ALLOWED_ORIGINS` | backend | Must list the exact origin the SPA is served from |
+| `PORT` | both | Listen port (default `8080`), honored when a platform injects one |
+
+The frontend reads `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` at container start and writes them into `config.js` (`window.configs`), so the same image points at any backend and tenant without rebuilding.
+
+### Deploying off localhost
+
+Set the public URLs so the browser and CORS line up:
+
+```bash
+API_URL=https://api.example.com                 # what the browser calls
+CORS_ALLOWED_ORIGINS=https://tdat.example.com    # where the SPA is served
+```
+
+### Building images individually
+
+```bash
+docker build -t tdat-backend ./backend
+docker build -t tdat-frontend ./frontend
+
+docker run -p 8080:8080 \
+  -e ANTHROPIC_API_KEY=... -e ASGARDEO_BASE_URL=... \
+  -e CORS_ALLOWED_ORIGINS=https://tdat.example.com \
+  tdat-backend
+
+docker run -p 8081:8080 \
+  -e API_URL=https://api.example.com \
+  -e ASGARDEO_CLIENT_ID=... -e ASGARDEO_BASE_URL=... \
+  tdat-frontend
+```
+
+Both images run as a non-root user with a UID in the 10000-20000 range (Choreo's requirement) and listen on a port above 1024, so they drop straight into Choreo, Kubernetes, or any rootless container runtime. No secrets are baked into either image.
+
+> Behind a reverse proxy or ingress, the backend's per-IP rate limiter sees only the proxy IP (it trusts `RemoteAddr`, not `X-Forwarded-For`), so rely on the proxy's own rate limiting in that topology.
+
 ## API
 
 ```text

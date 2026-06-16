@@ -1,3 +1,9 @@
 # Ignore local markdown in this tool (CLAUDE.md, drafts, planning notes, agent skills);
 *.md
-!README.md, !CONTRIBUTING.md
+!README.md
+!CONTRIBUTING.md
+
+# Local env for docker compose (never commit secrets); keep the example.
+.env
+.env.*
+!.env.example

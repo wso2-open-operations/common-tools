@@ -1,0 +1,19 @@
+# Dependencies and build output (reinstalled and rebuilt inside the image).
+node_modules
+dist
+dist-ssr
+
+# Local env: VITE_* values are passed as build args, not baked from a dev file.
+.env
+.env.local
+.env.*.local
+
+# VCS, docs, tooling, and container files not needed for the build.
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+*.log
+.agents/
+skills-lock.json

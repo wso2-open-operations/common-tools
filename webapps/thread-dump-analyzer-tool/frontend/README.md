@@ -36,6 +36,18 @@ pnpm preview    # Preview production build
 | `VITE_ASGARDEO_BASE_URL` | `.env.local` | Asgardeo tenant base URL |
 | `window.configs.apiUrl` | `public/config.js` | Backend API base URL (runtime-injected) |
 
+## Docker
+
+```bash
+docker build -t tdat-frontend .
+docker run -p 8081:8080 \
+  -e API_URL=https://your-backend \
+  -e ASGARDEO_CLIENT_ID=... -e ASGARDEO_BASE_URL=... \
+  tdat-frontend
+```
+
+Multi-stage build: `pnpm build`, then nginx on `alpine`. At container start `docker-entrypoint.sh` writes `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` into `config.js` (`window.configs`), so one image serves any backend and Asgardeo tenant without rebuilding. nginx renders its `listen` port from `$PORT` (default 8080) via `nginx.conf.template` and serves the SPA with an `index.html` fallback for client-side routes. It runs as a non-root user (UID 10015, in Choreo's range) and writes only under `/tmp`. For the full stack use the root `docker-compose.yml`; see the root README "Run with Docker".
+
 ## Pages
 
 ### Upload (`/`)

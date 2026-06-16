@@ -203,6 +203,18 @@ go build                    # Build binary (output: ./backend)
 go mod tidy                 # Sync dependencies
 ```
 
+## Docker
+
+```bash
+docker build -t tdat-backend .
+docker run -p 8080:8080 \
+  -e ANTHROPIC_API_KEY=... -e ASGARDEO_BASE_URL=... \
+  -e CORS_ALLOWED_ORIGINS=https://your-frontend-origin \
+  tdat-backend
+```
+
+Multi-stage build: a static `CGO_ENABLED=0` binary on `alpine`. The image copies the runtime files the server reads (`config/thread_pools.yaml`, `internal/rules/rules.grl`) and bundles `ca-certificates` for the outbound HTTPS call to Anthropic. It runs as a non-root user (UID 10014, in Choreo's 10000-20000 range) and honors `PORT` when a platform injects one. `ANTHROPIC_API_KEY` and the settings above are supplied at runtime, never baked in. For the full stack (backend plus frontend) use the root `docker-compose.yml`; see the root README "Run with Docker".
+
 ## Testing
 
 ```bash
