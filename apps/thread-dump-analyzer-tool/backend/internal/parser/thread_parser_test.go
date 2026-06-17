@@ -114,12 +114,33 @@ Found 1 Java-level deadlock:
 	}
 }
 
+func TestParseThread_DecimalNID(t *testing.T) {
+	// JDK 21+ dumps write nid in decimal and add the [123] bracket; nid must still parse.
+	dump := `"Signal Dispatcher" #11 [123] daemon prio=9 os_prio=0 cpu=0.19ms elapsed=9.20s tid=0x0000ffffb1aae880 nid=123 waiting on condition
+   java.lang.Thread.State: RUNNABLE
+   at jdk.internal.misc.Unsafe.park(Native Method)
+`
+	threads, err := ParseThread(strings.NewReader(dump))
+	if err != nil {
+		t.Fatalf("ParseThread: %v", err)
+	}
+	if len(threads) != 1 {
+		t.Fatalf("expected 1 thread, got %d", len(threads))
+	}
+	if threads[0].NativeID != 123 {
+		t.Errorf("decimal nid: NativeID=%d, want 123", threads[0].NativeID)
+	}
+	if threads[0].ID != "0x0000ffffb1aae880" {
+		t.Errorf("id=%q", threads[0].ID)
+	}
+}
+
 func TestParseThreadUsage_HexAndDecimalTID(t *testing.T) {
 	usage := `PID  TID    %CPU   TIME
 1234 0x1a2b 25.5   00:01:23
 1234 12345  10.0   01:00.5
 `
-	usages, err := ParseThreadUsage(strings.NewReader(usage))
+	usages, _, err := ParseThreadUsage(strings.NewReader(usage))
 	if err != nil {
 		t.Fatalf("ParseThreadUsage: %v", err)
 	}
@@ -181,6 +202,100 @@ func TestProcessAndCorrelate_RunawayCPUPreFlag(t *testing.T) {
 		}
 	}
 	t.Fatal("target thread not found")
+}
+
+func TestParseThreadUsage_HeaderAware(t *testing.T) {
+	t.Run("six-column ps ignores NLWP and C", func(t *testing.T) {
+		usage := `PID     TID %CPU     TIME NLWP  C
+1234     60  0.0 00:00:01   45  0
+1234     64  5.5 00:00:02   45  2
+`
+		usages, diags, err := ParseThreadUsage(strings.NewReader(usage))
+		if err != nil {
+			t.Fatalf("ParseThreadUsage: %v", err)
+		}
+		if len(diags) != 0 {
+			t.Errorf("unexpected diagnostics: %v", diags)
+		}
+		if len(usages) != 2 {
+			t.Fatalf("got %d usages", len(usages))
+		}
+		if usages[0].TID != 60 || usages[0].CPUPercentage != 0.0 {
+			t.Errorf("row0=%+v", usages[0])
+		}
+		if usages[1].TID != 64 || usages[1].CPUPercentage != 5.5 {
+			t.Errorf("row1=%+v", usages[1])
+		}
+	})
+
+	t.Run("lwp synonym maps to thread id", func(t *testing.T) {
+		usage := `PID   LWP %CPU    TIME
+1234   71 12.0 00:00:03
+`
+		usages, _, err := ParseThreadUsage(strings.NewReader(usage))
+		if err != nil {
+			t.Fatalf("ParseThreadUsage: %v", err)
+		}
+		if len(usages) != 1 || usages[0].TID != 71 {
+			t.Fatalf("LWP synonym not mapped: %+v", usages)
+		}
+	})
+
+	t.Run("headerless falls back to fixed positions", func(t *testing.T) {
+		usage := `1234 72 3.0 00:00:04
+1234 73 4.0 00:00:05
+`
+		usages, _, err := ParseThreadUsage(strings.NewReader(usage))
+		if err != nil {
+			t.Fatalf("ParseThreadUsage: %v", err)
+		}
+		if len(usages) != 2 || usages[0].TID != 72 || usages[1].TID != 73 {
+			t.Fatalf("headerless fallback failed: %+v", usages)
+		}
+	})
+
+	t.Run("header without thread-id column yields a diagnostic and no rows", func(t *testing.T) {
+		usage := `PID %CPU TIME
+1234 9.0 00:00:06
+`
+		usages, diags, err := ParseThreadUsage(strings.NewReader(usage))
+		if err != nil {
+			t.Fatalf("ParseThreadUsage: %v", err)
+		}
+		if len(usages) != 0 {
+			t.Errorf("expected 0 usages, got %d", len(usages))
+		}
+		if len(diags) == 0 {
+			t.Error("expected a diagnostic about the missing thread-id column")
+		}
+	})
+}
+
+func TestProcessAndCorrelate_DecimalNIDJoin(t *testing.T) {
+	// Modern decimal-nid dump correlates with a headered, decimal-TID usage file.
+	dump := `"worker-1" #11 [123] daemon prio=5 os_prio=0 cpu=0.5ms elapsed=20.0s tid=0x0000ffffb1aae880 nid=123 runnable
+   java.lang.Thread.State: RUNNABLE
+   at com.example.Worker.run(Worker.java:1)
+`
+	usage := `PID     TID %CPU     TIME NLWP  C
+1234    123 42.0 00:00:05    9  3
+`
+	threads, diags, err := ProcessAndCorrelate(strings.NewReader(dump), strings.NewReader(usage), "dump.txt")
+	if err != nil {
+		t.Fatalf("ProcessAndCorrelate: %v", err)
+	}
+	if len(diags) != 0 {
+		t.Errorf("unexpected diagnostics: %v", diags)
+	}
+	if len(threads) != 1 {
+		t.Fatalf("got %d threads", len(threads))
+	}
+	if threads[0].NativeID != 123 {
+		t.Fatalf("NativeID=%d, want 123", threads[0].NativeID)
+	}
+	if threads[0].CPUPercentage != 42.0 {
+		t.Errorf("cpu not correlated: got %v, want 42.0", threads[0].CPUPercentage)
+	}
 }
 
 func TestParseTID(t *testing.T) {

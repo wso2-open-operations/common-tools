@@ -128,7 +128,7 @@ The analysis runs asynchronously. Poll the status endpoint until `status` is `co
 
 **Upload fields (multipart/form-data):**
 - `thread_dumps` - required, one or more Java thread dump `.txt`/`.log` files
-- `thread_usages` - optional, matching CPU usage files. Whitespace-separated `PID TID %CPU TIME` rows (header `PID` row optional). TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`.
+- `thread_usages` - optional, matching CPU usage files. Whitespace-separated rows; columns are mapped by header name when present (thread id from `TID`/`LWP`/`SPID`, cpu from `%CPU`/`PCPU`/`CPU`; extra columns like `NLWP`/`C` ignored), falling back to fixed `PID TID %CPU TIME` positions when headerless. TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`.
 
 When multiple dump files are uploaded, TDAT correlates threads across snapshots by composite identity (`name + id + native_id + pool`) to show how thread state evolved over time. The frontend reuses the same composite as the React key for each thread row, so distinct histories sharing a single `thread.id` do not collide during sort/filter.
 

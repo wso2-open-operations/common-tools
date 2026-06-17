@@ -37,7 +37,7 @@ Upload thread dumps and start an async analysis job.
 | Field | Required | Description |
 |---|---|---|
 | `thread_dumps` | Yes | One or more Java thread dump text files |
-| `thread_usages` | No | CPU usage files. Each row is whitespace-separated `PID TID %CPU TIME` (header `PID` row optional). TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`. Indexed in upload order: entry *i* in `thread_usages` corresponds to entry *i* in `thread_dumps`. The TDAT frontend aligns both arrays by filename before sending; direct POST requests must keep them in the same order. |
+| `thread_usages` | No | CPU usage files. Each row is whitespace-separated; columns are mapped by header name when present (thread id from `TID`/`LWP`/`SPID`, cpu from `%CPU`/`PCPU`/`CPU`; extra columns like `NLWP`/`C` ignored), falling back to fixed `PID TID %CPU TIME` positions when headerless. TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`. Indexed in upload order: entry *i* in `thread_usages` corresponds to entry *i* in `thread_dumps`. The TDAT frontend aligns both arrays by filename before sending; direct POST requests must keep them in the same order. |
 
 **Response:** `202 Accepted`
 ```json

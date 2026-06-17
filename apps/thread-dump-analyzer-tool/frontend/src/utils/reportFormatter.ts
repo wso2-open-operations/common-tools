@@ -54,10 +54,9 @@ function formatDuration(seconds: number): string {
     return `${seconds.toFixed(1)}s`;
 }
 
-function formatWaitTime(ms: number): string {
-    if (ms >= 60_000) return `${(ms / 1000).toFixed(1)}s`;
-    if (ms >= 1_000) return `${(ms / 1000).toFixed(1)}s`;
-    return `${ms}ms`;
+// Render a millisecond value as seconds once it reaches 1s, else raw ms.
+function formatMillis(ms: number): string {
+    return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
 }
 
 function waitSeverityTag(ms: number): string {
@@ -170,7 +169,7 @@ function formatMetrics(
         kvLine('Blocked Threads', blockedCount > 0 ? `${blockedCount}  ⚠` : String(blockedCount)),
         kvLine('Deadlock Cycles', deadlockCycles > 0 ? `${deadlockCycles}  ⚠` : String(deadlockCycles)),
         kvLine('CRITICAL Risk Threads', criticalCount > 0 ? `${criticalCount}  ⚠` : String(criticalCount)),
-        ...(maxWaitTimeMs > 0 ? [kvLine('Max Wait Time', `${formatWaitTime(maxWaitTimeMs)}  ${waitSeverityTag(maxWaitTimeMs)}`)] : []),
+        ...(maxWaitTimeMs > 0 ? [kvLine('Max Wait Time', `${formatMillis(maxWaitTimeMs)}  ${waitSeverityTag(maxWaitTimeMs)}`)] : []),
         '',
         '  State Distribution:',
         ...Object.entries(stateDistribution)
@@ -334,6 +333,7 @@ function formatLongRunning(
     const columns: TableColumn[] = [
         { header: '#', maxWidth: 4, align: 'right' },
         { header: 'Thread Name', maxWidth: 42 },
+        { header: 'Native ID', maxWidth: 12 },
         { header: 'State', maxWidth: 14 },
         { header: 'Duration', maxWidth: 10, align: 'right' },
     ];
@@ -341,6 +341,7 @@ function formatLongRunning(
     const rows = longRunning.map(({ thread, snapshot }, i) => [
         String(i + 1),
         thread.name,
+        thread.native_id > 0 ? String(thread.native_id) : '-',
         snapshot.state?.trim() || 'N/A',
         formatDuration(snapshot.elapsed_time_s),
     ]);
@@ -363,6 +364,7 @@ function formatHighCpu(
     const columns: TableColumn[] = [
         { header: '#', maxWidth: 4, align: 'right' },
         { header: 'Thread Name', maxWidth: 42 },
+        { header: 'Native ID', maxWidth: 12 },
         { header: 'State', maxWidth: 14 },
         { header: 'CPU %', maxWidth: 8, align: 'right' },
         { header: 'CPU Time', maxWidth: 10, align: 'right' },
@@ -371,9 +373,10 @@ function formatHighCpu(
     const rows = highCpu.map(({ thread, snapshot }, i) => [
         String(i + 1),
         thread.name,
+        thread.native_id > 0 ? String(thread.native_id) : '-',
         snapshot.state?.trim() || 'N/A',
         `${snapshot.cpu_percent.toFixed(1)}%`,
-        `${snapshot.cpu_time_ms}ms`,
+        formatMillis(snapshot.cpu_time_ms),
     ]);
 
     return `${header}
@@ -423,7 +426,7 @@ function formatLockContention(threads: Thread[]): string {
     Monitor: ${shortName} <${lock.address}>`);
                 lock.blockedThreads.forEach(bt => {
                     const waitStr = bt.waitTimeMs > 0
-                        ? `  wait: ${formatWaitTime(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
+                        ? `  wait: ${formatMillis(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
                         : '';
                     sections.push(`      - ${truncate(bt.thread.name, 50)} [${bt.snapshot.state}]${waitStr}`);
                 });
@@ -444,7 +447,7 @@ function formatLockContention(threads: Thread[]): string {
             sections.push(`    ${lock.blockedThreads.length} blocked thread${lock.blockedThreads.length !== 1 ? 's' : ''}:`);
             lock.blockedThreads.slice(0, 10).forEach(bt => {
                 const waitStr = bt.waitTimeMs > 0
-                    ? `  wait: ${formatWaitTime(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
+                    ? `  wait: ${formatMillis(bt.waitTimeMs)} ${waitSeverityTag(bt.waitTimeMs)}`
                     : '';
                 sections.push(`      - ${truncate(bt.thread.name, 50)} [${bt.snapshot.state}]${waitStr}`);
             });

@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sort"
+	"strings"
 	"sync"
 	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
 	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
@@ -365,9 +366,13 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 			if index < len(usages) {
 				u := usages[index]
 				// Validate usage file by parsing; treat parse error or empty result the same (invalid).
-				parsed, _ := parser.ParseThreadUsage(bytes.NewReader(u.Data))
+				parsed, usageDiags, _ := parser.ParseThreadUsage(bytes.NewReader(u.Data))
 				if len(parsed) == 0 {
-					errSlots[index] = append(errSlots[index], fmt.Sprintf("Invalid file. No valid thread usage data found in %s", u.FileName))
+					msg := fmt.Sprintf("Invalid file. No valid thread usage data found in %s", u.FileName)
+					if len(usageDiags) > 0 {
+						msg += ": " + strings.Join(usageDiags, "; ")
+					}
+					errSlots[index] = append(errSlots[index], msg)
 					return
 				}
 				usageReader = bytes.NewReader(u.Data)
