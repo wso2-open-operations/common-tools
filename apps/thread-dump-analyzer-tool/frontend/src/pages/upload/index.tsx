@@ -90,15 +90,16 @@ const UploadPage: React.FC = () => {
     useEffect(() => {
         if (query.data?.status === 'completed' && query.data.result) {
             const result = query.data.result;
-            if (result.errors && result.errors.length > 0) {
-                console.warn('[TDAT] upload: analysis completed with parser errors', { errors: result.errors });
-                setErrorMsg(`Invalid file(s) uploaded: ${result.errors.join(' | ')}. Please ensure you upload proper thread dumps.`);
+            // Only a complete parse failure (no threads) is fatal.
+            // Non-fatal errors (failed AI summary, one bad file among many) must not block a successful analysis.
+            if (!result.threads || result.threads.length === 0) {
+                console.warn('[TDAT] upload: analysis completed but no threads were parsed', { errors: result.errors });
+                const detail = result.errors && result.errors.length > 0 ? ` ${result.errors.join(' | ')}.` : '';
+                setErrorMsg(`Invalid file(s) uploaded: No threads were found in the provided files.${detail} Please re-upload proper thread dumps.`);
                 return;
             }
-            if (!result.threads || result.threads.length === 0) {
-                console.warn('[TDAT] upload: analysis completed but no threads were parsed');
-                setErrorMsg('Invalid file(s) uploaded: No threads were found in the provided files. Please re-upload proper thread dumps.');
-                return;
+            if (result.errors && result.errors.length > 0) {
+                console.warn('[TDAT] upload: analysis completed with non-fatal errors', { errors: result.errors });
             }
             navigate('/dashboard');
         }
