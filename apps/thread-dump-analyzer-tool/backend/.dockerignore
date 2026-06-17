@@ -1,0 +1,17 @@
+# Secrets and local env: never copy into the build context.
+.env
+.env.local
+.env.*.local
+
+# Compiled output (rebuilt inside the image).
+/backend
+tdat-backend
+bin/
+
+# VCS, docs, tests, and container files not needed to build the binary.
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+*_test.go

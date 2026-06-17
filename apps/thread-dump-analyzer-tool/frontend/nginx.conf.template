@@ -1,0 +1,63 @@
+# Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+#
+# WSO2 LLC. licenses this file to you under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# docker-entrypoint.sh renders ${PORT} into a final config at start, so this is a template.
+
+worker_processes auto;
+
+# pid and temp paths live under /tmp so the non-root user can write them.
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    client_body_temp_path /tmp/client_temp;
+    proxy_temp_path       /tmp/proxy_temp;
+    fastcgi_temp_path     /tmp/fastcgi_temp;
+    uwsgi_temp_path       /tmp/uwsgi_temp;
+    scgi_temp_path        /tmp/scgi_temp;
+
+    access_log /dev/stdout;
+    error_log  /dev/stderr;
+
+    sendfile on;
+    keepalive_timeout 65;
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    server {
+        # Port comes from $PORT so platforms that inject one (Cloud Run, Heroku, Knative) work; defaults to 8080.
+        listen ${PORT};
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Runtime config must never be cached, or apiUrl/Asgardeo overrides will not take effect.
+        location = /config.js {
+            add_header Cache-Control "no-store";
+        }
+
+        # SPA client-side routing: unknown paths fall back to index.html.
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}
