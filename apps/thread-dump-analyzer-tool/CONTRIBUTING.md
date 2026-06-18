@@ -1,4 +1,4 @@
-# Contributing to TDAT (Thread Dump Analysis Tool)
+# Contributing to TDAT (Thread Dump Analyzer Tool)
 
 Welcome. This guide covers everything you need to contribute to this tool, whether you're adding a Grule rule, building a frontend panel, updating configuration, or improving docs.
 
@@ -10,7 +10,7 @@ This tool lives in the `wso2-open-operations/common-tools` monorepo at `apps/thr
 
 ## Prerequisites
 
-- Go >= 1.25 (matches `backend/go.mod`)
+- Go >= 1.25.0
 - Node.js >= 20
 - pnpm >= 9 (the frontend's package manager)
 - Docker + Docker Compose (optional, for the full-stack run)

@@ -1,6 +1,6 @@
 # TDAT Frontend
 
-React 19 SPA for the Thread Dump Analysis Tool. Upload Java thread dumps, explore results, and visualize lock contention backed by the `backend` API.
+React 19 SPA for the Thread Dump Analyzer Tool. Upload Java thread dumps, explore results, and visualize lock contention backed by the `backend` API.
 
 ## Getting Started
 

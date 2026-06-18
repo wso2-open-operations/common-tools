@@ -1,4 +1,4 @@
-# Thread Dump Analysis Tool (TDAT)
+# Thread Dump Analyzer Tool (TDAT)
 
 A full-stack tool for analyzing Java thread dumps to detect performance issues like deadlocks, high CPU usage, lock contention, thread pool saturation, and more.
 
