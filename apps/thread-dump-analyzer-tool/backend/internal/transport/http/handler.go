@@ -14,96 +14,30 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package http
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
-	"net"
+	"mime/multipart"
 	"net/http"
-	"sync"
 	"time"
 
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
-
+	"github.com/google/uuid"
 	"github.com/rs/cors"
-	"golang.org/x/time/rate"
+
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/config"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/job"
 )
-
-// IPLimiter applies a per-remote-IP token bucket; idle visitors are evicted by a background janitor.
-type IPLimiter struct {
-	rps      rate.Limit
-	burst    int
-	ttl      time.Duration
-	mu       sync.Mutex
-	visitors map[string]*ipVisitor
-}
-
-type ipVisitor struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-func NewIPLimiter(rps float64, burst int, ttl, janitorTick time.Duration) *IPLimiter {
-	l := &IPLimiter{
-		rps:      rate.Limit(rps),
-		burst:    burst,
-		ttl:      ttl,
-		visitors: make(map[string]*ipVisitor),
-	}
-	if janitorTick > 0 {
-		go l.janitor(janitorTick)
-	}
-	return l
-}
-
-func (l *IPLimiter) Allow(ip string) bool {
-	l.mu.Lock()
-	v, ok := l.visitors[ip]
-	if !ok {
-		v = &ipVisitor{limiter: rate.NewLimiter(l.rps, l.burst)}
-		l.visitors[ip] = v
-	}
-	v.lastSeen = time.Now()
-	l.mu.Unlock()
-	return v.limiter.Allow()
-}
-
-func (l *IPLimiter) janitor(tick time.Duration) {
-	ticker := time.NewTicker(tick)
-	defer ticker.Stop()
-	for range ticker.C {
-		cutoff := time.Now().Add(-l.ttl)
-		l.mu.Lock()
-		for ip, v := range l.visitors {
-			if v.lastSeen.Before(cutoff) {
-				delete(l.visitors, ip)
-			}
-		}
-		l.mu.Unlock()
-	}
-}
-
-// limitByIP wraps a handler so each remote IP gets its own token bucket; 429 on refuse.
-// Trusts r.RemoteAddr (OS-reported TCP peer) — does not honor X-Forwarded-For to avoid client spoofing.
-func (l *IPLimiter) limitByIP(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			host = r.RemoteAddr
-		}
-		if !l.Allow(host) {
-			http.Error(w, "Too many requests, please slow down", http.StatusTooManyRequests)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
 
 // NewRouter builds the HTTP handler: a ServeMux with all routes registered,
 // wrapped in CORS middleware. Ready to attach to an http.Server.
 // requireAuth gates the analyze endpoints behind Bearer-JWT validation; pass an
 // identity wrapper when auth is disabled. /health and the HTML form stay open.
-func NewRouter(cfg *Config, jobStore *JobStore, engine *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, ipLimiter *IPLimiter, jobLimiter *JobLimiter, requireAuth func(http.HandlerFunc) http.HandlerFunc) http.Handler {
+func NewRouter(cfg *config.Config, jobStore *job.JobStore, engine *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, ipLimiter *IPLimiter, jobLimiter *job.JobLimiter, requireAuth func(http.HandlerFunc) http.HandlerFunc) http.Handler {
 	mux := http.NewServeMux()
 
 	// The manual-testing form sends no Authorization header, so only expose it when auth is off.
@@ -130,6 +64,88 @@ func NewRouter(cfg *Config, jobStore *JobStore, engine *analyzer.RuleEngine, enr
 		Logger:         slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug),
 	})
 	return c.Handler(mux)
+}
+
+// readMultipartFiles buffers each uploaded file into memory so analysis can continue after the request returns.
+func readMultipartFiles(headers []*multipart.FileHeader) ([]job.FilePayload, error) {
+	out := make([]job.FilePayload, 0, len(headers))
+	for _, h := range headers {
+		f, err := h.Open()
+		if err != nil {
+			return nil, fmt.Errorf("open %s: %w", h.Filename, err)
+		}
+		data, err := io.ReadAll(f)
+		f.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", h.Filename, err)
+		}
+		out = append(out, job.FilePayload{FileName: h.Filename, Data: data})
+	}
+	return out, nil
+}
+
+func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes int64, jobTimeout time.Duration, jobLimiter *job.JobLimiter) {
+	// reqID correlates the generic client message with the full server-side log entry.
+	reqID := uuid.NewString()
+
+	// Cap body size so ParseMultipartForm keeps file parts in RAM, not $TMPDIR.
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
+	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
+		slog.Warn("multipart parse failed", "request_id", reqID, "error", err)
+		http.Error(w, fmt.Sprintf("Could not process upload. Limit is %d MiB (ref=%s)", maxUploadBytes>>20, reqID), http.StatusBadRequest)
+		return
+	}
+
+	dumpHeaders := r.MultipartForm.File["thread_dumps"]
+	usageHeaders := r.MultipartForm.File["thread_usages"]
+
+	if len(dumpHeaders) == 0 {
+		http.Error(w, "No thread dumps uploaded", http.StatusBadRequest)
+		return
+	}
+
+	dumps, err := readMultipartFiles(dumpHeaders)
+	if err != nil {
+		slog.Warn("failed to read thread_dumps upload", "request_id", reqID, "error", err)
+		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
+		return
+	}
+	usages, err := readMultipartFiles(usageHeaders)
+	if err != nil {
+		slog.Warn("failed to read thread_usages upload", "request_id", reqID, "error", err)
+		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
+		return
+	}
+
+	if !jobLimiter.TryAcquire() {
+		http.Error(w, "Server busy, too many concurrent analyses; try again shortly", http.StatusTooManyRequests)
+		return
+	}
+
+	j := store.Create()
+	go func() {
+		defer jobLimiter.Release()
+		job.RunJob(j.ID, dumps, usages, store, eng, enricher, jobTimeout)
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{"job_id": j.ID})
+}
+
+func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing job id", http.StatusBadRequest)
+		return
+	}
+	j, ok := store.Get(id)
+	if !ok {
+		http.Error(w, "job not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(j)
 }
 
 func serveHTML(w http.ResponseWriter, r *http.Request) {

@@ -14,18 +14,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package job
 
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"mime/multipart"
-	"net/http"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -33,10 +30,25 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
 	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/config"
 	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 )
+
+// AggregatedAnalysisResponse is the top-level JSON response format for a structured analysis.
+type AggregatedAnalysisResponse struct {
+	SessionID      string                       `json:"session_id"`
+	Timestamp      string                       `json:"timestamp"`
+	Threads        []analyzer.AnalyzedThread    `json:"threads"`
+	ThreadPools    map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
+	HealthScore    int                          `json:"health_score"`
+	HealthFactors  []analyzer.HealthFactor      `json:"health_factors,omitempty"`
+	PatternMatches []analyzer.PatternMatch      `json:"pattern_matches,omitempty"`
+	AIInsights     *ai.AIInsights               `json:"ai_insights,omitempty"`
+	Errors         []string                     `json:"errors,omitempty"`
+}
 
 type JobStatus string
 
@@ -68,7 +80,7 @@ type JobStore struct {
 	janitorTick time.Duration
 }
 
-func NewJobStore(cfg *Config) *JobStore {
+func NewJobStore(cfg *config.Config) *JobStore {
 	s := &JobStore{
 		jobs:        make(map[string]*Job),
 		ttl:         cfg.JobTTL,
@@ -192,76 +204,10 @@ func (s *JobStore) Update(id string, fn func(*Job)) {
 	}
 }
 
-// filePayload holds an uploaded file fully buffered in memory so analysis can continue after the HTTP request has returned.
-type filePayload struct {
+// FilePayload holds an uploaded file fully buffered in memory so analysis can continue after the HTTP request has returned.
+type FilePayload struct {
 	FileName string
 	Data     []byte
-}
-
-func readMultipartFiles(headers []*multipart.FileHeader) ([]filePayload, error) {
-	out := make([]filePayload, 0, len(headers))
-	for _, h := range headers {
-		f, err := h.Open()
-		if err != nil {
-			return nil, fmt.Errorf("open %s: %w", h.Filename, err)
-		}
-		data, err := io.ReadAll(f)
-		f.Close()
-		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", h.Filename, err)
-		}
-		out = append(out, filePayload{FileName: h.Filename, Data: data})
-	}
-	return out, nil
-}
-
-func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes int64, jobTimeout time.Duration, jobLimiter *JobLimiter) {
-	// reqID correlates the generic client message with the full server-side log entry.
-	reqID := uuid.NewString()
-
-	// Cap body size so ParseMultipartForm keeps file parts in RAM, not $TMPDIR.
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
-	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
-		slog.Warn("multipart parse failed", "request_id", reqID, "error", err)
-		http.Error(w, fmt.Sprintf("Could not process upload. Limit is %d MiB (ref=%s)", maxUploadBytes>>20, reqID), http.StatusBadRequest)
-		return
-	}
-
-	dumpHeaders := r.MultipartForm.File["thread_dumps"]
-	usageHeaders := r.MultipartForm.File["thread_usages"]
-
-	if len(dumpHeaders) == 0 {
-		http.Error(w, "No thread dumps uploaded", http.StatusBadRequest)
-		return
-	}
-
-	dumps, err := readMultipartFiles(dumpHeaders)
-	if err != nil {
-		slog.Warn("failed to read thread_dumps upload", "request_id", reqID, "error", err)
-		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
-		return
-	}
-	usages, err := readMultipartFiles(usageHeaders)
-	if err != nil {
-		slog.Warn("failed to read thread_usages upload", "request_id", reqID, "error", err)
-		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
-		return
-	}
-
-	if !jobLimiter.TryAcquire() {
-		http.Error(w, "Server busy, too many concurrent analyses; try again shortly", http.StatusTooManyRequests)
-		return
-	}
-
-	job := store.Create()
-	go func() {
-		defer jobLimiter.Release()
-		runJob(job.ID, dumps, usages, store, eng, enricher, jobTimeout)
-	}()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID})
 }
 
 type analysisResult struct {
@@ -274,8 +220,8 @@ type analysisResult struct {
 // Indirection seam so tests can swap runAnalysis for a blocking stub to drive the timeout path deterministically.
 var runAnalysisFn = runAnalysis
 
-// runJob drives one analysis under a deadline; the inner sub-goroutine respects ctx at phase boundaries and a buffered done channel keeps it leak-free.
-func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration) {
+// RunJob drives one analysis under a deadline; the inner sub-goroutine respects ctx at phase boundaries and a buffered done channel keeps it leak-free.
+func RunJob(jobID string, dumps, usages []FilePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
 	defer cancel()
 
@@ -334,21 +280,6 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 	}
 }
 
-func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *JobStore) {
-	id := r.PathValue("id")
-	if id == "" {
-		http.Error(w, "missing job id", http.StatusBadRequest)
-		return
-	}
-	job, ok := store.Get(id)
-	if !ok {
-		http.Error(w, "job not found", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(job)
-}
-
 // Holds phase 1 output (parse/correlate/enrich) so phase 2 runs serially with GlobalStats carry-over.
 type preppedFile struct {
 	fileName          string
@@ -356,13 +287,13 @@ type preppedFile struct {
 	usageDataProvided bool
 }
 
-// validationError carries a user-facing message for unanalyzable uploads; runJob surfaces it as the job error.
+// validationError carries a user-facing message for unanalyzable uploads; RunJob surfaces it as the job error.
 type validationError struct{ msg string }
 
 func (e *validationError) Error() string { return e.msg }
 
-// Two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
-func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) (*AggregatedAnalysisResponse, error) {
+// runAnalysis is a two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
+func runAnalysis(ctx context.Context, dumps, usages []FilePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) (*AggregatedAnalysisResponse, error) {
 	prepped := make([]*preppedFile, len(dumps))
 	errSlots := make([][]string, len(dumps))
 	invalidSlots := make([]string, len(dumps)) // fatal per-file validation message; any non-empty entry fails the job
@@ -371,7 +302,7 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 	// Phase 1: parallel parse/correlate/enrich indexed by upload order.
 	for i, dump := range dumps {
 		wg.Add(1)
-		go func(index int, d filePayload) {
+		go func(index int, d FilePayload) {
 			defer wg.Done()
 
 			if ctx.Err() != nil {

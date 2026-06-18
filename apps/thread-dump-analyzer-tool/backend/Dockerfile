@@ -25,7 +25,7 @@ RUN go mod download
 
 # CGO off produces a static binary that runs on a minimal runtime image.
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/tdat-backend .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/tdat-backend ./cmd/api
 
 # ---- Runtime stage ----
 FROM alpine:3.20

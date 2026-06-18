@@ -10,7 +10,7 @@ cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
 # Auth is ON by default: set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
 
-go run .
+go run ./cmd/api
 # Server starts at http://localhost:8080
 ```
 
@@ -24,7 +24,7 @@ If `ANTHROPIC_API_KEY` is not set, analysis still completes and AI insights retu
 
 ### Authentication
 
-When `AUTH_ENABLED` (default `true`), `POST /analyze/jobs` and `GET /analyze/jobs/{id}` require an `Authorization: Bearer <jwt>` header. Tokens are validated in `auth.go` against the Asgardeo JWKS (signature plus `exp`/`nbf`/`iss`, and `aud` when `JWT_AUDIENCE` is set) using a cached, auto-refreshing key set with 60s clock skew. Missing or invalid tokens get `401` with a `WWW-Authenticate: Bearer` challenge. `GET /health` and the `GET /` HTML form stay open. CORS wraps the mux, so preflight `OPTIONS` is answered before auth and `401`s still carry CORS headers.
+When `AUTH_ENABLED` (default `true`), `POST /analyze/jobs` and `GET /analyze/jobs/{id}` require an `Authorization: Bearer <jwt>` header. Tokens are validated in `internal/transport/http/middleware.go` against the Asgardeo JWKS (signature plus `exp`/`nbf`/`iss`, and `aud` when `JWT_AUDIENCE` is set) using a cached, auto-refreshing key set with 60s clock skew. Missing or invalid tokens get `401` with a `WWW-Authenticate: Bearer` challenge. `GET /health` and the `GET /` HTML form stay open. CORS wraps the mux, so preflight `OPTIONS` is answered before auth and `401`s still carry CORS headers.
 
 Set `ASGARDEO_BASE_URL` and the JWKS endpoint + issuer are derived (`<base>/oauth2/jwks`, `<base>/oauth2/token`); override either with `JWT_JWKS_URL` / `JWT_ISSUER`. With `AUTH_ENABLED=false` the analyze endpoints are public (local testing only).
 
@@ -87,8 +87,8 @@ Returns `200 OK` with body `OK`. Used for liveness probes.
 
 `POST /analyze/jobs` is gated by two independent layers, both returning HTTP `429`:
 
-- **Per-IP token bucket** (`IPLimiter` in `router.go`): default 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Tune via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
-- **Concurrent-job semaphore** (`JobLimiter` in `jobs.go`): caps in-flight analyses at `MAX_CONCURRENT_JOBS` (default 10). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
+- **Per-IP token bucket** (`IPLimiter` in `internal/transport/http/middleware.go`): default 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Tune via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
+- **Concurrent-job semaphore** (`JobLimiter` in `internal/job/service.go`): caps in-flight analyses at `MAX_CONCURRENT_JOBS` (default 10). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
 
 ## How It Works
 
@@ -215,8 +215,8 @@ The same records are mirrored to a per-session log file (plain text, no color co
 ## Building
 
 ```bash
-go build                    # Build binary (output: ./backend)
-go mod tidy                 # Sync dependencies
+go build -o bin/tdat-backend ./cmd/api   # Build binary (output: ./bin/tdat-backend)
+go mod tidy                              # Sync dependencies
 ```
 
 ## Docker
@@ -237,19 +237,15 @@ Multi-stage build: a static `CGO_ENABLED=0` binary on `alpine`. The image copies
 go test ./...               # Run all unit tests
 ```
 
-Unit tests live in `*_test.go` files beside the code they cover: parser, enricher, rules engine, aggregator, pattern matching, health scoring, and AI prompt construction under `internal/`, plus job store, rate/concurrency limiters, and JWT auth at the package root.
+Unit tests live in `*_test.go` files beside the code they cover: parser, enricher, rules engine, aggregator, pattern matching, health scoring, and AI prompt construction under `internal/`; the job store and analysis pipeline under `internal/job`; and the HTTP handlers, rate/concurrency limiters, and JWT auth under `internal/transport/http`.
 
 ## File Structure
 
 ```text
 backend/
-├── main.go                          Entrypoint: .env load, logger init, engine/enricher/jobStore wiring, http.Server start; AggregatedAnalysisResponse type
-├── logging.go                       initLogger: readable slog setup (tint console + plain session-file copy via fanout handler); honors LOG_LEVEL/LOG_FILE
-├── router.go                        NewRouter (ServeMux + CORS middleware), IPLimiter (per-IP rate limit), and the manual-testing HTML form (serveHTML)
-├── auth.go                          Authenticator: Bearer-JWT validation against the Asgardeo JWKS (RequireAuth middleware)
-├── settings.go                      Config struct + LoadConfig: env-var parsing with sensible defaults
-├── jobs.go                          Job/JobStore (TTL + max-size + background janitor), JobLimiter (concurrency semaphore), async handlers, runAnalysis pipeline
-├── *_test.go                        Unit tests (auth, jobs, limiters; plus per-package tests under internal/)
+├── cmd/
+│   └── api/
+│       └── main.go                  Entrypoint: .env load, logger/config init, engine/enricher/jobStore wiring, http.Server start
 ├── go.mod / go.sum                  Go module definition and dependency lock
 ├── .env.example                     Tracked template: copy to .env and fill in
 ├── .env                             Local secrets (gitignored, loaded via godotenv)
@@ -257,6 +253,16 @@ backend/
 ├── config/
 │   └── thread_pools.yaml            Thread pool name/regex/description definitions
 └── internal/
+    ├── config/
+    │   └── config.go                Config struct + LoadConfig: env-var parsing with sensible defaults
+    ├── logger/
+    │   └── logger.go                Init: readable slog setup (tint console + plain session-file copy via fanout handler); honors LOG_LEVEL/LOG_FILE
+    ├── job/
+    │   └── service.go               Job/JobStore (TTL + max-size + janitor), JobLimiter, runAnalysis pipeline, AggregatedAnalysisResponse
+    ├── transport/
+    │   └── http/
+    │       ├── handler.go           NewRouter (ServeMux + CORS), analyze + job-status handlers, manual-testing HTML form (serveHTML)
+    │       └── middleware.go        Authenticator (Bearer-JWT, RequireAuth) and IPLimiter (per-IP rate limit)
     ├── parser/
     │   └── thread_parser.go         Regex parsers, ProcessAndCorrelate, native deadlock + runaway-CPU pre-classification
     ├── analyzer/

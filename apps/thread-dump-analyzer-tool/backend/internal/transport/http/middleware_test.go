@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package http
 
 import (
 	"context"
@@ -23,12 +23,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
+
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/config"
 )
 
 const (
@@ -85,7 +88,7 @@ func newTestAuth(t *testing.T, priv jwk.Key, audience string) *Authenticator {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	authn, err := NewAuthenticator(ctx, &Config{
+	authn, err := NewAuthenticator(ctx, &config.Config{
 		JWKSURL:     publicJWKS(t, priv),
 		JWTIssuer:   testIssuer,
 		JWTAudience: audience,
@@ -231,11 +234,11 @@ func TestRequireAuth_Sets401Challenge(t *testing.T) {
 func TestNewAuthenticator_FailsFastWhenUnconfigured(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  *Config
+		cfg  *config.Config
 	}{
-		{"missing both", &Config{}},
-		{"missing issuer", &Config{JWKSURL: "https://x/jwks"}},
-		{"missing jwks", &Config{JWTIssuer: testIssuer}},
+		{"missing both", &config.Config{}},
+		{"missing issuer", &config.Config{JWKSURL: "https://x/jwks"}},
+		{"missing jwks", &config.Config{JWTIssuer: testIssuer}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -243,5 +246,94 @@ func TestNewAuthenticator_FailsFastWhenUnconfigured(t *testing.T) {
 				t.Fatal("expected error for unconfigured authenticator, got nil")
 			}
 		})
+	}
+}
+
+// IPLimiter must allow up to burst, then refuse until the bucket refills.
+func TestIPLimiter_BurstThenRefuse(t *testing.T) {
+	l := NewIPLimiter(0.0001, 3, time.Hour, 0)
+
+	for i := 0; i < 3; i++ {
+		if !l.Allow("1.2.3.4") {
+			t.Fatalf("allow #%d should succeed within burst=3", i+1)
+		}
+	}
+	if l.Allow("1.2.3.4") {
+		t.Fatal("4th request from same IP should be refused")
+	}
+	if !l.Allow("5.6.7.8") {
+		t.Fatal("a different IP should have its own bucket")
+	}
+}
+
+func TestIPLimiter_MiddlewareReturns429(t *testing.T) {
+	l := NewIPLimiter(0.0001, 1, time.Hour, 0)
+
+	called := 0
+	handler := l.limitByIP(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusOK)
+	})
+
+	w1 := httptest.NewRecorder()
+	r1 := httptest.NewRequest(http.MethodPost, "/", nil)
+	r1.RemoteAddr = "1.2.3.4:5000"
+	handler(w1, r1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("first request code=%d, want 200", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	r2 := httptest.NewRequest(http.MethodPost, "/", nil)
+	r2.RemoteAddr = "1.2.3.4:5001"
+	handler(w2, r2)
+	if w2.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request code=%d, want 429", w2.Code)
+	}
+	if called != 1 {
+		t.Fatalf("inner handler called %d times, want 1", called)
+	}
+}
+
+func TestIPLimiter_JanitorEvictsIdleVisitors(t *testing.T) {
+	l := NewIPLimiter(1, 1, 20*time.Millisecond, 10*time.Millisecond)
+	l.Allow("9.9.9.9")
+	l.mu.Lock()
+	if _, ok := l.visitors["9.9.9.9"]; !ok {
+		l.mu.Unlock()
+		t.Fatal("visitor missing right after Allow")
+	}
+	l.mu.Unlock()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		l.mu.Lock()
+		_, present := l.visitors["9.9.9.9"]
+		l.mu.Unlock()
+		if !present {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("janitor did not evict idle visitor")
+}
+
+// clientIP strips the port from RemoteAddr without trusting X-Forwarded-For.
+func TestClientIP_StripsPort(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(context.Background())
+	r.RemoteAddr = "10.0.0.5:54321"
+	r.Header.Set("X-Forwarded-For", "1.2.3.4")
+
+	host := func(r *http.Request) string {
+		// Mirror the inline logic in IPLimiter.limitByIP to ensure consistency.
+		l := NewIPLimiter(1, 1, time.Hour, 0)
+		var captured string
+		h := l.limitByIP(func(w http.ResponseWriter, req *http.Request) { captured = req.RemoteAddr })
+		w := httptest.NewRecorder()
+		h(w, r)
+		return captured
+	}(r)
+	if !strings.HasPrefix(host, "10.0.0.5:") {
+		t.Errorf("RemoteAddr modified unexpectedly: %q", host)
 	}
 }

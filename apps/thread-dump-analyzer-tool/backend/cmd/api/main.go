@@ -22,34 +22,24 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
-
 	"github.com/joho/godotenv"
+
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/config"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/job"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/logger"
+	transporthttp "github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/transport/http"
 )
 
-// Top-level JSON response format for a structured analysis
-type AggregatedAnalysisResponse struct {
-	SessionID      string                       `json:"session_id"`
-	Timestamp      string                       `json:"timestamp"`
-	Threads        []analyzer.AnalyzedThread    `json:"threads"`
-	ThreadPools    map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
-	HealthScore    int                          `json:"health_score"`
-	HealthFactors  []analyzer.HealthFactor      `json:"health_factors,omitempty"`
-	PatternMatches []analyzer.PatternMatch      `json:"pattern_matches,omitempty"`
-	AIInsights     *ai.AIInsights               `json:"ai_insights,omitempty"`
-	Errors         []string                     `json:"errors,omitempty"`
-}
-
 func main() {
-	// godotenv must run before initLogger so LOG_LEVEL from .env is honored.
+	// godotenv must run before logger.Init so LOG_LEVEL from .env is honored.
 	envErr := godotenv.Load()
-	initLogger()
+	logger.Init()
 	if envErr != nil {
 		slog.Info("no .env file found, relying on environment variables")
 	}
 
-	cfg := LoadConfig()
+	cfg := config.LoadConfig()
 
 	// Initialize Rules Engine
 	engine, err := analyzer.NewEngine(cfg.RulesPath)
@@ -66,15 +56,15 @@ func main() {
 	}
 
 	// In-memory registry of asynchronous analysis jobs
-	jobStore := NewJobStore(cfg)
+	jobStore := job.NewJobStore(cfg)
 
-	ipLimiter := NewIPLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, cfg.RateLimitVisitorTTL, cfg.RateLimitJanitorTick)
-	jobLimiter := NewJobLimiter(cfg.MaxConcurrentJobs)
+	ipLimiter := transporthttp.NewIPLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, cfg.RateLimitVisitorTTL, cfg.RateLimitJanitorTick)
+	jobLimiter := job.NewJobLimiter(cfg.MaxConcurrentJobs)
 
 	// Gate the analyze endpoints behind Bearer-JWT auth; fail fast if enabled but unconfigured.
 	var requireAuth func(http.HandlerFunc) http.HandlerFunc
 	if cfg.AuthEnabled {
-		authn, err := NewAuthenticator(context.Background(), cfg)
+		authn, err := transporthttp.NewAuthenticator(context.Background(), cfg)
 		if err != nil {
 			slog.Error("failed to initialize authentication", "error", err)
 			os.Exit(1)
@@ -89,7 +79,7 @@ func main() {
 	addr := ":" + cfg.Port
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           NewRouter(cfg, jobStore, engine, enricher, ipLimiter, jobLimiter, requireAuth),
+		Handler:           transporthttp.NewRouter(cfg, jobStore, engine, enricher, ipLimiter, jobLimiter, requireAuth),
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,

@@ -31,7 +31,7 @@ cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
 # Auth is ON by default: set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
 
-go run .
+go run ./cmd/api
 # Server starts at http://localhost:8080
 ```
 
@@ -162,8 +162,8 @@ Dump and usage files are paired client-side by a normalized filename key (`utils
 `health_score` is a deterministic 0-100 score computed by the backend from the latest dump, and `health_factors[]` lists the named penalties behind it (the penalties sum to `100 - health_score`). The frontend renders these directly as a gauge with a breakdown tooltip, so the displayed number always matches the backend.
 
 **Rate limiting**: `POST /analyze/jobs` is gated by two independent layers, both returning HTTP 429:
-- **Per-IP token bucket** (`IPLimiter` in `router.go`): defaults to 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Configurable via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
-- **Concurrent job semaphore** (`JobLimiter` in `jobs.go`): caps in-flight analyses to prevent memory exhaustion under burst load. Defaults to 10 (`MAX_CONCURRENT_JOBS`). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
+- **Per-IP token bucket** (`IPLimiter` in `internal/transport/http/middleware.go`): defaults to 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Configurable via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
+- **Concurrent job semaphore** (`JobLimiter` in `internal/job/service.go`): caps in-flight analyses to prevent memory exhaustion under burst load. Defaults to 10 (`MAX_CONCURRENT_JOBS`). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
 
 ## Features
 

@@ -28,11 +28,11 @@ See the root [README.md](README.md) for full environment setup and the Docker de
 cd backend
 cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY (optional), and AUTH_ENABLED=false for local testing
-go run .
+go run ./cmd/api
 # Server starts at http://localhost:8080
 ```
 
-Auth is ON by default. Set `AUTH_ENABLED=false` to make the `/analyze/jobs` endpoints public for local work; otherwise the server refuses to start unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is set. Every other knob has a default in `settings.go#LoadConfig`; see `backend/.env.example`.
+Auth is ON by default. Set `AUTH_ENABLED=false` to make the `/analyze/jobs` endpoints public for local work; otherwise the server refuses to start unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is set. Every other knob has a default in `internal/config/config.go#LoadConfig`; see `backend/.env.example`.
 
 ### Running the frontend
 
@@ -65,8 +65,8 @@ The backend serves an HTML upload form at `http://localhost:8080` (`GET /`). Run
 cd backend
 gofmt -l .         # list unformatted files (should be empty)
 go vet ./...       # static checks
-go build           # confirm it compiles
-go test ./...      # parser, analyzer, ai, auth, jobs, limiters
+go build ./...     # confirm it compiles
+go test ./...      # parser, analyzer, ai, job, transport/http (handlers, auth, limiters)
 ```
 
 The frontend has no JS unit-test runner configured yet; `pnpm lint` plus a clean `pnpm build` (which runs `tsc -b`) is the bar. Verify UI changes by hand in `pnpm dev`.
@@ -116,7 +116,7 @@ Before requesting review, verify your changes:
 
 **Backend (Go):**
 - [ ] `gofmt` clean (no diff), `go vet ./...` clean
-- [ ] `go build` succeeds and `go test ./...` passes
+- [ ] `go build ./...` succeeds and `go test ./...` passes
 - [ ] New or changed parsing/rules/aggregation/scoring logic has a test in the matching `_test.go`
 - [ ] Code stays within the existing `internal/` layout (`parser`, `analyzer`, `ai`, `rules`)
 
@@ -185,9 +185,9 @@ To add a pool:
 2. Anchor the regex (`^...$`) and test it against real thread names from a dump.
 3. Add a case to `internal/analyzer/enricher_test.go`.
 
-### `settings.go` / `.env.example`: backend configuration knobs
+### `internal/config/config.go` / `.env.example`: backend configuration knobs
 
-**File:** `backend/settings.go` and `backend/.env.example`
+**File:** `backend/internal/config/config.go` and `backend/.env.example`
 
 All runtime configuration is read once in `LoadConfig` with a sensible default, so the server runs with an empty `.env`.
 

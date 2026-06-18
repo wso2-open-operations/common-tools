@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package logger
 
 import (
 	"context"
@@ -34,8 +34,8 @@ var logLevel = new(slog.LevelVar)
 
 const logTimeFormat = "15:04:05.000"
 
-// initLogger wires a readable slog handler (colorized console plus an optional plain-text session-file copy); honors LOG_LEVEL and LOG_FILE.
-func initLogger() {
+// Init wires a readable slog handler (colorized console plus an optional plain-text session-file copy); honors LOG_LEVEL and LOG_FILE.
+func Init() {
 	levelWarn := setLogLevel()
 
 	// Colorize only when stderr is a real terminal; piped/containerized output stays plain.
