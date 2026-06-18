@@ -8,6 +8,9 @@
 tdat-backend
 bin/
 
+# Local session logs: never ship into the build context.
+logs/
+
 # VCS, docs, tests, and container files not needed to build the binary.
 .git
 .gitignore

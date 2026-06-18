@@ -210,7 +210,7 @@ Logs are written by `slog` through a readable handler ([`tint`](https://github.c
 13:03:23.166 INF server listening addr=:8080 url=http://localhost:8080 max_upload_mib=100
 ```
 
-The same records are mirrored to a per-session log file (plain text, no color codes, so it greps cleanly). By default each server start opens a fresh `logs/tdat-session-<timestamp>.log` relative to the working directory; the chosen path is logged at startup. Override the path with `LOG_FILE=/some/path.log`, or disable file logging with `LOG_FILE=off`. If the file cannot be created, the server warns once and continues console-only. `LOG_LEVEL` controls verbosity for both sinks.
+The same records are mirrored to a per-session log file (plain text, no color codes, so it greps cleanly). By default each server start opens a fresh `logs/tdat-session-<timestamp>.log` relative to the working directory; the chosen path is logged at startup. Override the path with `LOG_FILE=/some/path.log`, or disable file logging with `LOG_FILE=off`. If the file cannot be created, the server warns once and continues console-only. `LOG_LEVEL` controls verbosity for both sinks. The Docker image sets `LOG_FILE=off` so containers log to stdout/stderr only; mount a writable volume and override `LOG_FILE` to keep an on-disk copy.
 
 ## Building
 

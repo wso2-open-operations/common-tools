@@ -79,7 +79,7 @@ Frontend on `http://localhost:8081`, backend on `http://localhost:8080`. The SPA
 | `AUTH_ENABLED` | backend | `true` (default) requires a Bearer JWT on `/analyze/jobs` |
 | `API_URL` | frontend | Browser-facing backend URL, injected into `config.js` at start |
 | `CORS_ALLOWED_ORIGINS` | backend | Must list the exact origin the SPA is served from |
-| `LOG_FILE` | backend | Where to mirror session logs (plain text). Defaults to `logs/tdat-session-<ts>.log` under the working directory; set to a writable path like `/tmp/tdat.log`, or `off` to disable |
+| `LOG_FILE` | backend | Where to mirror session logs (plain text). The Docker image defaults to `off` (stderr only). Set to a writable path like `/data/logs/tdat.log` (with a mounted volume) to enable, or leave `off`. Outside Docker it defaults to `logs/tdat-session-<ts>.log` |
 | `PORT` | both | Listen port (default `8080`), honored when a platform injects one |
 
 The frontend reads `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` at container start and writes them into `config.js` (`window.configs`), so the same image points at any backend and tenant without rebuilding.
@@ -112,7 +112,7 @@ docker run -p 8081:8080 \
 
 Both images run as a non-root user with a UID in the 10000-20000 range (Choreo's requirement) and listen on a port above 1024, so they drop straight into Choreo, Kubernetes, or any rootless container runtime. No secrets are baked into either image.
 
-> The backend's default session log directory (`logs/`) may not be writable in a rootless container. Point `LOG_FILE` at a writable path (e.g. `/tmp/tdat.log`) or set `LOG_FILE=off`; either way the server falls back to console-only and warns if the file cannot be opened.
+> The backend image sets `LOG_FILE=off`, so containers log to stdout/stderr only (the platform collects them). To keep an on-disk session log, mount a writable volume and override `LOG_FILE` to a path under it; if the file cannot be opened the server warns once and continues console-only.
 
 > Behind a reverse proxy or ingress, the backend's per-IP rate limiter sees only the proxy IP (it trusts `RemoteAddr`, not `X-Forwarded-For`), so rely on the proxy's own rate limiting in that topology.
 
