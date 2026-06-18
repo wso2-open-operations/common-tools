@@ -166,6 +166,7 @@ Each penalty greater than 0 becomes a `health_factor` (`{label, penalty}`); the 
 | `JWT_ISSUER` | _(derived)_ | Expected `iss` claim; overrides the value derived from `ASGARDEO_BASE_URL`. |
 | `JWT_AUDIENCE` | _(unset)_ | Expected `aud` claim (set to the app's client ID). Empty = `aud` not checked. |
 | `LOG_LEVEL` | `INFO` | slog level: `DEBUG` / `INFO` / `WARN` / `ERROR`. |
+| `LOG_FILE` | `logs/tdat-session-<ts>.log` | Path (relative to the working directory, or absolute) for the plain-text session log mirrored alongside console output. Set an explicit path to pin it, or `off`/`none`/`-` to disable file logging. Open/create failures fall back to console-only with a warning. |
 | `PORT` | `8080` | HTTP listen port. |
 | `PUBLIC_URL` | `http://localhost:${PORT}` | Public base URL logged at startup for click-to-test. Set this when running behind a public hostname or reverse proxy. |
 | `READ_HEADER_TIMEOUT` | `30s` | Go `time.Duration` string. |
@@ -195,6 +196,16 @@ Each penalty greater than 0 becomes a `health_factor` (`{label, penalty}`); the 
 |---|---|
 | `config/thread_pools.yaml` | Thread pool name, regex patterns, description, expected behavior. Path overridable via `THREAD_POOLS_PATH`. |
 | `internal/rules/rules.grl` | 29 Grule DSL rules. Path overridable via `RULES_PATH`. |
+
+### Logging
+
+Logs are written by `slog` through a readable handler ([`tint`](https://github.com/lmittmann/tint)): short wall-clock timestamps and abbreviated levels, colorized when stderr is a real terminal and plain otherwise (piped output, Docker, Choreo).
+
+```text
+13:03:23.166 INF server listening addr=:8080 url=http://localhost:8080 max_upload_mib=100
+```
+
+The same records are mirrored to a per-session log file (plain text, no color codes, so it greps cleanly). By default each server start opens a fresh `logs/tdat-session-<timestamp>.log` relative to the working directory; the chosen path is logged at startup. Override the path with `LOG_FILE=/some/path.log`, or disable file logging with `LOG_FILE=off`. If the file cannot be created, the server warns once and continues console-only. `LOG_LEVEL` controls verbosity for both sinks.
 
 ## Building
 
@@ -227,7 +238,8 @@ Unit tests live in `*_test.go` files beside the code they cover: parser, enriche
 
 ```text
 backend/
-├── main.go                          Entrypoint: .env load, slog setup, engine/enricher/jobStore wiring, http.Server start; AggregatedAnalysisResponse type
+├── main.go                          Entrypoint: .env load, logger init, engine/enricher/jobStore wiring, http.Server start; AggregatedAnalysisResponse type
+├── logging.go                       initLogger: readable slog setup (tint console + plain session-file copy via fanout handler); honors LOG_LEVEL/LOG_FILE
 ├── router.go                        NewRouter (ServeMux + CORS middleware), IPLimiter (per-IP rate limit), and the manual-testing HTML form (serveHTML)
 ├── auth.go                          Authenticator: Bearer-JWT validation against the Asgardeo JWKS (RequireAuth middleware)
 ├── settings.go                      Config struct + LoadConfig: env-var parsing with sensible defaults

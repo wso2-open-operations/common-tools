@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
 	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
@@ -40,23 +39,6 @@ type AggregatedAnalysisResponse struct {
 	PatternMatches []analyzer.PatternMatch      `json:"pattern_matches,omitempty"`
 	AIInsights     *ai.AIInsights               `json:"ai_insights,omitempty"`
 	Errors         []string                     `json:"errors,omitempty"`
-}
-
-// logLevel is a package-level LevelVar so the active log level can be adjusted at runtime.
-var logLevel = new(slog.LevelVar)
-
-// initLogger sets a slog text handler as default, honoring LOG_LEVEL (defaults to INFO).
-func initLogger() {
-	if raw := strings.TrimSpace(os.Getenv("LOG_LEVEL")); raw != "" {
-		if err := logLevel.UnmarshalText([]byte(strings.ToUpper(raw))); err != nil {
-			logLevel.Set(slog.LevelInfo)
-			slog.Warn("invalid LOG_LEVEL, defaulting to INFO", "value", raw, "error", err)
-		}
-	} else {
-		logLevel.Set(slog.LevelInfo)
-	}
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
-	slog.SetDefault(slog.New(handler))
 }
 
 func main() {
@@ -114,7 +96,7 @@ func main() {
 		IdleTimeout:       cfg.IdleTimeout,
 	}
 
-	slog.Info("server listening", "addr", addr, "url", cfg.PublicURL)
+	slog.Info("server listening", "addr", addr, "url", cfg.PublicURL, "max_upload_mib", cfg.MaxUploadBytes>>20)
 	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("server stopped", "error", err)
 		os.Exit(1)
