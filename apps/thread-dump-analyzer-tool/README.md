@@ -127,7 +127,7 @@ GET  /                              # HTML upload form for manual testing
 
 When `AUTH_ENABLED` (the default), both `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header (validated against Asgardeo) and return `401` otherwise; `GET /health` and the `GET /` form stay open.
 
-The analysis runs asynchronously. Poll the status endpoint until `status` is `completed` or `failed`. Jobs run under a configurable deadline (`JOB_TIMEOUT`, default 2m); on expiry the job is marked `failed` and the pipeline exits at the next checkpoint.
+The analysis runs asynchronously. Poll the status endpoint until `status` is `completed` or `failed`. Jobs run under a configurable deadline (`JOB_TIMEOUT`, default 2m); on expiry the job is marked `failed` and the pipeline exits at the next checkpoint. Invalid uploads also fail fast: a non-dump file or a malformed thread-usage file marks the job `failed` with a clear, file-named `error` instead of returning a partial result.
 
 **Upload fields (multipart/form-data):**
 - `thread_dumps` - required, one or more Java thread dump `.txt`/`.log` files

@@ -206,9 +206,9 @@ func TestRunJob_TimeoutMarksFailed(t *testing.T) {
 	// Swap runAnalysisFn for a stub that blocks until ctx is cancelled, so the deadline path is the only way out.
 	prev := runAnalysisFn
 	t.Cleanup(func() { runAnalysisFn = prev })
-	runAnalysisFn = func(ctx context.Context, _, _ []filePayload, _ *analyzer.RuleEngine, _ *analyzer.ThreadEnricher) *AggregatedAnalysisResponse {
+	runAnalysisFn = func(ctx context.Context, _, _ []filePayload, _ *analyzer.RuleEngine, _ *analyzer.ThreadEnricher) (*AggregatedAnalysisResponse, error) {
 		<-ctx.Done()
-		return nil
+		return nil, nil
 	}
 
 	done := make(chan struct{})
@@ -232,6 +232,40 @@ func TestRunJob_TimeoutMarksFailed(t *testing.T) {
 	wantErr := "analysis timed out after " + cfg.JobTimeout.String()
 	if got.Error != wantErr {
 		t.Errorf("Job.Error=%q, want %q", got.Error, wantErr)
+	}
+}
+
+// A non-dump file in thread_dumps must fail the job with a clear message naming the file.
+func TestRunAnalysis_FailsFastOnNonDumpFile(t *testing.T) {
+	dumps := []filePayload{{FileName: "notes.txt", Data: []byte("this is not a thread dump\njust some prose\n")}}
+
+	resp, err := runAnalysis(context.Background(), dumps, nil, nil, nil)
+	if resp != nil {
+		t.Fatalf("expected nil response on invalid upload, got %+v", resp)
+	}
+	if err == nil {
+		t.Fatal("expected a validation error")
+	}
+	if !strings.Contains(err.Error(), "notes.txt") || !strings.Contains(err.Error(), "no Java threads") {
+		t.Errorf("error should name the file and reason, got: %v", err)
+	}
+}
+
+// A malformed thread_usages file must fail the job even when its paired dump is valid.
+func TestRunAnalysis_FailsFastOnInvalidUsageFile(t *testing.T) {
+	dump := `"main" #1 prio=5 tid=0x1 nid=0x1 runnable` + "\n   java.lang.Thread.State: RUNNABLE\n"
+	dumps := []filePayload{{FileName: "d.txt", Data: []byte(dump)}}
+	usages := []filePayload{{FileName: "u.txt", Data: []byte("garbage with no usable columns\n")}}
+
+	resp, err := runAnalysis(context.Background(), dumps, usages, nil, nil)
+	if resp != nil {
+		t.Fatalf("expected nil response on invalid usage, got %+v", resp)
+	}
+	if err == nil {
+		t.Fatal("expected a validation error")
+	}
+	if !strings.Contains(err.Error(), "u.txt") || !strings.Contains(err.Error(), "thread usage") {
+		t.Errorf("error should name the usage file and reason, got: %v", err)
 	}
 }
 

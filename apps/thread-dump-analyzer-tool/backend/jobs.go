@@ -30,12 +30,12 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 )
 
 type JobStatus string
@@ -266,6 +266,7 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore,
 
 type analysisResult struct {
 	resp  *AggregatedAnalysisResponse
+	err   error
 	rec   any
 	stack []byte
 }
@@ -283,6 +284,7 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 	done := make(chan analysisResult, 1)
 	go func() {
 		var resp *AggregatedAnalysisResponse
+		var err error
 		var rec any
 		var stack []byte
 		defer func() {
@@ -290,9 +292,9 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 				rec = r
 				stack = debug.Stack()
 			}
-			done <- analysisResult{resp: resp, rec: rec, stack: stack}
+			done <- analysisResult{resp: resp, err: err, rec: rec, stack: stack}
 		}()
-		resp = runAnalysisFn(ctx, dumps, usages, eng, enricher)
+		resp, err = runAnalysisFn(ctx, dumps, usages, eng, enricher)
 	}()
 
 	select {
@@ -309,6 +311,14 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 			store.Update(jobID, func(j *Job) {
 				j.Status = JobFailed
 				j.Error = fmt.Sprintf("analysis timed out after %s", jobTimeout)
+			})
+			return
+		}
+		if r.err != nil {
+			slog.Info("analysis rejected invalid upload", "job_id", jobID, "error", r.err)
+			store.Update(jobID, func(j *Job) {
+				j.Status = JobFailed
+				j.Error = r.err.Error()
 			})
 			return
 		}
@@ -346,10 +356,16 @@ type preppedFile struct {
 	usageDataProvided bool
 }
 
+// validationError carries a user-facing message for unanalyzable uploads; runJob surfaces it as the job error.
+type validationError struct{ msg string }
+
+func (e *validationError) Error() string { return e.msg }
+
 // Two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
-func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) *AggregatedAnalysisResponse {
+func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) (*AggregatedAnalysisResponse, error) {
 	prepped := make([]*preppedFile, len(dumps))
 	errSlots := make([][]string, len(dumps))
+	invalidSlots := make([]string, len(dumps)) // fatal per-file validation message; any non-empty entry fails the job
 	var wg sync.WaitGroup
 
 	// Phase 1: parallel parse/correlate/enrich indexed by upload order.
@@ -368,11 +384,11 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 				// Validate usage file by parsing; treat parse error or empty result the same (invalid).
 				parsed, usageDiags, _ := parser.ParseThreadUsage(bytes.NewReader(u.Data))
 				if len(parsed) == 0 {
-					msg := fmt.Sprintf("Invalid file. No valid thread usage data found in %s", u.FileName)
+					msg := fmt.Sprintf("Invalid thread usage file: no valid CPU usage data found in %q", u.FileName)
 					if len(usageDiags) > 0 {
-						msg += ": " + strings.Join(usageDiags, "; ")
+						msg += " (" + strings.Join(usageDiags, "; ") + ")"
 					}
-					errSlots[index] = append(errSlots[index], msg)
+					invalidSlots[index] = msg
 					return
 				}
 				usageReader = bytes.NewReader(u.Data)
@@ -380,16 +396,15 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 
 			threads, diagnostics, err := parser.ProcessAndCorrelate(bytes.NewReader(d.Data), usageReader, d.FileName)
 			if err != nil {
-				errSlots[index] = append(errSlots[index], fmt.Sprintf("Failed to parse %s: %v", d.FileName, err))
+				invalidSlots[index] = fmt.Sprintf("Failed to parse %q: %v", d.FileName, err)
 				return
 			}
-			errSlots[index] = append(errSlots[index], diagnostics...)
-
 			if len(threads) == 0 {
-				errSlots[index] = append(errSlots[index], fmt.Sprintf("Invalid Files. No threads found in %s", d.FileName))
+				invalidSlots[index] = fmt.Sprintf("Invalid file: no Java threads found in %q. Is it a Java thread dump?", d.FileName)
 				return
 			}
 
+			errSlots[index] = append(errSlots[index], diagnostics...)
 			enricher.Enrich(ctx, threads)
 
 			prepped[index] = &preppedFile{
@@ -401,6 +416,19 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 	}
 
 	wg.Wait()
+
+	// Fail fast: if any uploaded dump or usage file was invalid, abort before pools/rules/AI.
+	if ctx.Err() == nil {
+		var invalid []string
+		for _, m := range invalidSlots {
+			if m != "" {
+				invalid = append(invalid, m)
+			}
+		}
+		if len(invalid) > 0 {
+			return nil, &validationError{strings.Join(invalid, "; ")}
+		}
+	}
 
 	var parsedFiles []analyzer.ParsedFile
 	var errorMessages []string
@@ -458,5 +486,5 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 		PatternMatches: patternMatches,
 		AIInsights:     aiInsights,
 		Errors:         errorMessages,
-	}
+	}, nil
 }

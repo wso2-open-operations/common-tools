@@ -77,6 +77,8 @@ Poll for job status and result.
 
 `result` is populated only when `status == "completed"`. Returns `404` for unknown job IDs.
 
+Uploads are validated fail-fast: if any uploaded file is not analyzable (a non-dump file with no parseable threads, or a malformed `thread_usages` file with no usable rows), the job ends as `failed` with an `error` that names the offending file, e.g. `Invalid file: no Java threads found in "usage.txt". Is it a Java thread dump?`. No partial `result` is produced in that case.
+
 ### `GET /health`
 
 Returns `200 OK` with body `OK`. Used for liveness probes.
@@ -94,7 +96,10 @@ Returns `200 OK` with body `OK`. Used for liveness probes.
 POST /analyze/jobs
   └─ Background goroutine:
        ├─ Per file (concurrent): parse dump → correlate CPU usage (DEBUG-logs match counts;
-       │                         WARN on zero matches) → classify thread pool → run Grule rules
+       │                         WARN on zero matches) → classify thread pool
+       ├─ Validate (fail-fast): any non-dump file (0 threads) or malformed usage file (0 rows)
+       │                        fails the whole job with a clear, file-named error (no partial result)
+       ├─ Run Grule rules per thread (only when every uploaded file is valid)
        ├─ Aggregate: pivot file-centric results into thread-centric history across dumps
        ├─ Pattern matches: per-rule unique-thread counts for the frontend
        ├─ Health: deterministic 0-100 score + named penalty factors from the latest dump
