@@ -17,12 +17,15 @@
 package http
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,7 +53,7 @@ func NewRouter(cfg *config.Config, jobStore *job.JobStore, engine *analyzer.Rule
 	})
 	// IP rate-limit wraps auth so unauthenticated floods can't burn JWT verification cycles.
 	mux.HandleFunc("POST /analyze/jobs", ipLimiter.limitByIP(requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		analyzeJobsHandler(w, r, jobStore, engine, enricher, cfg.MaxUploadBytes, cfg.JobTimeout, jobLimiter)
+		analyzeJobsHandler(w, r, jobStore, engine, enricher, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, jobLimiter)
 	})))
 	mux.HandleFunc("GET /analyze/jobs/{id}", requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		jobStatusHandler(w, r, jobStore)
@@ -66,8 +69,34 @@ func NewRouter(cfg *config.Config, jobStore *job.JobStore, engine *analyzer.Rule
 	return c.Handler(mux)
 }
 
+// gzipMagic is the two-byte signature every gzip stream begins with (RFC 1952).
+var gzipMagic = []byte{0x1f, 0x8b}
+
+// maybeGunzip inflates gzip-signed data under a size cap, and returns non-gzip data untouched so raw uploads still work.
+func maybeGunzip(name string, data []byte, maxDecompressedBytes int64) ([]byte, error) {
+	if len(data) < 2 || !bytes.Equal(data[:2], gzipMagic) {
+		return data, nil
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("gunzip %s: %w", name, err)
+	}
+	defer zr.Close()
+
+	// Read one byte past the cap so a payload sitting exactly on the limit is not mistaken for an overflow.
+	out, err := io.ReadAll(io.LimitReader(zr, maxDecompressedBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("inflate %s: %w", name, err)
+	}
+	if int64(len(out)) > maxDecompressedBytes {
+		return nil, fmt.Errorf("inflate %s exceeds %d MiB decompressed cap", name, maxDecompressedBytes>>20)
+	}
+	return out, nil
+}
+
 // readMultipartFiles buffers each uploaded file into memory so analysis can continue after the request returns.
-func readMultipartFiles(headers []*multipart.FileHeader) ([]job.FilePayload, error) {
+// Gzip-compressed parts are inflated in place so the parser always sees plain text.
+func readMultipartFiles(headers []*multipart.FileHeader, maxDecompressedBytes int64) ([]job.FilePayload, error) {
 	out := make([]job.FilePayload, 0, len(headers))
 	for _, h := range headers {
 		f, err := h.Open()
@@ -79,12 +108,16 @@ func readMultipartFiles(headers []*multipart.FileHeader) ([]job.FilePayload, err
 		if err != nil {
 			return nil, fmt.Errorf("read %s: %w", h.Filename, err)
 		}
-		out = append(out, job.FilePayload{FileName: h.Filename, Data: data})
+		data, err = maybeGunzip(h.Filename, data, maxDecompressedBytes)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, job.FilePayload{FileName: strings.TrimSuffix(h.Filename, ".gz"), Data: data})
 	}
 	return out, nil
 }
 
-func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes int64, jobTimeout time.Duration, jobLimiter *job.JobLimiter) {
+func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes, maxDecompressedBytes int64, jobTimeout time.Duration, jobLimiter *job.JobLimiter) {
 	// reqID correlates the generic client message with the full server-side log entry.
 	reqID := uuid.NewString()
 
@@ -104,13 +137,13 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobSt
 		return
 	}
 
-	dumps, err := readMultipartFiles(dumpHeaders)
+	dumps, err := readMultipartFiles(dumpHeaders, maxDecompressedBytes)
 	if err != nil {
 		slog.Warn("failed to read thread_dumps upload", "request_id", reqID, "error", err)
 		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
 		return
 	}
-	usages, err := readMultipartFiles(usageHeaders)
+	usages, err := readMultipartFiles(usageHeaders, maxDecompressedBytes)
 	if err != nil {
 		slog.Warn("failed to read thread_usages upload", "request_id", reqID, "error", err)
 		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)

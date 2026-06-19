@@ -43,11 +43,12 @@ type Config struct {
 	CORSAllowedHeaders []string
 	CORSDebug          bool
 
-	MaxUploadBytes  int64
-	JobTTL          time.Duration
-	JobStoreMaxSize int
-	JobJanitorTick  time.Duration
-	JobTimeout      time.Duration
+	MaxUploadBytes       int64
+	MaxDecompressedBytes int64
+	JobTTL               time.Duration
+	JobStoreMaxSize      int
+	JobJanitorTick       time.Duration
+	JobTimeout           time.Duration
 
 	MaxConcurrentJobs    int
 	RateLimitRPS         float64
@@ -80,6 +81,9 @@ func LoadConfig() *Config {
 		}
 	}
 
+	// MaxDecompressedBytes defaults to twice the wire cap so raising MAX_UPLOAD_BYTES scales the inflate ceiling with it.
+	uploadBytes := getEnvBytes("MAX_UPLOAD_BYTES", 100<<20)
+
 	return &Config{
 		Port:              port,
 		PublicURL:         strings.TrimRight(getEnv("PUBLIC_URL", "http://localhost:"+port), "/"),
@@ -97,11 +101,12 @@ func LoadConfig() *Config {
 		CORSAllowedHeaders: getEnvList("CORS_ALLOWED_HEADERS", []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}),
 		CORSDebug:          strings.EqualFold(strings.TrimSpace(os.Getenv("CORS_DEBUG")), "true"),
 
-		MaxUploadBytes:  getEnvBytes("MAX_UPLOAD_BYTES", 100<<20),
-		JobTTL:          getEnvDuration("JOB_TTL", 1*time.Hour),
-		JobStoreMaxSize: getEnvInt("JOB_STORE_MAX_SIZE", 200),
-		JobJanitorTick:  getEnvDuration("JOB_JANITOR_TICK", 1*time.Minute),
-		JobTimeout:      getEnvDuration("JOB_TIMEOUT", 2*time.Minute),
+		MaxUploadBytes:       uploadBytes,
+		MaxDecompressedBytes: getEnvBytes("MAX_DECOMPRESSED_BYTES", uploadBytes*2),
+		JobTTL:               getEnvDuration("JOB_TTL", 1*time.Hour),
+		JobStoreMaxSize:      getEnvInt("JOB_STORE_MAX_SIZE", 200),
+		JobJanitorTick:       getEnvDuration("JOB_JANITOR_TICK", 1*time.Minute),
+		JobTimeout:           getEnvDuration("JOB_TIMEOUT", 2*time.Minute),
 
 		MaxConcurrentJobs:    getEnvInt("MAX_CONCURRENT_JOBS", 10),
 		RateLimitRPS:         getEnvFloat("RATE_LIMIT_RPS", 0.5),

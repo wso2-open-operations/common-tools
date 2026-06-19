@@ -18,6 +18,7 @@ package http
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -32,12 +33,13 @@ import (
 
 func newTestConfig() *config.Config {
 	return &config.Config{
-		MaxUploadBytes:    1 << 20,
-		JobTTL:            time.Hour,
-		JobStoreMaxSize:   10,
-		JobJanitorTick:    time.Hour,
-		JobTimeout:        500 * time.Millisecond,
-		MaxConcurrentJobs: 5,
+		MaxUploadBytes:       1 << 20,
+		MaxDecompressedBytes: 10 << 20,
+		JobTTL:               time.Hour,
+		JobStoreMaxSize:      10,
+		JobJanitorTick:       time.Hour,
+		JobTimeout:           500 * time.Millisecond,
+		MaxConcurrentJobs:    5,
 	}
 }
 
@@ -74,7 +76,7 @@ func TestAnalyzeJobsHandler_400OnMissingDumps(t *testing.T) {
 	r.Header.Set("Content-Type", ct)
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d, want 400", w.Code)
@@ -99,7 +101,7 @@ func TestAnalyzeJobsHandler_429WhenJobLimiterSaturated(t *testing.T) {
 	r.Header.Set("Content-Type", ct)
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.JobTimeout, limiter)
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, limiter)
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("code=%d, want 429", w.Code)
@@ -113,7 +115,7 @@ func TestAnalyzeJobsHandler_BadMultipartReturnsRefAndGenericMessage(t *testing.T
 	r.Header.Set("Content-Type", "multipart/form-data; boundary=xxx")
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d, want 400", w.Code)
@@ -158,5 +160,85 @@ func TestJobStatusHandler_ReturnsJobJSON(t *testing.T) {
 	}
 	if got.ID != jb.ID || got.Status != job.JobCompleted {
 		t.Errorf("got=%+v", got)
+	}
+}
+
+// gzipBytes compresses data so tests can build gzip-encoded multipart parts.
+func gzipBytes(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write(data); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// Raw (non-gzip) data passes through untouched so cURL and the HTML form keep working.
+func TestMaybeGunzip_PassesRawThrough(t *testing.T) {
+	raw := []byte("plain thread dump text")
+	out, err := maybeGunzip("d.txt", raw, 1<<20)
+	if err != nil {
+		t.Fatalf("maybeGunzip: %v", err)
+	}
+	if string(out) != string(raw) {
+		t.Errorf("raw data altered: got %q", out)
+	}
+}
+
+// A gzip part round-trips back to its original bytes.
+func TestMaybeGunzip_InflatesGzip(t *testing.T) {
+	content := []byte("Full thread dump\n\"main\" RUNNABLE\n")
+	out, err := maybeGunzip("d.txt.gz", gzipBytes(t, content), 1<<20)
+	if err != nil {
+		t.Fatalf("maybeGunzip: %v", err)
+	}
+	if string(out) != string(content) {
+		t.Errorf("inflate mismatch: got %q, want %q", out, content)
+	}
+}
+
+// A small gzip that inflates past the cap is rejected, not buffered into memory.
+func TestMaybeGunzip_RejectsDecompressionBomb(t *testing.T) {
+	gz := gzipBytes(t, make([]byte, 1<<20)) // 1 MiB of zeros, tiny once compressed
+	if _, err := maybeGunzip("bomb.gz", gz, 1<<10); err == nil {
+		t.Fatal("expected error for oversized inflate, got nil")
+	}
+}
+
+// readMultipartFiles inflates gzip parts and strips the .gz suffix from the stored name.
+func TestReadMultipartFiles_InflatesGzipPart(t *testing.T) {
+	content := []byte(`"t" #1 prio=5 tid=0x1 nid=0x1` + "\n   java.lang.Thread.State: RUNNABLE\n")
+
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	part, err := mw.CreateFormFile("thread_dumps", "d.txt.gz")
+	if err != nil {
+		t.Fatalf("CreateFormFile: %v", err)
+	}
+	part.Write(gzipBytes(t, content))
+	mw.Close()
+
+	form, err := multipart.NewReader(body, mw.Boundary()).ReadForm(1 << 20)
+	if err != nil {
+		t.Fatalf("ReadForm: %v", err)
+	}
+	defer form.RemoveAll()
+
+	out, err := readMultipartFiles(form.File["thread_dumps"], 1<<20)
+	if err != nil {
+		t.Fatalf("readMultipartFiles: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("got %d payloads, want 1", len(out))
+	}
+	if string(out[0].Data) != string(content) {
+		t.Errorf("data not inflated: got %q", out[0].Data)
+	}
+	if out[0].FileName != "d.txt" {
+		t.Errorf("filename not trimmed: got %q", out[0].FileName)
 	}
 }
