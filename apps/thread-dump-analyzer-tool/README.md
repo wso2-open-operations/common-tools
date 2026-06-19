@@ -133,6 +133,8 @@ The analysis runs asynchronously. Poll the status endpoint until `status` is `co
 - `thread_dumps` - required, one or more Java thread dump `.txt`/`.log` files
 - `thread_usages` - optional, matching CPU usage files. Whitespace-separated rows; columns are mapped by header name when present (thread id from `TID`/`LWP`/`SPID`, cpu from `%CPU`/`PCPU`/`CPU`; extra columns like `NLWP`/`C` ignored), falling back to fixed `PID TID %CPU TIME` positions when headerless. TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`.
 
+Each file is gzip-compressed in the browser (`CompressionStream`) before upload, so the smaller wire body clears gateway request-size caps (Choreo ~50 MiB, Cloud Run 32 MB, etc.); the backend detects the gzip signature and inflates each part. Raw uploads via cURL or the HTML test form work unchanged.
+
 When multiple dump files are uploaded, TDAT correlates threads across snapshots by composite identity (`name + id + native_id + pool`) to show how thread state evolved over time. The frontend reuses the same composite as the React key for each thread row, so distinct histories sharing a single `thread.id` do not collide during sort/filter.
 
 Dump and usage files are paired client-side by a normalized filename key (`utils/uploadValidation.ts#extractFileKey`): known prefixes (`threaddump`, `threadusage`, `dump`, `usage`, `td`, `tu`, etc.) are stripped only at a `_`/`-`/`.` boundary or end-of-string, so generic prefixes do not eat into unrelated filenames.

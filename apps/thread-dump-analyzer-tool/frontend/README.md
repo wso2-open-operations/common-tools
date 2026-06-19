@@ -51,7 +51,7 @@ Multi-stage build: `pnpm build`, then nginx on `alpine`. At container start `doc
 ## Pages
 
 ### Upload (`/`)
-Drag-and-drop upload of thread dump files and optional CPU usage metric files. Dump/usage files are paired by a normalized filename key (`utils/uploadValidation.ts#extractFileKey`) - known prefixes (`threaddump`, `threadusage`, `dump`, `usage`, `td`, `tu`, etc.) are stripped only when followed by a `_`/`-`/`.` boundary or end-of-string, so generic prefixes like `td` do not eat into unrelated names such as `today.log`. Triggers async analysis and polls for completion before navigating to the dashboard.
+Drag-and-drop upload of thread dump files and optional CPU usage metric files. Dump/usage files are paired by a normalized filename key (`utils/uploadValidation.ts#extractFileKey`) - known prefixes (`threaddump`, `threadusage`, `dump`, `usage`, `td`, `tu`, etc.) are stripped only when followed by a `_`/`-`/`.` boundary or end-of-string, so generic prefixes like `td` do not eat into unrelated names such as `today.log`. Triggers async analysis and polls for completion before navigating to the dashboard. Each selected file is gzip-compressed in the browser (`CompressionStream`) before upload, so the smaller wire body clears gateway request-size caps; the backend inflates each part (raw uploads still work where `CompressionStream` is unavailable).
 
 ### Dashboard (`/dashboard`)
 Summary cards (thread counts by state and risk, plus a health-score gauge with a penalty-breakdown tooltip), state distribution chart, key findings (rule engine issues mapped to dashboard-friendly titles, descriptions, and severities via `utils/ruleCategories.ts`), thread activity heatmap, and AI-generated insights rendered as formatted markdown.

@@ -39,6 +39,8 @@ Upload thread dumps and start an async analysis job.
 | `thread_dumps` | Yes | One or more Java thread dump text files |
 | `thread_usages` | No | CPU usage files. Each row is whitespace-separated; columns are mapped by header name when present (thread id from `TID`/`LWP`/`SPID`, cpu from `%CPU`/`PCPU`/`CPU`; extra columns like `NLWP`/`C` ignored), falling back to fixed `PID TID %CPU TIME` positions when headerless. TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`. Indexed in upload order: entry *i* in `thread_usages` corresponds to entry *i* in `thread_dumps`. The TDAT frontend aligns both arrays by filename before sending; direct POST requests must keep them in the same order. |
 
+Each part may be gzip-compressed: the TDAT frontend gzips every file via `CompressionStream` so the smaller wire body clears gateway request-size caps. The backend detects the gzip signature (`0x1f 0x8b`) and inflates each part under `MAX_DECOMPRESSED_BYTES`, so raw (uncompressed) uploads via cURL or the HTML form keep working unchanged.
+
 **Response:** `202 Accepted`
 ```json
 { "job_id": "uuid-v4" }
@@ -184,7 +186,8 @@ Each penalty greater than 0 becomes a `health_factor` (`{label, penalty}`); the 
 | `CORS_ALLOWED_METHODS` | `GET,POST,OPTIONS` | Comma-separated. |
 | `CORS_ALLOWED_HEADERS` | `Accept,Content-Type,Content-Length,Accept-Encoding,X-CSRF-Token,Authorization` | Comma-separated. |
 | `CORS_DEBUG` | `false` | When `true`, rs/cors emits per-request debug lines through slog (so they only appear if `LOG_LEVEL=DEBUG`). |
-| `MAX_UPLOAD_BYTES` | `100MB` | Multipart upload cap. Accepts `B`, `K`/`KB`/`KiB`, `M`/`MB`/`MiB`, `G`/`GB`/`GiB`. |
+| `MAX_UPLOAD_BYTES` | `100MB` | Multipart upload cap; measures the compressed wire body. Accepts `B`, `K`/`KB`/`KiB`, `M`/`MB`/`MiB`, `G`/`GB`/`GiB`. |
+| `MAX_DECOMPRESSED_BYTES` | `2× MAX_UPLOAD_BYTES` (200MB) | Per-file inflate cap for gzip uploads; bounds decompression-bomb memory. Same unit suffixes. |
 | `JOB_TTL` | `1h` | How long terminal (`completed` / `failed`) jobs stay queryable. `pending`/`running` jobs are never expired. |
 | `JOB_STORE_MAX_SIZE` | `200` | Max jobs retained in memory. When exceeded, the janitor evicts the oldest **terminal** jobs first; in-flight (`pending`/`running`) jobs are never evicted. |
 | `JOB_JANITOR_TICK` | `1m` | Eviction sweep interval. |
