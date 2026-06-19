@@ -104,8 +104,12 @@ func GetInsights(parentCtx context.Context, threads []analyzer.AnalyzedThread, u
 
 	var insights AIInsights
 	if err := json.Unmarshal([]byte(raw), &insights); err != nil {
-		// Keep the raw payload in the server log, out of the user-facing error.
-		slog.Warn("AI insights JSON parse failed", "error", err, "raw", raw)
+		// Log a bounded preview, not the full payload: raw can carry thread-derived content.
+		preview := raw
+		if len(preview) > 256 {
+			preview = preview[:256]
+		}
+		slog.Warn("AI insights JSON parse failed", "error", err, "preview", preview, "raw_len", len(raw))
 		return nil, fmt.Errorf("AI summary was not valid JSON")
 	}
 

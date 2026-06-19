@@ -40,8 +40,11 @@ const appendFiles = async (formData: FormData, field: string, files: File[]): Pr
     files.forEach((file) => formData.append(field, file));
     return;
   }
-  const blobs = await Promise.all(files.map(gzipFile));
-  blobs.forEach((blob, i) => formData.append(field, blob, `${files[i].name}.gz`));
+  // Compress one file at a time so peak memory stays bounded on large batches instead of holding every blob at once.
+  for (const file of files) {
+    const blob = await gzipFile(file);
+    formData.append(field, blob, `${file.name}.gz`);
+  }
 };
 
 export const uploadThreadDumps = async (

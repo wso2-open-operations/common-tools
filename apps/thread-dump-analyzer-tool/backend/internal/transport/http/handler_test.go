@@ -33,13 +33,14 @@ import (
 
 func newTestConfig() *config.Config {
 	return &config.Config{
-		MaxUploadBytes:       1 << 20,
-		MaxDecompressedBytes: 10 << 20,
-		JobTTL:               time.Hour,
-		JobStoreMaxSize:      10,
-		JobJanitorTick:       time.Hour,
-		JobTimeout:           500 * time.Millisecond,
-		MaxConcurrentJobs:    5,
+		MaxUploadBytes:            1 << 20,
+		MaxDecompressedBytes:      10 << 20,
+		MaxTotalDecompressedBytes: 20 << 20,
+		JobTTL:                    time.Hour,
+		JobStoreMaxSize:           10,
+		JobJanitorTick:            time.Hour,
+		JobTimeout:                500 * time.Millisecond,
+		MaxConcurrentJobs:         5,
 	}
 }
 
@@ -76,7 +77,7 @@ func TestAnalyzeJobsHandler_400OnMissingDumps(t *testing.T) {
 	r.Header.Set("Content-Type", ct)
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d, want 400", w.Code)
@@ -101,7 +102,7 @@ func TestAnalyzeJobsHandler_429WhenJobLimiterSaturated(t *testing.T) {
 	r.Header.Set("Content-Type", ct)
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, limiter)
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, limiter)
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("code=%d, want 429", w.Code)
@@ -115,7 +116,7 @@ func TestAnalyzeJobsHandler_BadMultipartReturnsRefAndGenericMessage(t *testing.T
 	r.Header.Set("Content-Type", "multipart/form-data; boundary=xxx")
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d, want 400", w.Code)
@@ -228,7 +229,8 @@ func TestReadMultipartFiles_InflatesGzipPart(t *testing.T) {
 	}
 	defer form.RemoveAll()
 
-	out, err := readMultipartFiles(form.File["thread_dumps"], 1<<20)
+	var total int64
+	out, err := readMultipartFiles(form.File["thread_dumps"], 1<<20, 1<<20, &total)
 	if err != nil {
 		t.Fatalf("readMultipartFiles: %v", err)
 	}
@@ -240,5 +242,33 @@ func TestReadMultipartFiles_InflatesGzipPart(t *testing.T) {
 	}
 	if out[0].FileName != "d.txt" {
 		t.Errorf("filename not trimmed: got %q", out[0].FileName)
+	}
+}
+
+// Parts that each clear the per-file cap still fail once their running total passes the request cap.
+func TestReadMultipartFiles_RejectsCumulativeOverflow(t *testing.T) {
+	content := bytes.Repeat([]byte("x"), 600<<10) // 600 KiB each: two together exceed a 1 MiB request cap
+
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	for i := 0; i < 2; i++ {
+		part, err := mw.CreateFormFile("thread_dumps", "d.txt")
+		if err != nil {
+			t.Fatalf("CreateFormFile: %v", err)
+		}
+		part.Write(content)
+	}
+	mw.Close()
+
+	form, err := multipart.NewReader(body, mw.Boundary()).ReadForm(2 << 20)
+	if err != nil {
+		t.Fatalf("ReadForm: %v", err)
+	}
+	defer form.RemoveAll()
+
+	// Per-file cap (1 MiB) clears each 600 KiB part, but the 1 MiB request cap rejects the second.
+	var total int64
+	if _, err := readMultipartFiles(form.File["thread_dumps"], 1<<20, 1<<20, &total); err == nil {
+		t.Fatal("expected cumulative cap overflow error, got nil")
 	}
 }

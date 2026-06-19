@@ -53,7 +53,7 @@ func NewRouter(cfg *config.Config, jobStore *job.JobStore, engine *analyzer.Rule
 	})
 	// IP rate-limit wraps auth so unauthenticated floods can't burn JWT verification cycles.
 	mux.HandleFunc("POST /analyze/jobs", ipLimiter.limitByIP(requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		analyzeJobsHandler(w, r, jobStore, engine, enricher, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.JobTimeout, jobLimiter)
+		analyzeJobsHandler(w, r, jobStore, engine, enricher, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, jobLimiter)
 	})))
 	mux.HandleFunc("GET /analyze/jobs/{id}", requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		jobStatusHandler(w, r, jobStore)
@@ -96,7 +96,8 @@ func maybeGunzip(name string, data []byte, maxDecompressedBytes int64) ([]byte, 
 
 // readMultipartFiles buffers each uploaded file into memory so analysis can continue after the request returns.
 // Gzip-compressed parts are inflated in place so the parser always sees plain text.
-func readMultipartFiles(headers []*multipart.FileHeader, maxDecompressedBytes int64) ([]job.FilePayload, error) {
+// maxDecompressedBytes caps each part; maxTotalBytes caps the running total (across calls via *total) so many parts can't sum into an OOM.
+func readMultipartFiles(headers []*multipart.FileHeader, maxDecompressedBytes, maxTotalBytes int64, total *int64) ([]job.FilePayload, error) {
 	out := make([]job.FilePayload, 0, len(headers))
 	for _, h := range headers {
 		f, err := h.Open()
@@ -112,12 +113,16 @@ func readMultipartFiles(headers []*multipart.FileHeader, maxDecompressedBytes in
 		if err != nil {
 			return nil, err
 		}
+		*total += int64(len(data))
+		if *total > maxTotalBytes {
+			return nil, fmt.Errorf("total decompressed payload exceeds %d MiB cap", maxTotalBytes>>20)
+		}
 		out = append(out, job.FilePayload{FileName: strings.TrimSuffix(h.Filename, ".gz"), Data: data})
 	}
 	return out, nil
 }
 
-func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes, maxDecompressedBytes int64, jobTimeout time.Duration, jobLimiter *job.JobLimiter) {
+func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes, maxDecompressedBytes, maxTotalDecompressedBytes int64, jobTimeout time.Duration, jobLimiter *job.JobLimiter) {
 	// reqID correlates the generic client message with the full server-side log entry.
 	reqID := uuid.NewString()
 
@@ -128,6 +133,8 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobSt
 		http.Error(w, fmt.Sprintf("Could not process upload. Limit is %d MiB (ref=%s)", maxUploadBytes>>20, reqID), http.StatusBadRequest)
 		return
 	}
+	// Explicitly drop any temp files ParseMultipartForm spilled, in case the server's auto-cleanup misses a panic or wrapped request.
+	defer r.MultipartForm.RemoveAll()
 
 	dumpHeaders := r.MultipartForm.File["thread_dumps"]
 	usageHeaders := r.MultipartForm.File["thread_usages"]
@@ -137,13 +144,15 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobSt
 		return
 	}
 
-	dumps, err := readMultipartFiles(dumpHeaders, maxDecompressedBytes)
+	// One running total spans dumps and usages so the cap bounds the whole request, not each group.
+	var totalDecompressed int64
+	dumps, err := readMultipartFiles(dumpHeaders, maxDecompressedBytes, maxTotalDecompressedBytes, &totalDecompressed)
 	if err != nil {
 		slog.Warn("failed to read thread_dumps upload", "request_id", reqID, "error", err)
 		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
 		return
 	}
-	usages, err := readMultipartFiles(usageHeaders, maxDecompressedBytes)
+	usages, err := readMultipartFiles(usageHeaders, maxDecompressedBytes, maxTotalDecompressedBytes, &totalDecompressed)
 	if err != nil {
 		slog.Warn("failed to read thread_usages upload", "request_id", reqID, "error", err)
 		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)

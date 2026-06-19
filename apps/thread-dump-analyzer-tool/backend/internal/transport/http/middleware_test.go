@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -318,22 +317,38 @@ func TestIPLimiter_JanitorEvictsIdleVisitors(t *testing.T) {
 	t.Fatal("janitor did not evict idle visitor")
 }
 
-// clientIP strips the port from RemoteAddr without trusting X-Forwarded-For.
-func TestClientIP_StripsPort(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(context.Background())
-	r.RemoteAddr = "10.0.0.5:54321"
-	r.Header.Set("X-Forwarded-For", "1.2.3.4")
+// limitByIP must key the bucket on the port-stripped RemoteAddr and ignore X-Forwarded-For.
+func TestLimitByIP_BucketKey(t *testing.T) {
+	// burst 1 so the second request sharing a bucket is refused within the test window.
+	l := NewIPLimiter(1, 1, time.Hour, 0)
+	h := l.limitByIP(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 
-	host := func(r *http.Request) string {
-		// Mirror the inline logic in IPLimiter.limitByIP to ensure consistency.
-		l := NewIPLimiter(1, 1, time.Hour, 0)
-		var captured string
-		h := l.limitByIP(func(w http.ResponseWriter, req *http.Request) { captured = req.RemoteAddr })
+	send := func(remoteAddr, xff string) int {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.RemoteAddr = remoteAddr
+		if xff != "" {
+			r.Header.Set("X-Forwarded-For", xff)
+		}
 		w := httptest.NewRecorder()
 		h(w, r)
-		return captured
-	}(r)
-	if !strings.HasPrefix(host, "10.0.0.5:") {
-		t.Errorf("RemoteAddr modified unexpectedly: %q", host)
+		return w.Code
+	}
+
+	// Same host on different ports shares one bucket, so the burst is spent across them.
+	if code := send("10.0.0.5:1111", ""); code != http.StatusOK {
+		t.Fatalf("first request from host: got %d, want 200", code)
+	}
+	if code := send("10.0.0.5:2222", ""); code != http.StatusTooManyRequests {
+		t.Errorf("same host different port: got %d, want 429 (port not stripped from bucket key)", code)
+	}
+
+	// A spoofed X-Forwarded-For must not earn a fresh bucket; only RemoteAddr is trusted.
+	if code := send("10.0.0.5:3333", "1.2.3.4"); code != http.StatusTooManyRequests {
+		t.Errorf("spoofed X-Forwarded-For: got %d, want 429 (header wrongly honored)", code)
+	}
+
+	// A genuinely different host gets its own bucket, proving the 429s above are bucket-scoped.
+	if code := send("10.0.0.9:4444", ""); code != http.StatusOK {
+		t.Errorf("distinct host: got %d, want 200 (limiter not per-IP)", code)
 	}
 }
