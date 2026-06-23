@@ -44,7 +44,8 @@ paths:
         Accepts multipart/form-data containing thread dump files and optional CPU usage files. Starts an async job.
         Each file part may be sent raw or gzip-compressed; the backend detects the gzip signature (`0x1f 0x8b`) and
         inflates it, so clients can compress to clear gateway request-size limits. The compressed wire body is capped by
-        MAX_UPLOAD_BYTES and each inflated part by MAX_DECOMPRESSED_BYTES.
+        MAX_UPLOAD_BYTES, each inflated part by MAX_DECOMPRESSED_BYTES, and the inflated total across all parts by
+        MAX_TOTAL_DECOMPRESSED_BYTES. Each field accepts at most MAX_FILES_PER_REQUEST parts.
       requestBody:
         required: true
         content:
@@ -67,9 +68,11 @@ paths:
                     format: binary
                   description: |
                     Optional CPU usage files, indexed in upload order to align with thread_dumps[].
-                    Row format: whitespace-separated `PID TID %CPU TIME`. A header row beginning
-                    with `PID` is skipped. TID may be decimal or hex (`0x...`); the backend joins
-                    on TID == native thread id (`nid=0x...`) from the dump. TIME accepts
+                    Whitespace-separated rows. Columns are mapped by header name when present
+                    (thread id from `TID`/`LWP`/`SPID`, cpu from `%CPU`/`PCPU`/`CPU`; extra columns
+                    like `NLWP`/`C` ignored), falling back to fixed `PID TID %CPU TIME` positions when
+                    headerless. TID may be decimal or hex (`0x...`); the backend joins on
+                    TID == native thread id (`nid=0x...` or decimal `nid=`) from the dump. TIME accepts
                     `HH:MM:SS`, `MM:SS.mmm`, or plain seconds.
                     Example row:
                       `1234 12345 25.5 00:01:23`
@@ -135,7 +138,9 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: Job ID not found
+          description: |
+            Job ID not found, or (when AUTH_ENABLED) the job belongs to a different subject. The same
+            404 is returned either way, so a leaked job ID can't be confirmed to exist for another user.
 
 components:
   securitySchemes:
@@ -151,7 +156,8 @@ components:
       description: |
         Malformed or unusable upload (plain-text body, with a correlation ref where applicable). Causes:
         not a valid multipart body, the compressed body exceeds MAX_UPLOAD_BYTES, no thread_dumps part,
-        or a gzip part failed to inflate or exceeded MAX_DECOMPRESSED_BYTES.
+        more than MAX_FILES_PER_REQUEST parts in a field, a gzip part failed to inflate or exceeded
+        MAX_DECOMPRESSED_BYTES, or the inflated total across all parts exceeded MAX_TOTAL_DECOMPRESSED_BYTES.
       content:
         text/plain:
           schema:

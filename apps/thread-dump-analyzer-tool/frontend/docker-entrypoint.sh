@@ -22,9 +22,14 @@ set -e
 : "${ASGARDEO_CLIENT_ID:=}"
 : "${ASGARDEO_BASE_URL:=}"
 
-# Escape backslashes then single quotes so a hostile or malformed env value can't break out of the JS string literal.
+# Escape backslashes, single quotes, then CR/LF so a hostile or malformed env value can't break out of the JS string literal.
+# $!{N;ba} guards N with the last-line check so single-line values still reach the s/// commands (a bare :a;N;$!ba quits at EOF first).
 escape_js() {
-    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g"
+    printf '%s' "$1" | sed -e ':a' -e '$!{N;ba' -e '}' \
+        -e 's/\\/\\\\/g' \
+        -e "s/'/\\\\'/g" \
+        -e 's/\r/\\r/g' \
+        -e 's/\n/\\n/g'
 }
 API_URL_ESC=$(escape_js "$API_URL")
 ASGARDEO_CLIENT_ID_ESC=$(escape_js "$ASGARDEO_CLIENT_ID")

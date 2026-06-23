@@ -51,11 +51,25 @@ run_govulncheck() {
     bin="$(go env GOPATH)/bin/govulncheck"
   else
     echo "    installing govulncheck..."
-    go install golang.org/x/vuln/cmd/govulncheck@latest
+    if ! go install golang.org/x/vuln/cmd/govulncheck@latest; then
+      echo "    SKIP: govulncheck install failed (SCA signal incomplete)"
+      return 0
+    fi
     bin="$(go env GOPATH)/bin/govulncheck"
+    if [ ! -x "$bin" ]; then
+      echo "    SKIP: govulncheck not found at $bin after install (SCA signal incomplete)"
+      return 0
+    fi
   fi
   # Reachability-aware: only flags vulns in code paths actually called.
-  ( cd "$BACKEND_DIR" && "$bin" ./... ) || echo "    findings reported (non-blocking)"
+  ( cd "$BACKEND_DIR" && "$bin" ./... )
+  local rc=$?
+  # Exit 3 = vulnerabilities found (report-only); any other non-zero is a scanner failure, not a clean result.
+  case "$rc" in
+    0) ;;
+    3) echo "    findings reported (non-blocking)" ;;
+    *) echo "    WARN: govulncheck failed to run (exit $rc); SCA signal incomplete" ;;
+  esac
 }
 
 run_pnpm_audit() {

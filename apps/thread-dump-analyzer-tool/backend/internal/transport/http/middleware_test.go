@@ -177,6 +177,9 @@ func TestRequireAuth_RejectsBadRequests(t *testing.T) {
 	notYet := validToken(t)
 	notYet.Set(jwt.NotBeforeKey, time.Now().Add(10*time.Minute))
 
+	noSub := validToken(t)
+	noSub.Remove(jwt.SubjectKey) // valid signature but no owner to bind: must be rejected, not treated as auth-off
+
 	cases := []struct {
 		name   string
 		header string
@@ -190,6 +193,7 @@ func TestRequireAuth_RejectsBadRequests(t *testing.T) {
 		{"wrong issuer", "Bearer " + sign(t, priv, wrongIss)},
 		{"wrong audience", "Bearer " + sign(t, priv, wrongAud)},
 		{"not yet valid", "Bearer " + sign(t, priv, notYet)},
+		{"missing subject", "Bearer " + sign(t, priv, noSub)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

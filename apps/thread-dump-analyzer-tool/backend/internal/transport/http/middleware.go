@@ -164,8 +164,15 @@ func (a *Authenticator) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		// A token with no subject can't be bound to an owner; empty owner is the auth-off sentinel, so reject.
+		sub := tok.Subject()
+		if sub == "" {
+			slog.Warn("rejected request: token missing subject", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
+			unauthorized(w, "invalid or expired token")
+			return
+		}
 		// Carry the subject so handlers can bind a job to its creator and reject cross-user reads.
-		ctx := context.WithValue(r.Context(), subjectContextKey, tok.Subject())
+		ctx := context.WithValue(r.Context(), subjectContextKey, sub)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

@@ -21,7 +21,7 @@ import "regexp"
 // Secrets and PII scrubbed from thread text before it leaves for the AI API; specific patterns run before generic ones.
 var (
 	reAuth     = regexp.MustCompile(`(?i)\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+`)
-	reSecretKV = regexp.MustCompile(`(?i)\b([\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|authorization)[\w-]*)(\s*[:=]\s*)[^\s,;"'\[]+`)
+	reSecretKV = regexp.MustCompile(`(?i)\b([\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|authorization)[\w-]*)(\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;"'\[\]]+)`)
 	reJWT      = regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`)
 	reEmail    = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
 	reUUID     = regexp.MustCompile(`(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b`)

@@ -35,6 +35,8 @@ func TestScrub_RedactsSecretsAndPII(t *testing.T) {
 		{"basic", "header Basic dXNlcjpwYXNz end", "header [REDACTED_AUTH] end", "dXNlcjpwYXNz"},
 		{"jwt", "tok eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.SflKxwRJSMeKKF2QT4", "tok [REDACTED_JWT]", "eyJzdWIiOiIxMjM0In0"},
 		{"password_kv", "password=hunter2", "password=[REDACTED]", "hunter2"},
+		{"password_kv_dquoted", `password="hunter2"`, "password=[REDACTED]", "hunter2"},
+		{"token_kv_squoted", "access_token='s3cr3tValue'", "access_token=[REDACTED]", "s3cr3tValue"},
 		{"token_kv", "access_token: s3cr3tValue", "access_token: [REDACTED]", "s3cr3tValue"},
 		{"apikey_kv", "api_key=AKIA1234567890", "api_key=[REDACTED]", "AKIA1234567890"},
 		{"email", "user john.doe@example.com here", "user [REDACTED_EMAIL] here", "john.doe@example.com"},

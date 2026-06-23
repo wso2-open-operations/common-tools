@@ -77,7 +77,7 @@ Poll for job status and result.
 }
 ```
 
-`result` is populated only when `status == "completed"`. Returns `404` for unknown job IDs.
+`result` is populated only when `status == "completed"`. Returns `404` for unknown job IDs, or (when auth is on) for a job owned by a different subject; the same `404` is returned either way, so a leaked ID can't be confirmed.
 
 Uploads are validated fail-fast: if any uploaded file is not analyzable (a non-dump file with no parseable threads, or a malformed `thread_usages` file with no usable rows), the job ends as `failed` with an `error` that names the offending file, e.g. `Invalid file: no Java threads found in "usage.txt". Is it a Java thread dump?`. No partial `result` is produced in that case.
 
@@ -262,7 +262,7 @@ Multi-stage build: a static `CGO_ENABLED=0` binary on `alpine`. The image copies
 go test ./...               # Run all unit tests
 ```
 
-Unit tests live in `*_test.go` files beside the code they cover: parser, enricher, rules engine, aggregator, pattern matching, health scoring, and AI prompt construction under `internal/`; the job store and analysis pipeline under `internal/job`; and the HTTP handlers, rate/concurrency limiters, and JWT auth under `internal/transport/http`.
+Unit tests live in `*_test.go` files beside the code they cover: parser, enricher, rules engine, aggregator, pattern matching, health scoring, and AI prompt construction plus secret/PII scrubbing under `internal/`; config validation and the job store and analysis pipeline under `internal/config` and `internal/job`; and the HTTP handlers, rate/concurrency limiters, and JWT auth under `internal/transport/http`.
 
 ## File Structure
 
@@ -299,7 +299,8 @@ backend/
     ├── rules/
     │   └── rules.grl                29 Grule DSL rules (deadlock, high CPU, lock contention, catastrophic thread count, critical lock contention, DB pool, LDAP, OAuth, Hazelcast, low-severity high-CPU backstop, etc.)
     └── ai/
-        └── insights.go              Anthropic API call (claude-haiku-4-5), prompt build, JSON response parse
+        ├── insights.go              Anthropic API call (claude-haiku-4-5), prompt build, JSON response parse
+        └── scrub.go                 Redacts secrets/PII (auth, JWTs, key=value secrets, emails, UUIDs, IPv4) from thread text before the AI prompt
 ```
 
 ## License
