@@ -99,6 +99,7 @@ export const ColorModeProvider = ({ children }: ColorModeProviderProps) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useColorMode = (): ColorModeContextValue => {
   const ctx = useContext(ColorModeContext);
   if (!ctx) throw new Error('useColorMode must be used within ColorModeProvider');

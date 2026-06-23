@@ -80,6 +80,8 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 
 **Auth gate** - `AppHandler` checks Asgardeo auth state before rendering the router. Unauthenticated users see `LoginScreen`; loading state shows `PreLoader`. Both backend calls in `api/analyze.ts` attach the Asgardeo access token as an `Authorization: Bearer <jwt>` header (via `getAccessToken` from `useAuthContext`), which the backend requires when `AUTH_ENABLED`.
 
+**Notifications and error reporting** - app-wide alerts go through `NotificationContext` (`useNotify()`), which renders a centered modal alert: a dark box, severity-coloured (error/warning/success/info), shown one at a time and kept open until the user dismisses it. When a job ends in `failed`, the upload page shows the backend's actual reason (the same text the server logs) via `utils/jobError.ts#describeJobError` instead of a generic message; unexpected internal errors keep only their reference id (the stack stays server-side).
+
 ## Stack
 
 | Library | Purpose |
@@ -107,7 +109,7 @@ frontend/
 │   └── WSO2-Pulse-Orange.webp              App logo
 └── src/
     ├── main.tsx                            React root that wraps App in AuthProvider
-    ├── App.tsx                             Provider composition (ColorMode → QueryClient → Analysis → AppHandler)
+    ├── App.tsx                             Provider composition (ColorMode → QueryClient → Analysis → Notification → AppHandler)
     ├── App.css / index.css                 Global styles
     ├── theme.ts                            MUI theme factory (themeSettings(mode))
     ├── app/
@@ -126,7 +128,8 @@ frontend/
     │   └── authConfig.ts                   Asgardeo client config
     ├── context/
     │   ├── AnalysisContext.tsx             Session state, in-memory React state (not persisted)
-    │   └── ColorModeContext.tsx            Light/dark theme context, persisted to localStorage
+    │   ├── ColorModeContext.tsx            Light/dark theme context, persisted to localStorage
+    │   └── NotificationContext.tsx         App-wide alerts: NotificationProvider + useNotify(), centered modal alert
     ├── hooks/
     │   ├── useAnalyzeThreads.ts            Upload mutation + 3s polling query
     │   ├── useExportReport.ts              Generate and download text report
@@ -172,7 +175,8 @@ frontend/
     │   ├── lockContentionAnalysis.ts       deriveLockOwnerCentricData, detectDeadlocks
     │   ├── ruleCategories.ts               Maps backend issue strings to titled, described, severity-tagged finding categories
     │   ├── reportFormatter.ts              Plain-text report from AnalysisResponse
-    │   └── uploadValidation.ts             validateFiles, extractFileKey (boundary-safe prefix strip), PairedFile type
+    │   ├── uploadValidation.ts             validateFiles, extractFileKey (boundary-safe prefix strip), PairedFile type
+    │   └── jobError.ts                     describeJobError(error): backend job error to user-facing alert message
     └── types/
         ├── api.ts                          JobInitResponse, JobStatusResponse, AnalysisResponse, etc.
         └── global.d.ts                     Window.configs augmentation

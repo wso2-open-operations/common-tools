@@ -19,11 +19,13 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import {
     Box, Typography, Button, Chip, Paper, Container,
-    Alert, CircularProgress, Snackbar, Alert as MuiAlert, Tooltip, Backdrop,
+    Alert, CircularProgress, Tooltip, Backdrop,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAnalyzeThreads } from '@hooks/useAnalyzeThreads';
+import { useNotify } from '@context/NotificationContext';
 import { extractFileKey, type PairedFile } from '../../utils/uploadValidation';
+import { describeJobError } from '../../utils/jobError';
 import UploadCard from './components/UploadCard';
 import Header from '@src/layout/header';
 
@@ -39,7 +41,7 @@ const UploadPage: React.FC = () => {
 
     const [dumps, setDumps] = useState<File[]>([]);
     const [usages, setUsages] = useState<File[]>([]);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const notify = useNotify();
 
     const sortedDumps = [...dumps].sort((a, b) => a.name.localeCompare(b.name));
     const sortedUsages = [...usages].sort((a, b) => a.name.localeCompare(b.name));
@@ -95,7 +97,7 @@ const UploadPage: React.FC = () => {
             if (!result.threads || result.threads.length === 0) {
                 console.warn('[TDAT] upload: analysis completed but no threads were parsed', { errors: result.errors });
                 const detail = result.errors && result.errors.length > 0 ? ` ${result.errors.join(' | ')}.` : '';
-                setErrorMsg(`Invalid file(s) uploaded: No threads were found in the provided files.${detail} Please re-upload proper thread dumps.`);
+                notify(`Invalid file(s) uploaded: No threads were found in the provided files.${detail} Please re-upload proper thread dumps.`, 'error');
                 return;
             }
             if (result.errors && result.errors.length > 0) {
@@ -105,7 +107,7 @@ const UploadPage: React.FC = () => {
         }
         if (query.data?.status === 'failed') {
             console.error('[TDAT] upload: analysis job failed', { error: query.data.error });
-            setErrorMsg('Analysis failed: the server could not process the uploaded files.');
+            notify(describeJobError(query.data.error), 'error');
         }
     }, [query.data?.status]);
 
@@ -116,7 +118,7 @@ const UploadPage: React.FC = () => {
             {
                 onError: (err) => {
                     console.error('[TDAT] upload: mutation onError', err);
-                    setErrorMsg(`Upload failed: ${err.message}`);
+                    notify(`Upload failed: ${err.message}`, 'error');
                 },
             }
         );
@@ -126,7 +128,7 @@ const UploadPage: React.FC = () => {
         const existingNames = new Set(prev.map(f => f.name));
         const unique = newFiles.filter(f => !existingNames.has(f.name));
         const skipped = newFiles.length - unique.length;
-        if (skipped > 0) setErrorMsg(`${skipped} duplicate file(s) were skipped.`);
+        if (skipped > 0) notify(`${skipped} duplicate file(s) were skipped.`, 'warning');
         return [...prev, ...unique];
     };
 
@@ -146,8 +148,6 @@ const UploadPage: React.FC = () => {
                     </Typography>
                 </Box>
 
-                {mutation.error && <Alert severity="error" sx={{ mb: 3 }}>Upload failed: {mutation.error.message}</Alert>}
-
                 <Box sx={{ display: 'flex', gap: 3, mb: 0 }}>
                     <Box sx={{ flex: 1 }}>
                         <UploadCard
@@ -159,7 +159,7 @@ const UploadPage: React.FC = () => {
                             onAddFiles={(newFiles) => setDumps(prev => addUnique(prev, newFiles))}
                             onClearFiles={() => setDumps([])}
                             onRemoveFile={(file) => setDumps(prev => prev.filter(f => f !== file))}
-                            onError={setErrorMsg}
+                            onError={(msg) => notify(msg, 'error')}
                         />
                     </Box>
                     <Box sx={{ flex: 1 }}>
@@ -172,7 +172,7 @@ const UploadPage: React.FC = () => {
                             onAddFiles={(newFiles) => setUsages(prev => addUnique(prev, newFiles))}
                             onClearFiles={() => setUsages([])}
                             onRemoveFile={(file) => setUsages(prev => prev.filter(f => f !== file))}
-                            onError={setErrorMsg}
+                            onError={(msg) => notify(msg, 'error')}
                         />
                     </Box>
                 </Box>
@@ -290,12 +290,6 @@ const UploadPage: React.FC = () => {
                         {loadingLabel}
                     </Typography>
                 </Backdrop>
-
-                <Snackbar open={!!errorMsg} autoHideDuration={4000} onClose={() => setErrorMsg(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-                    <MuiAlert onClose={() => setErrorMsg(null)} severity="error" sx={{ width: '100%' }}>
-                        {errorMsg}
-                    </MuiAlert>
-                </Snackbar>
             </Container>
         </Box>
     );

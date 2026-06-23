@@ -18,6 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { AnalysisProvider } from '@context/AnalysisContext';
 import { ColorModeProvider } from '@context/ColorModeContext';
+import { NotificationProvider } from '@context/NotificationContext';
 import AppHandler from '@app/AppHandler';
 
 const queryClient = new QueryClient();
@@ -27,7 +28,9 @@ function App() {
     <ColorModeProvider>
       <QueryClientProvider client={queryClient}>
         <AnalysisProvider>
-          <AppHandler />
+          <NotificationProvider>
+            <AppHandler />
+          </NotificationProvider>
         </AnalysisProvider>
       </QueryClientProvider>
     </ColorModeProvider>
