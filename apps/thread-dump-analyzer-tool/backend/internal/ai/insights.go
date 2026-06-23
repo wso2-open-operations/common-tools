@@ -186,12 +186,12 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 
 	for _, c := range candidates {
 		t, worst := c.thread, c.snapshot
-		fmt.Fprintf(&sb, "[%s] %q pool=%s state=%s", worst.RiskLevel, t.Name, t.ThreadPool, worst.State)
+		fmt.Fprintf(&sb, "[%s] %q pool=%s state=%s", worst.RiskLevel, scrub(t.Name), t.ThreadPool, worst.State)
 		if usageProvided && worst.CPUPercentage > 0 {
 			fmt.Fprintf(&sb, " cpu=%.1f%%", worst.CPUPercentage)
 		}
 		if len(worst.Issues) > 0 {
-			fmt.Fprintf(&sb, " issues=[%s]", strings.Join(quoteAll(worst.Issues), ","))
+			fmt.Fprintf(&sb, " issues=[%s]", strings.Join(quoteAll(scrubAll(worst.Issues)), ","))
 		}
 		// Top 3 stack frames only
 		frames := worst.StackTrace
@@ -199,7 +199,7 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 			frames = frames[:3]
 		}
 		if len(frames) > 0 {
-			fmt.Fprintf(&sb, " stack=[%s]", strings.Join(quoteAll(frames), " | "))
+			fmt.Fprintf(&sb, " stack=[%s]", strings.Join(quoteAll(scrubAll(frames)), " | "))
 		}
 		fmt.Fprintf(&sb, "\n")
 	}

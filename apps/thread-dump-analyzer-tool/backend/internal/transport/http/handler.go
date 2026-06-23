@@ -53,7 +53,7 @@ func NewRouter(cfg *config.Config, jobStore *job.JobStore, engine *analyzer.Rule
 	})
 	// IP rate-limit wraps auth so unauthenticated floods can't burn JWT verification cycles.
 	mux.HandleFunc("POST /analyze/jobs", ipLimiter.limitByIP(requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		analyzeJobsHandler(w, r, jobStore, engine, enricher, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, jobLimiter)
+		analyzeJobsHandler(w, r, jobStore, engine, enricher, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.MaxFilesPerRequest, cfg.JobTimeout, cfg.AIInsightsEnabled, jobLimiter)
 	})))
 	mux.HandleFunc("GET /analyze/jobs/{id}", requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		jobStatusHandler(w, r, jobStore)
@@ -122,7 +122,7 @@ func readMultipartFiles(headers []*multipart.FileHeader, maxDecompressedBytes, m
 	return out, nil
 }
 
-func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes, maxDecompressedBytes, maxTotalDecompressedBytes int64, jobTimeout time.Duration, jobLimiter *job.JobLimiter) {
+func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes, maxDecompressedBytes, maxTotalDecompressedBytes int64, maxFilesPerRequest int, jobTimeout time.Duration, aiEnabled bool, jobLimiter *job.JobLimiter) {
 	// reqID correlates the generic client message with the full server-side log entry.
 	reqID := uuid.NewString()
 
@@ -141,6 +141,12 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobSt
 
 	if len(dumpHeaders) == 0 {
 		http.Error(w, "No thread dumps uploaded", http.StatusBadRequest)
+		return
+	}
+
+	// Cap file count: runAnalysis spawns one goroutine per dump, so an unbounded part count is a goroutine/parse amplifier.
+	if len(dumpHeaders) > maxFilesPerRequest || len(usageHeaders) > maxFilesPerRequest {
+		http.Error(w, fmt.Sprintf("Too many files in one request (limit %d per field)", maxFilesPerRequest), http.StatusBadRequest)
 		return
 	}
 
@@ -164,10 +170,12 @@ func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *job.JobSt
 		return
 	}
 
-	j := store.Create()
+	ownerSub := subjectFromContext(r.Context())
+	j := store.Create(ownerSub)
+	slog.Info("analysis job created", "job_id", j.ID, "user", ownerSub)
 	go func() {
 		defer jobLimiter.Release()
-		job.RunJob(j.ID, dumps, usages, store, eng, enricher, jobTimeout)
+		job.RunJob(j.ID, ownerSub, dumps, usages, store, eng, enricher, jobTimeout, aiEnabled)
 	}()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -183,6 +191,13 @@ func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *job.JobStor
 	}
 	j, ok := store.Get(id)
 	if !ok {
+		http.Error(w, "job not found", http.StatusNotFound)
+		return
+	}
+	// Bind results to their creator: an owned job is readable only by the same subject.
+	// 404 (not 403) so a leaked job ID can't be confirmed to exist by another user.
+	if subject := subjectFromContext(r.Context()); j.OwnerSub != "" && j.OwnerSub != subject {
+		slog.Warn("job access denied", "job_id", id, "user", subject, "owner", j.OwnerSub)
 		http.Error(w, "job not found", http.StatusNotFound)
 		return
 	}

@@ -17,6 +17,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -46,6 +47,7 @@ type Config struct {
 	MaxUploadBytes            int64
 	MaxDecompressedBytes      int64
 	MaxTotalDecompressedBytes int64
+	MaxFilesPerRequest        int
 	JobTTL                    time.Duration
 	JobStoreMaxSize           int
 	JobJanitorTick            time.Duration
@@ -62,6 +64,9 @@ type Config struct {
 	JWKSURL     string
 	JWTIssuer   string
 	JWTAudience string
+
+	// AIInsightsEnabled gates the outbound Anthropic call; false keeps all thread-dump data in-process even when a key is configured.
+	AIInsightsEnabled bool
 }
 
 // LoadConfig reads env vars, falling back to defaults when unset or malformed.
@@ -107,6 +112,7 @@ func LoadConfig() *Config {
 		MaxUploadBytes:            uploadBytes,
 		MaxDecompressedBytes:      decompressedBytes,
 		MaxTotalDecompressedBytes: getEnvBytes("MAX_TOTAL_DECOMPRESSED_BYTES", decompressedBytes*2),
+		MaxFilesPerRequest:        getEnvInt("MAX_FILES_PER_REQUEST", 200),
 		JobTTL:                    getEnvDuration("JOB_TTL", 1*time.Hour),
 		JobStoreMaxSize:           getEnvInt("JOB_STORE_MAX_SIZE", 200),
 		JobJanitorTick:            getEnvDuration("JOB_JANITOR_TICK", 1*time.Minute),
@@ -122,7 +128,19 @@ func LoadConfig() *Config {
 		JWKSURL:     jwksURL,
 		JWTIssuer:   jwtIssuer,
 		JWTAudience: getEnv("JWT_AUDIENCE", ""),
+
+		AIInsightsEnabled: getEnvBool("AI_INSIGHTS_ENABLED", true),
 	}
+}
+
+// Validate enforces cross-field invariants that must hold before the server boots.
+// It returns an error rather than logging so the caller can fail fast.
+func (c *Config) Validate() error {
+	// Without an audience check, a token minted by the same IdP for another client is accepted here.
+	if c.AuthEnabled && c.JWTAudience == "" {
+		return errors.New("AUTH_ENABLED=true requires JWT_AUDIENCE (the app's client ID) so tokens minted for other Asgardeo apps are rejected; set JWT_AUDIENCE, or set AUTH_ENABLED=false for local dev")
+	}
+	return nil
 }
 
 // getEnvBool parses a boolean (true/false/1/0/yes/no/on/off, case-insensitive); warns and falls back on malformed input.

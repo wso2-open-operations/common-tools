@@ -19,6 +19,7 @@ package http
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -36,11 +37,13 @@ func newTestConfig() *config.Config {
 		MaxUploadBytes:            1 << 20,
 		MaxDecompressedBytes:      10 << 20,
 		MaxTotalDecompressedBytes: 20 << 20,
+		MaxFilesPerRequest:        50,
 		JobTTL:                    time.Hour,
 		JobStoreMaxSize:           10,
 		JobJanitorTick:            time.Hour,
 		JobTimeout:                500 * time.Millisecond,
 		MaxConcurrentJobs:         5,
+		AIInsightsEnabled:         false,
 	}
 }
 
@@ -77,7 +80,7 @@ func TestAnalyzeJobsHandler_400OnMissingDumps(t *testing.T) {
 	r.Header.Set("Content-Type", ct)
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.MaxFilesPerRequest, cfg.JobTimeout, cfg.AIInsightsEnabled, job.NewJobLimiter(cfg.MaxConcurrentJobs))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d, want 400", w.Code)
@@ -102,7 +105,7 @@ func TestAnalyzeJobsHandler_429WhenJobLimiterSaturated(t *testing.T) {
 	r.Header.Set("Content-Type", ct)
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, limiter)
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.MaxFilesPerRequest, cfg.JobTimeout, cfg.AIInsightsEnabled, limiter)
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("code=%d, want 429", w.Code)
@@ -116,7 +119,7 @@ func TestAnalyzeJobsHandler_BadMultipartReturnsRefAndGenericMessage(t *testing.T
 	r.Header.Set("Content-Type", "multipart/form-data; boundary=xxx")
 	w := httptest.NewRecorder()
 
-	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.JobTimeout, job.NewJobLimiter(cfg.MaxConcurrentJobs))
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.MaxFilesPerRequest, cfg.JobTimeout, cfg.AIInsightsEnabled, job.NewJobLimiter(cfg.MaxConcurrentJobs))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d, want 400", w.Code)
@@ -144,7 +147,7 @@ func TestJobStatusHandler_404WhenUnknown(t *testing.T) {
 
 func TestJobStatusHandler_ReturnsJobJSON(t *testing.T) {
 	store := newJobStoreForTest(t)
-	jb := store.Create()
+	jb := store.Create("")
 	store.Update(jb.ID, func(j *job.Job) { j.Status = job.JobCompleted })
 
 	r := httptest.NewRequest(http.MethodGet, "/analyze/jobs/"+jb.ID, nil)
@@ -161,6 +164,55 @@ func TestJobStatusHandler_ReturnsJobJSON(t *testing.T) {
 	}
 	if got.ID != jb.ID || got.Status != job.JobCompleted {
 		t.Errorf("got=%+v", got)
+	}
+}
+
+// An owned job is readable only by its creating subject; others get 404 (not 403), so a leaked ID isn't confirmable.
+func TestJobStatusHandler_EnforcesOwnership(t *testing.T) {
+	store := newJobStoreForTest(t)
+	jb := store.Create("alice")
+	store.Update(jb.ID, func(j *job.Job) { j.Status = job.JobCompleted })
+
+	get := func(sub string) int {
+		r := httptest.NewRequest(http.MethodGet, "/analyze/jobs/"+jb.ID, nil)
+		r.SetPathValue("id", jb.ID)
+		if sub != "" {
+			r = r.WithContext(context.WithValue(r.Context(), subjectContextKey, sub))
+		}
+		w := httptest.NewRecorder()
+		jobStatusHandler(w, r, store)
+		return w.Code
+	}
+
+	if code := get("alice"); code != http.StatusOK {
+		t.Errorf("owner read: code=%d, want 200", code)
+	}
+	if code := get("bob"); code != http.StatusNotFound {
+		t.Errorf("cross-user read: code=%d, want 404", code)
+	}
+	if code := get(""); code != http.StatusNotFound {
+		t.Errorf("unauthenticated read of owned job: code=%d, want 404", code)
+	}
+}
+
+// More dump parts than the per-request cap → 400 before any goroutine is spawned.
+func TestAnalyzeJobsHandler_400OnTooManyFiles(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.MaxFilesPerRequest = 2
+	body, ct := buildMultipart(t, map[string][]struct{ name, content string }{
+		"thread_dumps": {{"d1.txt", "x"}, {"d2.txt", "x"}, {"d3.txt", "x"}},
+	})
+	r := httptest.NewRequest(http.MethodPost, "/analyze/jobs", body)
+	r.Header.Set("Content-Type", ct)
+	w := httptest.NewRecorder()
+
+	analyzeJobsHandler(w, r, newJobStoreForTest(t), nil, nil, cfg.MaxUploadBytes, cfg.MaxDecompressedBytes, cfg.MaxTotalDecompressedBytes, cfg.MaxFilesPerRequest, cfg.JobTimeout, cfg.AIInsightsEnabled, job.NewJobLimiter(cfg.MaxConcurrentJobs))
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("code=%d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Too many files") {
+		t.Errorf("unexpected body: %s", w.Body.String())
 	}
 }
 

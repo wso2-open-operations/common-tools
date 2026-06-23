@@ -21,11 +21,19 @@ set -e
 : "${API_URL:=http://localhost:8080}"
 : "${ASGARDEO_CLIENT_ID:=}"
 : "${ASGARDEO_BASE_URL:=}"
+
+# Escape backslashes then single quotes so a hostile or malformed env value can't break out of the JS string literal.
+escape_js() {
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g"
+}
+API_URL_ESC=$(escape_js "$API_URL")
+ASGARDEO_CLIENT_ID_ESC=$(escape_js "$ASGARDEO_CLIENT_ID")
+ASGARDEO_BASE_URL_ESC=$(escape_js "$ASGARDEO_BASE_URL")
 cat > /usr/share/nginx/html/config.js <<EOF
 window.configs = {
-    apiUrl: '${API_URL}',
-    ASGARDEO_CLIENT_ID: '${ASGARDEO_CLIENT_ID}',
-    ASGARDEO_BASE_URL: '${ASGARDEO_BASE_URL}'
+    apiUrl: '${API_URL_ESC}',
+    ASGARDEO_CLIENT_ID: '${ASGARDEO_CLIENT_ID_ESC}',
+    ASGARDEO_BASE_URL: '${ASGARDEO_BASE_URL_ESC}'
 };
 EOF
 

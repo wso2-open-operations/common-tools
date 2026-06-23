@@ -32,7 +32,7 @@ go run ./cmd/api
 # Server starts at http://localhost:8080
 ```
 
-Auth is ON by default. Set `AUTH_ENABLED=false` to make the `/analyze/jobs` endpoints public for local work; otherwise the server refuses to start unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is set. Every other knob has a default in `internal/config/config.go#LoadConfig`; see `backend/.env.example`.
+Auth is ON by default. Set `AUTH_ENABLED=false` to make the `/analyze/jobs` endpoints public for local work; otherwise the server refuses to start unless both `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) and `JWT_AUDIENCE` (the app's client ID) are set. Every other knob has a default in `internal/config/config.go#LoadConfig`; see `backend/.env.example`.
 
 ### Running the frontend
 
@@ -50,7 +50,7 @@ The SPA reads the backend URL from `public/config.js` at runtime via `window.con
 
 ```bash
 cp .env.example .env
-# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID
+# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID, JWT_AUDIENCE
 docker compose up --build
 # Frontend on http://localhost:8081, backend on http://localhost:8080
 ```
@@ -66,7 +66,7 @@ cd backend
 gofmt -l .         # list unformatted files (should be empty)
 go vet ./...       # static checks
 go build ./...     # confirm it compiles
-go test ./...      # parser, analyzer, ai, job, transport/http (handlers, auth, limiters)
+go test ./...      # parser, analyzer, ai (incl. scrub), config, job, transport/http (handlers, auth, limiters)
 ```
 
 The frontend has no JS unit-test runner configured yet; `pnpm lint` plus a clean `pnpm build` (which runs `tsc -b`) is the bar. Verify UI changes by hand in `pnpm dev`.
@@ -129,6 +129,9 @@ Before requesting review, verify your changes:
 **Comments and prose:**
 - [ ] Comments are single-line and explain *why*, not *what*
 - [ ] Docs and comments prefer commas, colons, or parentheses over em-dashes
+
+**Dependencies & security:**
+- [ ] Added or bumped a dependency? `make sca` passes (`pnpm audit` gates on high+; `govulncheck` and Trivy are report-only)
 
 **Documentation:**
 - [ ] Behaviour, config, or API change is reflected in the relevant `README.md`

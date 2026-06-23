@@ -40,6 +40,10 @@ func main() {
 	}
 
 	cfg := config.LoadConfig()
+	if err := cfg.Validate(); err != nil {
+		slog.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	// Initialize Rules Engine
 	engine, err := analyzer.NewEngine(cfg.RulesPath)

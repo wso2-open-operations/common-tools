@@ -217,6 +217,26 @@ func TestRequireAuth_AudienceSkippedWhenUnset(t *testing.T) {
 	}
 }
 
+// A valid token's subject must reach the request context so handlers can bind jobs to their creator.
+func TestRequireAuth_PropagatesSubject(t *testing.T) {
+	priv := newSigningKey(t)
+	authn := newTestAuth(t, priv, testAudience)
+
+	var gotSub string
+	h := authn.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+		gotSub = subjectFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/analyze/jobs/abc", nil)
+	r.Header.Set("Authorization", "Bearer "+sign(t, priv, validToken(t)))
+	h(w, r)
+
+	if gotSub != "user-123" {
+		t.Fatalf("subject in context = %q, want %q", gotSub, "user-123")
+	}
+}
+
 func TestRequireAuth_Sets401Challenge(t *testing.T) {
 	priv := newSigningKey(t)
 	authn := newTestAuth(t, priv, testAudience)

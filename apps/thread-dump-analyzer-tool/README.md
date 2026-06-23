@@ -37,7 +37,7 @@ go run ./cmd/api
 
 If `ANTHROPIC_API_KEY` is not set, the server still runs and analysis completes (AI insights will return a static "unavailable" message instead of an error).
 
-**Authentication is enabled by default** (`AUTH_ENABLED=true`): the `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header validated against Asgardeo, and the server **refuses to start** unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is configured. For local testing without an identity provider, set `AUTH_ENABLED=false` to make the endpoints public.
+**Authentication is enabled by default** (`AUTH_ENABLED=true`): the `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header validated against Asgardeo, and the server **refuses to start** unless both `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) and `JWT_AUDIENCE` (the app's client ID) are configured. For local testing without an identity provider, set `AUTH_ENABLED=false` to make the endpoints public.
 
 CORS defaults to allowing only `http://localhost:5173`. For other origins set `CORS_ALLOWED_ORIGINS` in `.env` (comma-separated).
 
@@ -63,20 +63,22 @@ Both services ship as container images. No host- or tenant-specific values are b
 
 ```bash
 cp .env.example .env
-# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID
+# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID, JWT_AUDIENCE
 docker compose up --build
 ```
 
-Frontend on `http://localhost:8081`, backend on `http://localhost:8080`. The SPA always signs in through Asgardeo, so `ASGARDEO_BASE_URL` and `ASGARDEO_CLIENT_ID` must be set even for a local run. (To exercise the backend API alone, set `AUTH_ENABLED=false` and use `curl` or the built-in form at the backend's `GET /`.)
+Frontend on `http://localhost:8081`, backend on `http://localhost:8080`. The SPA always signs in through Asgardeo, so `ASGARDEO_BASE_URL` and `ASGARDEO_CLIENT_ID` must be set even for a local run, and (auth being on) `JWT_AUDIENCE` must be set to the client ID or the backend will not start. (To exercise the backend API alone, set `AUTH_ENABLED=false` and use `curl` or the built-in form at the backend's `GET /`.)
 
 ### Runtime configuration
 
 | Variable | Service | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | backend | AI insights key; jobs still complete (insights omitted) when unset |
+| `AI_INSIGHTS_ENABLED` | backend | `true` (default) sends analysis data to Anthropic when a key is set; `false` keeps all thread-dump data in-process |
 | `ASGARDEO_BASE_URL` | both | Asgardeo tenant base URL; backend derives JWKS + issuer, frontend uses it to sign in |
 | `ASGARDEO_CLIENT_ID` | frontend | Asgardeo SPA client ID (public) |
 | `AUTH_ENABLED` | backend | `true` (default) requires a Bearer JWT on `/analyze/jobs` |
+| `JWT_AUDIENCE` | backend | Expected `aud` claim (the app's client ID); **required when `AUTH_ENABLED=true`** or the server won't start |
 | `API_URL` | frontend | Browser-facing backend URL, injected into `config.js` at start |
 | `CORS_ALLOWED_ORIGINS` | backend | Must list the exact origin the SPA is served from |
 | `LOG_FILE` | backend | Where to mirror session logs (plain text). The Docker image defaults to `off` (stderr only). Set to a writable path like `/data/logs/tdat.log` (with a mounted volume) to enable, or leave `off`. Outside Docker it defaults to `logs/tdat-session-<ts>.log` |
@@ -212,6 +214,26 @@ The frontend derives the full lock contention graph directly from the raw thread
 After rule analysis, the backend sends a summarized thread report (up to 40 non-INFO threads, top 3 stack frames each) to Anthropic's `claude-haiku-4-5-20251001` model. The system prompt is tailored for WSO2/Java performance engineering, instructing the model to cite specific thread names and packages. The response is structured JSON with `executive_summary`, `pattern_recognition`, and `recommended_actions`.
 
 User-controlled fields in the prompt (issue strings, stack frames) are wrapped with `%q` via a `quoteAll` helper to prevent prompt injection from adversarial thread names or stack frames.
+
+Before any thread text leaves the process, thread names, issues, and stack frames are scrubbed of secrets and PII (auth headers, JWTs, `key=value` secrets, emails, UUIDs, IPv4 addresses) by `backend/internal/ai/scrub.go`, so customer data is not sent to the third-party API. Scrubbing is always on and applies only to the AI prompt; the analysis result returned to the caller is unredacted.
+
+## Security scanning & dependencies
+
+Dependencies are fully pinned (`go.sum`, `pnpm-lock.yaml`). Software Composition Analysis ships as an app-local script so it lives entirely inside this directory (GitHub-native CI and Dependabot must sit in the repo-root `.github/`, which is outside this app's scope):
+
+```bash
+make sca            # run every scan
+make sca-backend    # govulncheck only
+make sca-frontend   # pnpm audit only
+make sca-trivy      # Trivy only
+# or call the script directly: ./scripts/sca.sh [all|backend|frontend|trivy]
+```
+
+- **`govulncheck`** (backend): reachability-aware vulnerability scan of the Go code; report-only. Installs the tool on first run if it is not already present.
+- **`pnpm audit`** (frontend): advisory scan of the dependency tree; gates on **high+**. The original 27 high findings were cleared via `pnpm.overrides` in `frontend/package.json` (patched `axios`, `form-data`, `react-router`, `vite`, `rollup`, `minimatch`, `picomatch`, `flatted`); remove an override once its parent ships the fix.
+- **Trivy** (filesystem + Dockerfiles): dependency CVEs, misconfigurations, and committed secrets; report-only. Uses a local `trivy` binary, falling back to the `aquasec/trivy` Docker image.
+
+Only `pnpm audit` high+ fails the run (exit non-zero); the rest are report-only. The script needs no repo-root files, so it runs unchanged on any machine or CI runner. To wire it into automated PR checks or add Dependabot, a maintainer adds the corresponding config under the repo-root `.github/` and points it at `apps/thread-dump-analyzer-tool/scripts/sca.sh`.
 
 ## License
 

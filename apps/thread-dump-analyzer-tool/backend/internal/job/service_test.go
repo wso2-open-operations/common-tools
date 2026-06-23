@@ -110,7 +110,7 @@ func TestJobLimiter_ZeroOrNegativeMaxBecomesOne(t *testing.T) {
 
 func TestJobStore_Get_ReturnsSnapshotNotPointer(t *testing.T) {
 	store := newJobStoreForTest(t)
-	jb := store.Create()
+	jb := store.Create("")
 	snap1, _ := store.Get(jb.ID)
 	store.Update(jb.ID, func(j *Job) { j.Status = JobFailed })
 	if snap1.Status == JobFailed {
@@ -123,9 +123,9 @@ func TestJobStore_TerminalEvictionUnderPressure(t *testing.T) {
 	cfg.JobStoreMaxSize = 2
 	store := NewJobStore(cfg)
 
-	a := store.Create()
-	b := store.Create()
-	c := store.Create()
+	a := store.Create("")
+	b := store.Create("")
+	c := store.Create("")
 	store.Update(a.ID, func(j *Job) { j.Status = JobCompleted; j.UpdatedAt = time.Now().Add(-time.Hour) })
 	store.Update(b.ID, func(j *Job) { j.Status = JobCompleted })
 	store.Update(c.ID, func(j *Job) { j.Status = JobRunning })
@@ -148,19 +148,19 @@ func TestRunJob_TimeoutMarksFailed(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.JobTimeout = 50 * time.Millisecond
 	store := NewJobStore(cfg)
-	jb := store.Create()
+	jb := store.Create("")
 
 	// Swap runAnalysisFn for a stub that blocks until ctx is cancelled, so the deadline path is the only way out.
 	prev := runAnalysisFn
 	t.Cleanup(func() { runAnalysisFn = prev })
-	runAnalysisFn = func(ctx context.Context, _, _ []FilePayload, _ *analyzer.RuleEngine, _ *analyzer.ThreadEnricher) (*AggregatedAnalysisResponse, error) {
+	runAnalysisFn = func(ctx context.Context, _, _ []FilePayload, _ *analyzer.RuleEngine, _ *analyzer.ThreadEnricher, _ bool) (*AggregatedAnalysisResponse, error) {
 		<-ctx.Done()
 		return nil, nil
 	}
 
 	done := make(chan struct{})
 	go func() {
-		RunJob(jb.ID, nil, nil, store, nil, nil, cfg.JobTimeout)
+		RunJob(jb.ID, "", nil, nil, store, nil, nil, cfg.JobTimeout, false)
 		close(done)
 	}()
 	select {
@@ -186,7 +186,7 @@ func TestRunJob_TimeoutMarksFailed(t *testing.T) {
 func TestRunAnalysis_FailsFastOnNonDumpFile(t *testing.T) {
 	dumps := []FilePayload{{FileName: "notes.txt", Data: []byte("this is not a thread dump\njust some prose\n")}}
 
-	resp, err := runAnalysis(context.Background(), dumps, nil, nil, nil)
+	resp, err := runAnalysis(context.Background(), dumps, nil, nil, nil, false)
 	if resp != nil {
 		t.Fatalf("expected nil response on invalid upload, got %+v", resp)
 	}
@@ -204,7 +204,7 @@ func TestRunAnalysis_FailsFastOnInvalidUsageFile(t *testing.T) {
 	dumps := []FilePayload{{FileName: "d.txt", Data: []byte(dump)}}
 	usages := []FilePayload{{FileName: "u.txt", Data: []byte("garbage with no usable columns\n")}}
 
-	resp, err := runAnalysis(context.Background(), dumps, usages, nil, nil)
+	resp, err := runAnalysis(context.Background(), dumps, usages, nil, nil, false)
 	if resp != nil {
 		t.Fatalf("expected nil response on invalid usage, got %+v", resp)
 	}

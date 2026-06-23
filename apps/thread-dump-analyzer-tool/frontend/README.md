@@ -46,7 +46,7 @@ docker run -p 8081:8080 \
   tdat-frontend
 ```
 
-Multi-stage build: `pnpm build`, then nginx on `alpine`. At container start `docker-entrypoint.sh` writes `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` into `config.js` (`window.configs`), so one image serves any backend and Asgardeo tenant without rebuilding. nginx renders its `listen` port from `$PORT` (default 8080) via `nginx.conf.template` and serves the SPA with an `index.html` fallback for client-side routes. It runs as a non-root user (UID 10015, in Choreo's range) and writes only under `/tmp`. For the full stack use the root `docker-compose.yml`; see the root README "Run with Docker".
+Multi-stage build: `pnpm build`, then nginx on `alpine`. At container start `docker-entrypoint.sh` writes `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` into `config.js` (`window.configs`), escaping each value so a malformed env value can't break out of the JS string. nginx renders its `listen` port from `$PORT` (default 8080) via `nginx.conf.template` and serves the SPA with an `index.html` fallback for client-side routes. Responses carry browser security headers (CSP, `X-Content-Type-Options`, frame-deny, Referrer/Permissions-Policy, HSTS) from `security-headers.conf`; tighten the CSP `connect-src`/`frame-src` to your exact backend and Asgardeo origins per deployment. It runs as a non-root user (UID 10015, in Choreo's range) and writes only under `/tmp`. For the full stack use the root `docker-compose.yml`; see the root README "Run with Docker".
 
 ## Pages
 

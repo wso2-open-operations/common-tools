@@ -63,6 +63,7 @@ const (
 // Result is populated once Status is JobCompleted; Error is populated on JobFailed.
 type Job struct {
 	ID        string                      `json:"job_id"`
+	OwnerSub  string                      `json:"-"` // authenticated "sub" that created the job; gates GET access, never serialized
 	Status    JobStatus                   `json:"status"`
 	CreatedAt time.Time                   `json:"created_at"`
 	UpdatedAt time.Time                   `json:"updated_at"`
@@ -130,9 +131,13 @@ func (s *JobStore) evict() {
 	sort.Slice(terminal, func(i, j int) bool { return terminal[i].ts.Before(terminal[j].ts) })
 
 	excess := len(s.jobs) - s.maxSize
+	evicted := 0
 	for i := 0; i < excess && i < len(terminal); i++ {
 		delete(s.jobs, terminal[i].id)
+		evicted++
 	}
+	// Hitting the size cap is a memory-pressure signal; warn so platform alerting can catch it instead of dropping jobs silently.
+	slog.Warn("job store at capacity, force-evicted oldest terminal jobs", "evicted", evicted, "size", len(s.jobs), "max_size", s.maxSize)
 }
 
 func isTerminal(s JobStatus) bool {
@@ -168,10 +173,11 @@ func (l *JobLimiter) Release() {
 	}
 }
 
-func (s *JobStore) Create() *Job {
+func (s *JobStore) Create(ownerSub string) *Job {
 	now := time.Now()
 	j := &Job{
 		ID:        uuid.New().String(),
+		OwnerSub:  ownerSub,
 		Status:    JobPending,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -221,7 +227,7 @@ type analysisResult struct {
 var runAnalysisFn = runAnalysis
 
 // RunJob drives one analysis under a deadline; the inner sub-goroutine respects ctx at phase boundaries and a buffered done channel keeps it leak-free.
-func RunJob(jobID string, dumps, usages []FilePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration) {
+func RunJob(jobID, ownerSub string, dumps, usages []FilePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration, aiEnabled bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
 	defer cancel()
 
@@ -240,13 +246,13 @@ func RunJob(jobID string, dumps, usages []FilePayload, store *JobStore, eng *ana
 			}
 			done <- analysisResult{resp: resp, err: err, rec: rec, stack: stack}
 		}()
-		resp, err = runAnalysisFn(ctx, dumps, usages, eng, enricher)
+		resp, err = runAnalysisFn(ctx, dumps, usages, eng, enricher, aiEnabled)
 	}()
 
 	select {
 	case r := <-done:
 		if r.rec != nil {
-			slog.Error("analysis panicked", "job_id", jobID, "panic", fmt.Sprintf("%v", r.rec), "stack", string(r.stack))
+			slog.Error("analysis panicked", "job_id", jobID, "user", ownerSub, "panic", fmt.Sprintf("%v", r.rec), "stack", string(r.stack))
 			store.Update(jobID, func(j *Job) {
 				j.Status = JobFailed
 				j.Error = fmt.Sprintf("internal error (ref=%s)", jobID)
@@ -254,6 +260,7 @@ func RunJob(jobID string, dumps, usages []FilePayload, store *JobStore, eng *ana
 			return
 		}
 		if ctx.Err() != nil {
+			slog.Warn("analysis timed out", "job_id", jobID, "user", ownerSub, "timeout", jobTimeout)
 			store.Update(jobID, func(j *Job) {
 				j.Status = JobFailed
 				j.Error = fmt.Sprintf("analysis timed out after %s", jobTimeout)
@@ -261,7 +268,7 @@ func RunJob(jobID string, dumps, usages []FilePayload, store *JobStore, eng *ana
 			return
 		}
 		if r.err != nil {
-			slog.Info("analysis rejected invalid upload", "job_id", jobID, "error", r.err)
+			slog.Info("analysis rejected invalid upload", "job_id", jobID, "user", ownerSub, "error", r.err)
 			store.Update(jobID, func(j *Job) {
 				j.Status = JobFailed
 				j.Error = r.err.Error()
@@ -272,7 +279,9 @@ func RunJob(jobID string, dumps, usages []FilePayload, store *JobStore, eng *ana
 			j.Status = JobCompleted
 			j.Result = r.resp
 		})
+		slog.Info("analysis completed", "job_id", jobID, "user", ownerSub)
 	case <-ctx.Done():
+		slog.Warn("analysis timed out", "job_id", jobID, "user", ownerSub, "timeout", jobTimeout)
 		store.Update(jobID, func(j *Job) {
 			j.Status = JobFailed
 			j.Error = fmt.Sprintf("analysis timed out after %s", jobTimeout)
@@ -293,7 +302,8 @@ type validationError struct{ msg string }
 func (e *validationError) Error() string { return e.msg }
 
 // runAnalysis is a two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
-func runAnalysis(ctx context.Context, dumps, usages []FilePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) (*AggregatedAnalysisResponse, error) {
+// aiEnabled gates the outbound Anthropic call so sensitive deployments keep all thread data in-process.
+func runAnalysis(ctx context.Context, dumps, usages []FilePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, aiEnabled bool) (*AggregatedAnalysisResponse, error) {
 	prepped := make([]*preppedFile, len(dumps))
 	errSlots := make([][]string, len(dumps))
 	invalidSlots := make([]string, len(dumps)) // fatal per-file validation message; any non-empty entry fails the job
@@ -398,7 +408,15 @@ func runAnalysis(ctx context.Context, dumps, usages []FilePayload, eng *analyzer
 	healthScore, healthFactors := analyzer.ComputeHealth(aggregatedThreads)
 
 	var aiInsights *ai.AIInsights
-	if ctx.Err() == nil {
+	switch {
+	case !aiEnabled:
+		// Deployment policy keeps thread-dump data in-process; surface that instead of sending it to Anthropic.
+		aiInsights = &ai.AIInsights{
+			ExecutiveSummary:   "AI insights are disabled by deployment policy.",
+			KeyFindings:        "Rule-based findings and pattern matches below are derived entirely in-process.",
+			RecommendedActions: "Enable AI insights (AI_INSIGHTS_ENABLED=true) only for approved, non-sensitive data.",
+		}
+	case ctx.Err() == nil:
 		usageUploaded := len(usages) > 0
 		var err error
 		aiInsights, err = ai.GetInsights(ctx, aggregatedThreads, usageUploaded)

@@ -157,14 +157,28 @@ func (a *Authenticator) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 			opts = append(opts, jwt.WithAudience(a.audience))
 		}
 
-		if _, err := jwt.Parse([]byte(raw), opts...); err != nil {
+		tok, err := jwt.Parse([]byte(raw), opts...)
+		if err != nil {
 			slog.Warn("rejected request: token validation failed", "error", err, "remote_addr", r.RemoteAddr, "path", r.URL.Path)
 			unauthorized(w, "invalid or expired token")
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// Carry the subject so handlers can bind a job to its creator and reject cross-user reads.
+		ctx := context.WithValue(r.Context(), subjectContextKey, tok.Subject())
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// contextKey is unexported so only this package can write the authenticated subject into a request context.
+type contextKey string
+
+const subjectContextKey contextKey = "auth.subject"
+
+// subjectFromContext returns the authenticated "sub" claim, or "" when auth is disabled or no token was validated.
+func subjectFromContext(ctx context.Context) string {
+	s, _ := ctx.Value(subjectContextKey).(string)
+	return s
 }
 
 // extractToken prefers Choreo's "x-jwt-assertion" header, falls back to "Authorization: Bearer".

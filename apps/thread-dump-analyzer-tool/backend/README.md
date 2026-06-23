@@ -18,13 +18,13 @@ The server logs its listening URL on startup (e.g. `url=http://localhost:8080`) 
 
 If `ANTHROPIC_API_KEY` is not set, analysis still completes and AI insights return a static "unavailable" message instead of failing the job.
 
-**Authentication is on by default** (`AUTH_ENABLED=true`). The server **refuses to start** unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is set, and `/analyze/jobs` then requires a valid Bearer JWT. The built-in HTML form sends no token, so for manual testing set `AUTH_ENABLED=false` to make the analyze endpoints public (local use only). See [Authentication](#authentication) below.
+**Authentication is on by default** (`AUTH_ENABLED=true`). The server **refuses to start** unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) and `JWT_AUDIENCE` are set, and `/analyze/jobs` then requires a valid Bearer JWT. The built-in HTML form sends no token, so for manual testing set `AUTH_ENABLED=false` to make the analyze endpoints public (local use only). See [Authentication](#authentication) below.
 
 ## API
 
 ### Authentication
 
-When `AUTH_ENABLED` (default `true`), `POST /analyze/jobs` and `GET /analyze/jobs/{id}` require an `Authorization: Bearer <jwt>` header. Tokens are validated in `internal/transport/http/middleware.go` against the Asgardeo JWKS (signature plus `exp`/`nbf`/`iss`, and `aud` when `JWT_AUDIENCE` is set) using a cached, auto-refreshing key set with 60s clock skew. Missing or invalid tokens get `401` with a `WWW-Authenticate: Bearer` challenge. `GET /health` and the `GET /` HTML form stay open. CORS wraps the mux, so preflight `OPTIONS` is answered before auth and `401`s still carry CORS headers.
+When `AUTH_ENABLED` (default `true`), `POST /analyze/jobs` and `GET /analyze/jobs/{id}` require an `Authorization: Bearer <jwt>` header. Tokens are validated in `internal/transport/http/middleware.go` against the Asgardeo JWKS (signature plus `exp`/`nbf`/`iss`/`aud`, with `JWT_AUDIENCE` required at boot) using a cached, auto-refreshing key set with 60s clock skew. Missing or invalid tokens get `401` with a `WWW-Authenticate: Bearer` challenge. `GET /health` and the `GET /` HTML form stay open. CORS wraps the mux, so preflight `OPTIONS` is answered before auth and `401`s still carry CORS headers.
 
 Set `ASGARDEO_BASE_URL` and the JWKS endpoint + issuer are derived (`<base>/oauth2/jwks`, `<base>/oauth2/token`); override either with `JWT_JWKS_URL` / `JWT_ISSUER`. With `AUTH_ENABLED=false` the analyze endpoints are public (local testing only).
 
@@ -92,6 +92,23 @@ Returns `200 OK` with body `OK`. Used for liveness probes.
 - **Per-IP token bucket** (`IPLimiter` in `internal/transport/http/middleware.go`): default 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Tune via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
 - **Concurrent-job semaphore** (`JobLimiter` in `internal/job/service.go`): caps in-flight analyses at `MAX_CONCURRENT_JOBS` (default 10). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
 
+### Audit Logging
+
+Analysis jobs are traceable to the authenticated user through structured logs, so no dedicated audit table is required. Nothing is persisted: jobs live only in the in-memory store (TTL-evicted, lost on restart) and thread dumps are never written to disk, so the logs are the sole and sufficient trail.
+
+Every terminal event logs `job_id` and `user` (the JWT `sub`, empty when `AUTH_ENABLED=false`):
+
+| Event | Level |
+|---|---|
+| job created | INFO |
+| analysis completed | INFO |
+| invalid upload rejected | INFO |
+| analysis timed out | WARN |
+| analysis panicked | ERROR |
+| cross-owner access denied | WARN |
+
+Jobs are bound to their creator via `OwnerSub`: a different subject reading a job receives `404` (not `403`, so a leaked ID can't be confirmed to exist) and the attempt is logged. Successful retrievals are intentionally not logged, since the frontend polls every 3s and only the owner can read its job; recording just the denied cross-owner reads captures the security-relevant access events without the polling noise.
+
 ## How It Works
 
 ```text
@@ -138,6 +155,8 @@ When multiple dump files are uploaded, threads are correlated across files by co
 
 Uses Anthropic `claude-haiku-4-5-20251001` with a WSO2/Java performance engineering system prompt. Sends up to 40 high-signal threads (top 3 stack frames each; INFO/normal threads excluded) and returns structured JSON with `executive_summary`, `pattern_recognition`, and `recommended_actions`.
 
+Before anything leaves the process, thread names, issues, and stack frames are scrubbed of secrets and PII (auth headers, JWTs, `key=value` secrets, emails, UUIDs, IPv4 addresses) by `internal/ai/scrub.go`, so customer data is not transmitted to the third-party API. Scrubbing is always on and applies only to the AI prompt; the full result returned to the caller is unredacted.
+
 ### Pattern Matches
 
 `result.pattern_matches[]` exposes per-rule unique-thread counts so the frontend can render rule-level summaries without substring-scanning `issues[]`. Each entry has `{rule_name, issue_prefix, matched_thread_count}` and is populated only when a rule fired. The rule to issue-prefix registry lives in `internal/analyzer/patterns.go` and must stay in lockstep with `rules.grl`; adding a rule means appending one entry.
@@ -167,11 +186,12 @@ Each penalty greater than 0 becomes a `health_factor` (`{label, penalty}`); the 
 | Variable | Default | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | _(unset)_ | Required for AI insights. If unset, the job still completes and `ai_insights` returns a static "unavailable" message. |
-| `AUTH_ENABLED` | `true` | Require a Bearer JWT on `/analyze/jobs` (POST + GET). `false` makes those endpoints public (local testing only). When `true`, the server refuses to start unless the issuer/JWKS below resolve. |
+| `AI_INSIGHTS_ENABLED` | `true` | Whether to send analysis data to Anthropic for AI insights (a key must also be set). Set `false` to keep all thread-dump data in-process even when `ANTHROPIC_API_KEY` is configured. |
+| `AUTH_ENABLED` | `true` | Require a Bearer JWT on `/analyze/jobs` (POST + GET). `false` makes those endpoints public (local testing only). When `true`, the server refuses to start unless the issuer/JWKS below resolve and `JWT_AUDIENCE` is set. |
 | `ASGARDEO_BASE_URL` | _(unset)_ | Asgardeo tenant base URL, e.g. `https://api.asgardeo.io/t/<org>`. JWKS (`/oauth2/jwks`) and issuer (`/oauth2/token`) are derived from it. Required when auth is on unless the two below are set. |
 | `JWT_JWKS_URL` | _(derived)_ | Explicit JWKS endpoint; overrides the value derived from `ASGARDEO_BASE_URL`. |
 | `JWT_ISSUER` | _(derived)_ | Expected `iss` claim; overrides the value derived from `ASGARDEO_BASE_URL`. |
-| `JWT_AUDIENCE` | _(unset)_ | Expected `aud` claim (set to the app's client ID). Empty = `aud` not checked. |
+| `JWT_AUDIENCE` | _(unset)_ | Expected `aud` claim (set to the app's client ID). **Required when `AUTH_ENABLED=true`** — the server refuses to start without it, so a token minted for another Asgardeo app can't be replayed here. |
 | `LOG_LEVEL` | `INFO` | slog level: `DEBUG` / `INFO` / `WARN` / `ERROR`. |
 | `LOG_FILE` | `logs/tdat-session-<ts>.log` | Path (relative to the working directory, or absolute) for the plain-text session log mirrored alongside console output. Set an explicit path to pin it, or `off`/`none`/`-` to disable file logging. Open/create failures fall back to console-only with a warning. |
 | `PORT` | `8080` | HTTP listen port. |
@@ -189,6 +209,7 @@ Each penalty greater than 0 becomes a `health_factor` (`{label, penalty}`); the 
 | `MAX_UPLOAD_BYTES` | `100MB` | Multipart upload cap; measures the compressed wire body. Accepts `B`, `K`/`KB`/`KiB`, `M`/`MB`/`MiB`, `G`/`GB`/`GiB`. |
 | `MAX_DECOMPRESSED_BYTES` | `2× MAX_UPLOAD_BYTES` (200MB) | Per-file inflate cap for gzip uploads; bounds decompression-bomb memory. Same unit suffixes. |
 | `MAX_TOTAL_DECOMPRESSED_BYTES` | `2× MAX_DECOMPRESSED_BYTES` (400MB) | Total inflate cap across all parts in one request; bounds whole-request memory so many parts can't sum into an OOM. Same unit suffixes. |
+| `MAX_FILES_PER_REQUEST` | `200` | Max `thread_dumps` / `thread_usages` files per request (per field). Bounds the per-file goroutine/parse fan-out so a many-part upload can't amplify into resource exhaustion. |
 | `JOB_TTL` | `1h` | How long terminal (`completed` / `failed`) jobs stay queryable. `pending`/`running` jobs are never expired. |
 | `JOB_STORE_MAX_SIZE` | `200` | Max jobs retained in memory. When exceeded, the janitor evicts the oldest **terminal** jobs first; in-flight (`pending`/`running`) jobs are never evicted. |
 | `JOB_JANITOR_TICK` | `1m` | Eviction sweep interval. |
