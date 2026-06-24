@@ -1,4 +1,4 @@
-# Contributing to TDAT (Thread Dump Analysis Tool)
+# Contributing to TDAT (Thread Dump Analyzer Tool)
 
 Welcome. This guide covers everything you need to contribute to this tool, whether you're adding a Grule rule, building a frontend panel, updating configuration, or improving docs.
 
@@ -10,7 +10,7 @@ This tool lives in the `wso2-open-operations/common-tools` monorepo at `apps/thr
 
 ## Prerequisites
 
-- Go >= 1.25 (matches `backend/go.mod`)
+- Go >= 1.25.0
 - Node.js >= 20
 - pnpm >= 9 (the frontend's package manager)
 - Docker + Docker Compose (optional, for the full-stack run)
@@ -28,11 +28,11 @@ See the root [README.md](README.md) for full environment setup and the Docker de
 cd backend
 cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY (optional), and AUTH_ENABLED=false for local testing
-go run .
+go run ./cmd/api
 # Server starts at http://localhost:8080
 ```
 
-Auth is ON by default. Set `AUTH_ENABLED=false` to make the `/analyze/jobs` endpoints public for local work; otherwise the server refuses to start unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is set. Every other knob has a default in `settings.go#LoadConfig`; see `backend/.env.example`.
+Auth is ON by default. Set `AUTH_ENABLED=false` to make the `/analyze/jobs` endpoints public for local work; otherwise the server refuses to start unless both `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) and `JWT_AUDIENCE` (the app's client ID) are set. Every other knob has a default in `internal/config/config.go#LoadConfig`; see `backend/.env.example`.
 
 ### Running the frontend
 
@@ -50,7 +50,7 @@ The SPA reads the backend URL from `public/config.js` at runtime via `window.con
 
 ```bash
 cp .env.example .env
-# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID
+# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID, JWT_AUDIENCE
 docker compose up --build
 # Frontend on http://localhost:8081, backend on http://localhost:8080
 ```
@@ -65,8 +65,8 @@ The backend serves an HTML upload form at `http://localhost:8080` (`GET /`). Run
 cd backend
 gofmt -l .         # list unformatted files (should be empty)
 go vet ./...       # static checks
-go build           # confirm it compiles
-go test ./...      # parser, analyzer, ai, auth, jobs, limiters
+go build ./...     # confirm it compiles
+go test ./...      # parser, analyzer, ai (incl. scrub), config, job, transport/http (handlers, auth, limiters)
 ```
 
 The frontend has no JS unit-test runner configured yet; `pnpm lint` plus a clean `pnpm build` (which runs `tsc -b`) is the bar. Verify UI changes by hand in `pnpm dev`.
@@ -116,7 +116,7 @@ Before requesting review, verify your changes:
 
 **Backend (Go):**
 - [ ] `gofmt` clean (no diff), `go vet ./...` clean
-- [ ] `go build` succeeds and `go test ./...` passes
+- [ ] `go build ./...` succeeds and `go test ./...` passes
 - [ ] New or changed parsing/rules/aggregation/scoring logic has a test in the matching `_test.go`
 - [ ] Code stays within the existing `internal/` layout (`parser`, `analyzer`, `ai`, `rules`)
 
@@ -129,6 +129,9 @@ Before requesting review, verify your changes:
 **Comments and prose:**
 - [ ] Comments are single-line and explain *why*, not *what*
 - [ ] Docs and comments prefer commas, colons, or parentheses over em-dashes
+
+**Dependencies & security:**
+- [ ] Added or bumped a dependency? `make sca` passes (`pnpm audit` gates on high+; `govulncheck` and Trivy are report-only)
 
 **Documentation:**
 - [ ] Behaviour, config, or API change is reflected in the relevant `README.md`
@@ -185,9 +188,9 @@ To add a pool:
 2. Anchor the regex (`^...$`) and test it against real thread names from a dump.
 3. Add a case to `internal/analyzer/enricher_test.go`.
 
-### `settings.go` / `.env.example`: backend configuration knobs
+### `internal/config/config.go` / `.env.example`: backend configuration knobs
 
-**File:** `backend/settings.go` and `backend/.env.example`
+**File:** `backend/internal/config/config.go` and `backend/.env.example`
 
 All runtime configuration is read once in `LoadConfig` with a sensible default, so the server runs with an empty `.env`.
 

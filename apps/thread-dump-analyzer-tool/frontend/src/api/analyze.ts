@@ -26,6 +26,27 @@ const authHeader = async (getAccessToken: TokenGetter): Promise<HeadersInit> => 
   return { Authorization: `Bearer ${token}` };
 };
 
+// CompressionStream is missing on older browsers; the backend accepts raw parts too, so we degrade to no compression.
+const gzipSupported = typeof CompressionStream !== "undefined";
+
+const gzipFile = async (file: File): Promise<Blob> => {
+  const stream = file.stream().pipeThrough(new CompressionStream("gzip"));
+  return new Response(stream).blob();
+};
+
+// appendFiles gzips each file and appends it under field, preserving order so dump/usage indexes stay aligned.
+const appendFiles = async (formData: FormData, field: string, files: File[]): Promise<void> => {
+  if (!gzipSupported) {
+    files.forEach((file) => formData.append(field, file));
+    return;
+  }
+  // Compress one file at a time so peak memory stays bounded on large batches instead of holding every blob at once.
+  for (const file of files) {
+    const blob = await gzipFile(file);
+    formData.append(field, blob, `${file.name}.gz`);
+  }
+};
+
 export const uploadThreadDumps = async (
   dumps: File[],
   usages: File[],
@@ -33,13 +54,9 @@ export const uploadThreadDumps = async (
 ): Promise<JobInitResponse> => {
   const formData = new FormData();
 
-  dumps.forEach((file) => {
-    formData.append("thread_dumps", file);
-  });
-
-  usages.forEach((file) => {
-    formData.append("thread_usages", file);
-  });
+  // Gzip each file in the browser so the smaller wire body clears gateway upload caps; the backend inflates each part.
+  await appendFiles(formData, "thread_dumps", dumps);
+  await appendFiles(formData, "thread_usages", usages);
 
   let response: Response;
   try {

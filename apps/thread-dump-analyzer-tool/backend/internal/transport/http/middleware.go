@@ -14,20 +14,95 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package http
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
+	"golang.org/x/time/rate"
+
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/config"
 )
+
+// IPLimiter applies a per-remote-IP token bucket; idle visitors are evicted by a background janitor.
+type IPLimiter struct {
+	rps      rate.Limit
+	burst    int
+	ttl      time.Duration
+	mu       sync.Mutex
+	visitors map[string]*ipVisitor
+}
+
+type ipVisitor struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+func NewIPLimiter(rps float64, burst int, ttl, janitorTick time.Duration) *IPLimiter {
+	l := &IPLimiter{
+		rps:      rate.Limit(rps),
+		burst:    burst,
+		ttl:      ttl,
+		visitors: make(map[string]*ipVisitor),
+	}
+	if janitorTick > 0 {
+		go l.janitor(janitorTick)
+	}
+	return l
+}
+
+func (l *IPLimiter) Allow(ip string) bool {
+	l.mu.Lock()
+	v, ok := l.visitors[ip]
+	if !ok {
+		v = &ipVisitor{limiter: rate.NewLimiter(l.rps, l.burst)}
+		l.visitors[ip] = v
+	}
+	v.lastSeen = time.Now()
+	l.mu.Unlock()
+	return v.limiter.Allow()
+}
+
+func (l *IPLimiter) janitor(tick time.Duration) {
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+	for range ticker.C {
+		cutoff := time.Now().Add(-l.ttl)
+		l.mu.Lock()
+		for ip, v := range l.visitors {
+			if v.lastSeen.Before(cutoff) {
+				delete(l.visitors, ip)
+			}
+		}
+		l.mu.Unlock()
+	}
+}
+
+// limitByIP wraps a handler so each remote IP gets its own token bucket; 429 on refuse.
+// Trusts r.RemoteAddr (OS-reported TCP peer) — does not honor X-Forwarded-For to avoid client spoofing.
+func (l *IPLimiter) limitByIP(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		if !l.Allow(host) {
+			http.Error(w, "Too many requests, please slow down", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
 
 // Authenticator validates inbound Bearer JWTs against a cached, auto-refreshing JWKS plus expected issuer/audience claims.
 type Authenticator struct {
@@ -38,7 +113,7 @@ type Authenticator struct {
 }
 
 // NewAuthenticator wires a background-refreshing JWKS cache, failing fast on missing config so an unconfigured server never boots.
-func NewAuthenticator(ctx context.Context, cfg *Config) (*Authenticator, error) {
+func NewAuthenticator(ctx context.Context, cfg *config.Config) (*Authenticator, error) {
 	if cfg.JWKSURL == "" || cfg.JWTIssuer == "" {
 		return nil, errors.New("auth enabled but unconfigured: set ASGARDEO_BASE_URL (or JWT_JWKS_URL + JWT_ISSUER)")
 	}
@@ -82,14 +157,35 @@ func (a *Authenticator) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 			opts = append(opts, jwt.WithAudience(a.audience))
 		}
 
-		if _, err := jwt.Parse([]byte(raw), opts...); err != nil {
+		tok, err := jwt.Parse([]byte(raw), opts...)
+		if err != nil {
 			slog.Warn("rejected request: token validation failed", "error", err, "remote_addr", r.RemoteAddr, "path", r.URL.Path)
 			unauthorized(w, "invalid or expired token")
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// A token with no subject can't be bound to an owner; empty owner is the auth-off sentinel, so reject.
+		sub := tok.Subject()
+		if sub == "" {
+			slog.Warn("rejected request: token missing subject", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
+			unauthorized(w, "invalid or expired token")
+			return
+		}
+		// Carry the subject so handlers can bind a job to its creator and reject cross-user reads.
+		ctx := context.WithValue(r.Context(), subjectContextKey, sub)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// contextKey is unexported so only this package can write the authenticated subject into a request context.
+type contextKey string
+
+const subjectContextKey contextKey = "auth.subject"
+
+// subjectFromContext returns the authenticated "sub" claim, or "" when auth is disabled or no token was validated.
+func subjectFromContext(ctx context.Context) string {
+	s, _ := ctx.Value(subjectContextKey).(string)
+	return s
 }
 
 // extractToken prefers Choreo's "x-jwt-assertion" header, falls back to "Authorization: Bearer".

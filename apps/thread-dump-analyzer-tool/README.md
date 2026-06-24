@@ -1,4 +1,4 @@
-# Thread Dump Analysis Tool (TDAT)
+# Thread Dump Analyzer Tool (TDAT)
 
 A full-stack tool for analyzing Java thread dumps to detect performance issues like deadlocks, high CPU usage, lock contention, thread pool saturation, and more.
 
@@ -31,13 +31,13 @@ cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY=your_key_here
 # Auth is ON by default: set ASGARDEO_BASE_URL, or AUTH_ENABLED=false for local testing
 
-go run .
+go run ./cmd/api
 # Server starts at http://localhost:8080
 ```
 
 If `ANTHROPIC_API_KEY` is not set, the server still runs and analysis completes (AI insights will return a static "unavailable" message instead of an error).
 
-**Authentication is enabled by default** (`AUTH_ENABLED=true`): the `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header validated against Asgardeo, and the server **refuses to start** unless `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) is configured. For local testing without an identity provider, set `AUTH_ENABLED=false` to make the endpoints public.
+**Authentication is enabled by default** (`AUTH_ENABLED=true`): the `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header validated against Asgardeo, and the server **refuses to start** unless both `ASGARDEO_BASE_URL` (or `JWT_JWKS_URL` + `JWT_ISSUER`) and `JWT_AUDIENCE` (the app's client ID) are configured. For local testing without an identity provider, set `AUTH_ENABLED=false` to make the endpoints public.
 
 CORS defaults to allowing only `http://localhost:5173`. For other origins set `CORS_ALLOWED_ORIGINS` in `.env` (comma-separated).
 
@@ -63,22 +63,25 @@ Both services ship as container images. No host- or tenant-specific values are b
 
 ```bash
 cp .env.example .env
-# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID
+# Edit .env: set ANTHROPIC_API_KEY, ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID, JWT_AUDIENCE
 docker compose up --build
 ```
 
-Frontend on `http://localhost:8081`, backend on `http://localhost:8080`. The SPA always signs in through Asgardeo, so `ASGARDEO_BASE_URL` and `ASGARDEO_CLIENT_ID` must be set even for a local run. (To exercise the backend API alone, set `AUTH_ENABLED=false` and use `curl` or the built-in form at the backend's `GET /`.)
+Frontend on `http://localhost:8081`, backend on `http://localhost:8080`. The SPA always signs in through Asgardeo, so `ASGARDEO_BASE_URL` and `ASGARDEO_CLIENT_ID` must be set even for a local run, and (auth being on) `JWT_AUDIENCE` must be set to the client ID or the backend will not start. (To exercise the backend API alone, set `AUTH_ENABLED=false` and use `curl` or the built-in form at the backend's `GET /`.)
 
 ### Runtime configuration
 
 | Variable | Service | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | backend | AI insights key; jobs still complete (insights omitted) when unset |
+| `AI_INSIGHTS_ENABLED` | backend | `true` (default) sends analysis data to Anthropic when a key is set; `false` keeps all thread-dump data in-process |
 | `ASGARDEO_BASE_URL` | both | Asgardeo tenant base URL; backend derives JWKS + issuer, frontend uses it to sign in |
 | `ASGARDEO_CLIENT_ID` | frontend | Asgardeo SPA client ID (public) |
 | `AUTH_ENABLED` | backend | `true` (default) requires a Bearer JWT on `/analyze/jobs` |
+| `JWT_AUDIENCE` | backend | Expected `aud` claim (the app's client ID); **required when `AUTH_ENABLED=true`** or the server won't start |
 | `API_URL` | frontend | Browser-facing backend URL, injected into `config.js` at start |
 | `CORS_ALLOWED_ORIGINS` | backend | Must list the exact origin the SPA is served from |
+| `LOG_FILE` | backend | Where to mirror session logs (plain text). The Docker image defaults to `off` (stderr only). Set to a writable path like `/data/logs/tdat.log` (with a mounted volume) to enable, or leave `off`. Outside Docker it defaults to `logs/tdat-session-<ts>.log` |
 | `PORT` | both | Listen port (default `8080`), honored when a platform injects one |
 
 The frontend reads `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` at container start and writes them into `config.js` (`window.configs`), so the same image points at any backend and tenant without rebuilding.
@@ -111,6 +114,8 @@ docker run -p 8081:8080 \
 
 Both images run as a non-root user with a UID in the 10000-20000 range (Choreo's requirement) and listen on a port above 1024, so they drop straight into Choreo, Kubernetes, or any rootless container runtime. No secrets are baked into either image.
 
+> The backend image sets `LOG_FILE=off`, so containers log to stdout/stderr only (the platform collects them). To keep an on-disk session log, mount a writable volume and override `LOG_FILE` to a path under it; if the file cannot be opened the server warns once and continues console-only.
+
 > Behind a reverse proxy or ingress, the backend's per-IP rate limiter sees only the proxy IP (it trusts `RemoteAddr`, not `X-Forwarded-For`), so rely on the proxy's own rate limiting in that topology.
 
 ## API
@@ -124,11 +129,13 @@ GET  /                              # HTML upload form for manual testing
 
 When `AUTH_ENABLED` (the default), both `/analyze/jobs` endpoints require an `Authorization: Bearer <jwt>` header (validated against Asgardeo) and return `401` otherwise; `GET /health` and the `GET /` form stay open.
 
-The analysis runs asynchronously. Poll the status endpoint until `status` is `completed` or `failed`. Jobs run under a configurable deadline (`JOB_TIMEOUT`, default 2m); on expiry the job is marked `failed` and the pipeline exits at the next checkpoint.
+The analysis runs asynchronously. Poll the status endpoint until `status` is `completed` or `failed`. Jobs run under a configurable deadline (`JOB_TIMEOUT`, default 2m); on expiry the job is marked `failed` and the pipeline exits at the next checkpoint. Invalid uploads also fail fast: a non-dump file or a malformed thread-usage file marks the job `failed` with a clear, file-named `error` instead of returning a partial result.
 
 **Upload fields (multipart/form-data):**
 - `thread_dumps` - required, one or more Java thread dump `.txt`/`.log` files
-- `thread_usages` - optional, matching CPU usage files. Whitespace-separated `PID TID %CPU TIME` rows (header `PID` row optional). TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`.
+- `thread_usages` - optional, matching CPU usage files. Whitespace-separated rows; columns are mapped by header name when present (thread id from `TID`/`LWP`/`SPID`, cpu from `%CPU`/`PCPU`/`CPU`; extra columns like `NLWP`/`C` ignored), falling back to fixed `PID TID %CPU TIME` positions when headerless. TID may be decimal or hex (`0x...`). TIME accepts `HH:MM:SS`, `MM:SS.mmm`, or plain seconds. Example row: `1234 12345 25.5 00:01:23`.
+
+Each file is gzip-compressed in the browser (`CompressionStream`) before upload, so the smaller wire body clears gateway request-size caps (Choreo ~50 MiB, Cloud Run 32 MB, etc.); the backend detects the gzip signature and inflates each part. Raw uploads via cURL or the HTML test form work unchanged.
 
 When multiple dump files are uploaded, TDAT correlates threads across snapshots by composite identity (`name + id + native_id + pool`) to show how thread state evolved over time. The frontend reuses the same composite as the React key for each thread row, so distinct histories sharing a single `thread.id` do not collide during sort/filter.
 
@@ -159,8 +166,8 @@ Dump and usage files are paired client-side by a normalized filename key (`utils
 `health_score` is a deterministic 0-100 score computed by the backend from the latest dump, and `health_factors[]` lists the named penalties behind it (the penalties sum to `100 - health_score`). The frontend renders these directly as a gauge with a breakdown tooltip, so the displayed number always matches the backend.
 
 **Rate limiting**: `POST /analyze/jobs` is gated by two independent layers, both returning HTTP 429:
-- **Per-IP token bucket** (`IPLimiter` in `router.go`): defaults to 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Configurable via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
-- **Concurrent job semaphore** (`JobLimiter` in `jobs.go`): caps in-flight analyses to prevent memory exhaustion under burst load. Defaults to 10 (`MAX_CONCURRENT_JOBS`). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
+- **Per-IP token bucket** (`IPLimiter` in `internal/transport/http/middleware.go`): defaults to 0.5 RPS, burst 5, 1h visitor TTL. Trusts `r.RemoteAddr` only (not `X-Forwarded-For`). Configurable via `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `RATE_LIMIT_VISITOR_TTL`, `RATE_LIMIT_JANITOR_TICK`.
+- **Concurrent job semaphore** (`JobLimiter` in `internal/job/service.go`): caps in-flight analyses to prevent memory exhaustion under burst load. Defaults to 10 (`MAX_CONCURRENT_JOBS`). The slot is acquired after multipart parsing and released when the analysis goroutine exits.
 
 ## Features
 
@@ -207,6 +214,26 @@ The frontend derives the full lock contention graph directly from the raw thread
 After rule analysis, the backend sends a summarized thread report (up to 40 non-INFO threads, top 3 stack frames each) to Anthropic's `claude-haiku-4-5-20251001` model. The system prompt is tailored for WSO2/Java performance engineering, instructing the model to cite specific thread names and packages. The response is structured JSON with `executive_summary`, `pattern_recognition`, and `recommended_actions`.
 
 User-controlled fields in the prompt (issue strings, stack frames) are wrapped with `%q` via a `quoteAll` helper to prevent prompt injection from adversarial thread names or stack frames.
+
+Before any thread text leaves the process, thread names, issues, and stack frames are scrubbed of secrets and PII (auth headers, JWTs, `key=value` secrets, emails, UUIDs, IPv4 addresses) by `backend/internal/ai/scrub.go`, so customer data is not sent to the third-party API. Scrubbing is always on and applies only to the AI prompt; the analysis result returned to the caller is unredacted.
+
+## Security scanning & dependencies
+
+Dependencies are fully pinned (`go.sum`, `pnpm-lock.yaml`). Software Composition Analysis ships as an app-local script so it lives entirely inside this directory (GitHub-native CI and Dependabot must sit in the repo-root `.github/`, which is outside this app's scope):
+
+```bash
+make sca            # run every scan
+make sca-backend    # govulncheck only
+make sca-frontend   # pnpm audit only
+make sca-trivy      # Trivy only
+# or call the script directly: ./scripts/sca.sh [all|backend|frontend|trivy]
+```
+
+- **`govulncheck`** (backend): reachability-aware vulnerability scan of the Go code; report-only. Installs the tool on first run if it is not already present.
+- **`pnpm audit`** (frontend): advisory scan of the dependency tree; gates on **high+**. The original 27 high findings were cleared via `pnpm.overrides` in `frontend/package.json` (patched `axios`, `form-data`, `react-router`, `vite`, `rollup`, `minimatch`, `picomatch`, `flatted`); remove an override once its parent ships the fix.
+- **Trivy** (filesystem + Dockerfiles): dependency CVEs, misconfigurations, and committed secrets; report-only. Uses a local `trivy` binary, falling back to the `aquasec/trivy` Docker image.
+
+Only `pnpm audit` high+ fails the run (exit non-zero); the rest are report-only. The script needs no repo-root files, so it runs unchanged on any machine or CI runner. To wire it into automated PR checks or add Dependabot, a maintainer adds the corresponding config under the repo-root `.github/` and points it at `apps/thread-dump-analyzer-tool/scripts/sca.sh`.
 
 ## License
 

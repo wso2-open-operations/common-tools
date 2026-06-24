@@ -14,28 +14,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package job
 
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"mime/multipart"
-	"net/http"
 	"runtime/debug"
 	"sort"
+	"strings"
 	"sync"
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
-	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/ai"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/analyzer"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/config"
+	"github.com/wso2-open-operations/common-tools/apps/thread-dump-analyzer-tool/backend/internal/parser"
 )
+
+// AggregatedAnalysisResponse is the top-level JSON response format for a structured analysis.
+type AggregatedAnalysisResponse struct {
+	SessionID      string                       `json:"session_id"`
+	Timestamp      string                       `json:"timestamp"`
+	Threads        []analyzer.AnalyzedThread    `json:"threads"`
+	ThreadPools    map[string]analyzer.PoolInfo `json:"thread_pools,omitempty"`
+	HealthScore    int                          `json:"health_score"`
+	HealthFactors  []analyzer.HealthFactor      `json:"health_factors,omitempty"`
+	PatternMatches []analyzer.PatternMatch      `json:"pattern_matches,omitempty"`
+	AIInsights     *ai.AIInsights               `json:"ai_insights,omitempty"`
+	Errors         []string                     `json:"errors,omitempty"`
+}
 
 type JobStatus string
 
@@ -50,6 +63,7 @@ const (
 // Result is populated once Status is JobCompleted; Error is populated on JobFailed.
 type Job struct {
 	ID        string                      `json:"job_id"`
+	OwnerSub  string                      `json:"-"` // authenticated "sub" that created the job; gates GET access, never serialized
 	Status    JobStatus                   `json:"status"`
 	CreatedAt time.Time                   `json:"created_at"`
 	UpdatedAt time.Time                   `json:"updated_at"`
@@ -67,7 +81,7 @@ type JobStore struct {
 	janitorTick time.Duration
 }
 
-func NewJobStore(cfg *Config) *JobStore {
+func NewJobStore(cfg *config.Config) *JobStore {
 	s := &JobStore{
 		jobs:        make(map[string]*Job),
 		ttl:         cfg.JobTTL,
@@ -117,9 +131,13 @@ func (s *JobStore) evict() {
 	sort.Slice(terminal, func(i, j int) bool { return terminal[i].ts.Before(terminal[j].ts) })
 
 	excess := len(s.jobs) - s.maxSize
+	evicted := 0
 	for i := 0; i < excess && i < len(terminal); i++ {
 		delete(s.jobs, terminal[i].id)
+		evicted++
 	}
+	// Hitting the size cap is a memory-pressure signal; warn so platform alerting can catch it instead of dropping jobs silently.
+	slog.Warn("job store at capacity, force-evicted oldest terminal jobs", "evicted", evicted, "size", len(s.jobs), "max_size", s.maxSize)
 }
 
 func isTerminal(s JobStatus) bool {
@@ -155,10 +173,11 @@ func (l *JobLimiter) Release() {
 	}
 }
 
-func (s *JobStore) Create() *Job {
+func (s *JobStore) Create(ownerSub string) *Job {
 	now := time.Now()
 	j := &Job{
 		ID:        uuid.New().String(),
+		OwnerSub:  ownerSub,
 		Status:    JobPending,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -191,80 +210,15 @@ func (s *JobStore) Update(id string, fn func(*Job)) {
 	}
 }
 
-// filePayload holds an uploaded file fully buffered in memory so analysis can continue after the HTTP request has returned.
-type filePayload struct {
+// FilePayload holds an uploaded file fully buffered in memory so analysis can continue after the HTTP request has returned.
+type FilePayload struct {
 	FileName string
 	Data     []byte
 }
 
-func readMultipartFiles(headers []*multipart.FileHeader) ([]filePayload, error) {
-	out := make([]filePayload, 0, len(headers))
-	for _, h := range headers {
-		f, err := h.Open()
-		if err != nil {
-			return nil, fmt.Errorf("open %s: %w", h.Filename, err)
-		}
-		data, err := io.ReadAll(f)
-		f.Close()
-		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", h.Filename, err)
-		}
-		out = append(out, filePayload{FileName: h.Filename, Data: data})
-	}
-	return out, nil
-}
-
-func analyzeJobsHandler(w http.ResponseWriter, r *http.Request, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, maxUploadBytes int64, jobTimeout time.Duration, jobLimiter *JobLimiter) {
-	// reqID correlates the generic client message with the full server-side log entry.
-	reqID := uuid.NewString()
-
-	// Cap body size so ParseMultipartForm keeps file parts in RAM, not $TMPDIR.
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
-	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
-		slog.Warn("multipart parse failed", "request_id", reqID, "error", err)
-		http.Error(w, fmt.Sprintf("Could not process upload. Limit is %d MiB (ref=%s)", maxUploadBytes>>20, reqID), http.StatusBadRequest)
-		return
-	}
-
-	dumpHeaders := r.MultipartForm.File["thread_dumps"]
-	usageHeaders := r.MultipartForm.File["thread_usages"]
-
-	if len(dumpHeaders) == 0 {
-		http.Error(w, "No thread dumps uploaded", http.StatusBadRequest)
-		return
-	}
-
-	dumps, err := readMultipartFiles(dumpHeaders)
-	if err != nil {
-		slog.Warn("failed to read thread_dumps upload", "request_id", reqID, "error", err)
-		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
-		return
-	}
-	usages, err := readMultipartFiles(usageHeaders)
-	if err != nil {
-		slog.Warn("failed to read thread_usages upload", "request_id", reqID, "error", err)
-		http.Error(w, fmt.Sprintf("Failed to process upload (ref=%s)", reqID), http.StatusBadRequest)
-		return
-	}
-
-	if !jobLimiter.TryAcquire() {
-		http.Error(w, "Server busy, too many concurrent analyses; try again shortly", http.StatusTooManyRequests)
-		return
-	}
-
-	job := store.Create()
-	go func() {
-		defer jobLimiter.Release()
-		runJob(job.ID, dumps, usages, store, eng, enricher, jobTimeout)
-	}()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID})
-}
-
 type analysisResult struct {
 	resp  *AggregatedAnalysisResponse
+	err   error
 	rec   any
 	stack []byte
 }
@@ -272,8 +226,8 @@ type analysisResult struct {
 // Indirection seam so tests can swap runAnalysis for a blocking stub to drive the timeout path deterministically.
 var runAnalysisFn = runAnalysis
 
-// runJob drives one analysis under a deadline; the inner sub-goroutine respects ctx at phase boundaries and a buffered done channel keeps it leak-free.
-func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration) {
+// RunJob drives one analysis under a deadline; the inner sub-goroutine respects ctx at phase boundaries and a buffered done channel keeps it leak-free.
+func RunJob(jobID, ownerSub string, dumps, usages []FilePayload, store *JobStore, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, jobTimeout time.Duration, aiEnabled bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
 	defer cancel()
 
@@ -282,6 +236,7 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 	done := make(chan analysisResult, 1)
 	go func() {
 		var resp *AggregatedAnalysisResponse
+		var err error
 		var rec any
 		var stack []byte
 		defer func() {
@@ -289,15 +244,15 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 				rec = r
 				stack = debug.Stack()
 			}
-			done <- analysisResult{resp: resp, rec: rec, stack: stack}
+			done <- analysisResult{resp: resp, err: err, rec: rec, stack: stack}
 		}()
-		resp = runAnalysisFn(ctx, dumps, usages, eng, enricher)
+		resp, err = runAnalysisFn(ctx, dumps, usages, eng, enricher, aiEnabled)
 	}()
 
 	select {
 	case r := <-done:
 		if r.rec != nil {
-			slog.Error("analysis panicked", "job_id", jobID, "panic", fmt.Sprintf("%v", r.rec), "stack", string(r.stack))
+			slog.Error("analysis panicked", "job_id", jobID, "user", ownerSub, "panic", fmt.Sprintf("%v", r.rec), "stack", string(r.stack))
 			store.Update(jobID, func(j *Job) {
 				j.Status = JobFailed
 				j.Error = fmt.Sprintf("internal error (ref=%s)", jobID)
@@ -305,9 +260,18 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 			return
 		}
 		if ctx.Err() != nil {
+			slog.Warn("analysis timed out", "job_id", jobID, "user", ownerSub, "timeout", jobTimeout)
 			store.Update(jobID, func(j *Job) {
 				j.Status = JobFailed
 				j.Error = fmt.Sprintf("analysis timed out after %s", jobTimeout)
+			})
+			return
+		}
+		if r.err != nil {
+			slog.Info("analysis rejected invalid upload", "job_id", jobID, "user", ownerSub, "error", r.err)
+			store.Update(jobID, func(j *Job) {
+				j.Status = JobFailed
+				j.Error = r.err.Error()
 			})
 			return
 		}
@@ -315,27 +279,14 @@ func runJob(jobID string, dumps, usages []filePayload, store *JobStore, eng *ana
 			j.Status = JobCompleted
 			j.Result = r.resp
 		})
+		slog.Info("analysis completed", "job_id", jobID, "user", ownerSub)
 	case <-ctx.Done():
+		slog.Warn("analysis timed out", "job_id", jobID, "user", ownerSub, "timeout", jobTimeout)
 		store.Update(jobID, func(j *Job) {
 			j.Status = JobFailed
 			j.Error = fmt.Sprintf("analysis timed out after %s", jobTimeout)
 		})
 	}
-}
-
-func jobStatusHandler(w http.ResponseWriter, r *http.Request, store *JobStore) {
-	id := r.PathValue("id")
-	if id == "" {
-		http.Error(w, "missing job id", http.StatusBadRequest)
-		return
-	}
-	job, ok := store.Get(id)
-	if !ok {
-		http.Error(w, "job not found", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(job)
 }
 
 // Holds phase 1 output (parse/correlate/enrich) so phase 2 runs serially with GlobalStats carry-over.
@@ -345,16 +296,23 @@ type preppedFile struct {
 	usageDataProvided bool
 }
 
-// Two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
-func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher) *AggregatedAnalysisResponse {
+// validationError carries a user-facing message for unanalyzable uploads; RunJob surfaces it as the job error.
+type validationError struct{ msg string }
+
+func (e *validationError) Error() string { return e.msg }
+
+// runAnalysis is a two-phase pipeline: phase 1 (parallel parse/correlate/enrich) feeds phase 2 (serial rules with temporal state carry-over).
+// aiEnabled gates the outbound Anthropic call so sensitive deployments keep all thread data in-process.
+func runAnalysis(ctx context.Context, dumps, usages []FilePayload, eng *analyzer.RuleEngine, enricher *analyzer.ThreadEnricher, aiEnabled bool) (*AggregatedAnalysisResponse, error) {
 	prepped := make([]*preppedFile, len(dumps))
 	errSlots := make([][]string, len(dumps))
+	invalidSlots := make([]string, len(dumps)) // fatal per-file validation message; any non-empty entry fails the job
 	var wg sync.WaitGroup
 
 	// Phase 1: parallel parse/correlate/enrich indexed by upload order.
 	for i, dump := range dumps {
 		wg.Add(1)
-		go func(index int, d filePayload) {
+		go func(index int, d FilePayload) {
 			defer wg.Done()
 
 			if ctx.Err() != nil {
@@ -365,9 +323,13 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 			if index < len(usages) {
 				u := usages[index]
 				// Validate usage file by parsing; treat parse error or empty result the same (invalid).
-				parsed, _ := parser.ParseThreadUsage(bytes.NewReader(u.Data))
+				parsed, usageDiags, _ := parser.ParseThreadUsage(bytes.NewReader(u.Data))
 				if len(parsed) == 0 {
-					errSlots[index] = append(errSlots[index], fmt.Sprintf("Invalid file. No valid thread usage data found in %s", u.FileName))
+					msg := fmt.Sprintf("Invalid thread usage file: no valid CPU usage data found in %q", u.FileName)
+					if len(usageDiags) > 0 {
+						msg += " (" + strings.Join(usageDiags, "; ") + ")"
+					}
+					invalidSlots[index] = msg
 					return
 				}
 				usageReader = bytes.NewReader(u.Data)
@@ -375,16 +337,15 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 
 			threads, diagnostics, err := parser.ProcessAndCorrelate(bytes.NewReader(d.Data), usageReader, d.FileName)
 			if err != nil {
-				errSlots[index] = append(errSlots[index], fmt.Sprintf("Failed to parse %s: %v", d.FileName, err))
+				invalidSlots[index] = fmt.Sprintf("Failed to parse %q: %v", d.FileName, err)
 				return
 			}
-			errSlots[index] = append(errSlots[index], diagnostics...)
-
 			if len(threads) == 0 {
-				errSlots[index] = append(errSlots[index], fmt.Sprintf("Invalid Files. No threads found in %s", d.FileName))
+				invalidSlots[index] = fmt.Sprintf("Invalid file: no Java threads found in %q. Is it a Java thread dump?", d.FileName)
 				return
 			}
 
+			errSlots[index] = append(errSlots[index], diagnostics...)
 			enricher.Enrich(ctx, threads)
 
 			prepped[index] = &preppedFile{
@@ -396,6 +357,19 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 	}
 
 	wg.Wait()
+
+	// Fail fast: if any uploaded dump or usage file was invalid, abort before pools/rules/AI.
+	if ctx.Err() == nil {
+		var invalid []string
+		for _, m := range invalidSlots {
+			if m != "" {
+				invalid = append(invalid, m)
+			}
+		}
+		if len(invalid) > 0 {
+			return nil, &validationError{strings.Join(invalid, "; ")}
+		}
+	}
 
 	var parsedFiles []analyzer.ParsedFile
 	var errorMessages []string
@@ -434,7 +408,15 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 	healthScore, healthFactors := analyzer.ComputeHealth(aggregatedThreads)
 
 	var aiInsights *ai.AIInsights
-	if ctx.Err() == nil {
+	switch {
+	case !aiEnabled:
+		// Deployment policy keeps thread-dump data in-process; surface that instead of sending it to Anthropic.
+		aiInsights = &ai.AIInsights{
+			ExecutiveSummary:   "AI insights are disabled by deployment policy.",
+			KeyFindings:        "Rule-based findings and pattern matches below are derived entirely in-process.",
+			RecommendedActions: "Enable AI insights (AI_INSIGHTS_ENABLED=true) only for approved, non-sensitive data.",
+		}
+	case ctx.Err() == nil:
 		usageUploaded := len(usages) > 0
 		var err error
 		aiInsights, err = ai.GetInsights(ctx, aggregatedThreads, usageUploaded)
@@ -453,5 +435,5 @@ func runAnalysis(ctx context.Context, dumps, usages []filePayload, eng *analyzer
 		PatternMatches: patternMatches,
 		AIInsights:     aiInsights,
 		Errors:         errorMessages,
-	}
+	}, nil
 }

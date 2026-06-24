@@ -38,7 +38,14 @@ paths:
   /analyze/jobs:
     post:
       summary: Upload thread dumps and start analysis
-      description: Accepts multipart/form-data containing thread dump files and optional CPU usage files. Starts an async job.
+      security:
+        - bearerAuth: []
+      description: |
+        Accepts multipart/form-data containing thread dump files and optional CPU usage files. Starts an async job.
+        Each file part may be sent raw or gzip-compressed; the backend detects the gzip signature (`0x1f 0x8b`) and
+        inflates it, so clients can compress to clear gateway request-size limits. The compressed wire body is capped by
+        MAX_UPLOAD_BYTES, each inflated part by MAX_DECOMPRESSED_BYTES, and the inflated total across all parts by
+        MAX_TOTAL_DECOMPRESSED_BYTES. Each field accepts at most MAX_FILES_PER_REQUEST parts.
       requestBody:
         required: true
         content:
@@ -53,7 +60,7 @@ paths:
                   items:
                     type: string
                     format: binary
-                  description: One or more Java thread dump text files
+                  description: One or more Java thread dump text files, optionally gzip-compressed per part
                 thread_usages:
                   type: array
                   items:
@@ -61,9 +68,11 @@ paths:
                     format: binary
                   description: |
                     Optional CPU usage files, indexed in upload order to align with thread_dumps[].
-                    Row format: whitespace-separated `PID TID %CPU TIME`. A header row beginning
-                    with `PID` is skipped. TID may be decimal or hex (`0x...`); the backend joins
-                    on TID == native thread id (`nid=0x...`) from the dump. TIME accepts
+                    Whitespace-separated rows. Columns are mapped by header name when present
+                    (thread id from `TID`/`LWP`/`SPID`, cpu from `%CPU`/`PCPU`/`CPU`; extra columns
+                    like `NLWP`/`C` ignored), falling back to fixed `PID TID %CPU TIME` positions when
+                    headerless. TID may be decimal or hex (`0x...`); the backend joins on
+                    TID == native thread id (`nid=0x...` or decimal `nid=`) from the dump. TIME accepts
                     `HH:MM:SS`, `MM:SS.mmm`, or plain seconds.
                     Example row:
                       `1234 12345 25.5 00:01:23`
@@ -80,10 +89,18 @@ paths:
                     type: string
                     format: uuid
                     example: "123e4567-e89b-12d3-a456-426614174000"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /analyze/jobs/{id}:
     get:
       summary: Get Job Status
+      security:
+        - bearerAuth: []
       description: Poll for job status and retrieve the final analysis result.
       parameters:
         - in: path
@@ -118,5 +135,53 @@ paths:
                   error:
                     type: string
                     description: Populated only when status is failed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
-          description: Job ID not found
+          description: |
+            Job ID not found, or (when AUTH_ENABLED) the job belongs to a different subject. The same
+            404 is returned either way, so a leaked job ID can't be confirmed to exist for another user.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Asgardeo-issued Bearer JWT, enforced on the /analyze endpoints when AUTH_ENABLED (the default).
+        Behind Choreo the gateway-injected `x-jwt-assertion` header is also accepted.
+  responses:
+    BadRequest:
+      description: |
+        Malformed or unusable upload (plain-text body, with a correlation ref where applicable). Causes:
+        not a valid multipart body, the compressed body exceeds MAX_UPLOAD_BYTES, no thread_dumps part,
+        more than MAX_FILES_PER_REQUEST parts in a field, a gzip part failed to inflate or exceeded
+        MAX_DECOMPRESSED_BYTES, or the inflated total across all parts exceeded MAX_TOTAL_DECOMPRESSED_BYTES.
+      content:
+        text/plain:
+          schema:
+            type: string
+          example: "Could not process upload. Limit is 100 MiB (ref=8f3e2a10)"
+    Unauthorized:
+      description: Missing, malformed, or invalid Bearer JWT (only when AUTH_ENABLED).
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: RFC 6750 Bearer challenge
+          example: Bearer error="invalid_token"
+      content:
+        text/plain:
+          schema:
+            type: string
+          example: "invalid or expired token"
+    TooManyRequests:
+      description: |
+        Rate limited. Either the per-IP token bucket (RATE_LIMIT_RPS / RATE_LIMIT_BURST) or the global
+        in-flight job semaphore (MAX_CONCURRENT_JOBS) refused the request.
+      content:
+        text/plain:
+          schema:
+            type: string
+          example: "Server busy, too many concurrent analyses; try again shortly"

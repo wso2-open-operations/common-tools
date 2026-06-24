@@ -50,9 +50,14 @@ http {
         root /usr/share/nginx/html;
         index index.html;
 
+        # Browser security headers; location / inherits these since it sets no add_header of its own.
+        include /etc/nginx/security-headers.conf;
+
         # Runtime config must never be cached, or apiUrl/Asgardeo overrides will not take effect.
         location = /config.js {
-            add_header Cache-Control "no-store";
+            # Re-include: this block's own add_header would otherwise drop the inherited security headers.
+            include /etc/nginx/security-headers.conf;
+            add_header Cache-Control "no-store" always;
         }
 
         # SPA client-side routing: unknown paths fall back to index.html.

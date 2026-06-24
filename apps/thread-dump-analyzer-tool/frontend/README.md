@@ -1,6 +1,6 @@
 # TDAT Frontend
 
-React 19 SPA for the Thread Dump Analysis Tool. Upload Java thread dumps, explore results, and visualize lock contention backed by the `backend` API.
+React 19 SPA for the Thread Dump Analyzer Tool. Upload Java thread dumps, explore results, and visualize lock contention backed by the `backend` API.
 
 ## Getting Started
 
@@ -46,12 +46,12 @@ docker run -p 8081:8080 \
   tdat-frontend
 ```
 
-Multi-stage build: `pnpm build`, then nginx on `alpine`. At container start `docker-entrypoint.sh` writes `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` into `config.js` (`window.configs`), so one image serves any backend and Asgardeo tenant without rebuilding. nginx renders its `listen` port from `$PORT` (default 8080) via `nginx.conf.template` and serves the SPA with an `index.html` fallback for client-side routes. It runs as a non-root user (UID 10015, in Choreo's range) and writes only under `/tmp`. For the full stack use the root `docker-compose.yml`; see the root README "Run with Docker".
+Multi-stage build: `pnpm build`, then nginx on `alpine`. At container start `docker-entrypoint.sh` writes `API_URL`, `ASGARDEO_CLIENT_ID`, and `ASGARDEO_BASE_URL` into `config.js` (`window.configs`), escaping each value so a malformed env value can't break out of the JS string. nginx renders its `listen` port from `$PORT` (default 8080) via `nginx.conf.template` and serves the SPA with an `index.html` fallback for client-side routes. Responses carry browser security headers (CSP, `X-Content-Type-Options`, frame-deny, Referrer/Permissions-Policy, HSTS) from `security-headers.conf`; tighten the CSP `connect-src`/`frame-src` to your exact backend and Asgardeo origins per deployment. It runs as a non-root user (UID 10015, in Choreo's range) and writes only under `/tmp`. For the full stack use the root `docker-compose.yml`; see the root README "Run with Docker".
 
 ## Pages
 
 ### Upload (`/`)
-Drag-and-drop upload of thread dump files and optional CPU usage metric files. Dump/usage files are paired by a normalized filename key (`utils/uploadValidation.ts#extractFileKey`) - known prefixes (`threaddump`, `threadusage`, `dump`, `usage`, `td`, `tu`, etc.) are stripped only when followed by a `_`/`-`/`.` boundary or end-of-string, so generic prefixes like `td` do not eat into unrelated names such as `today.log`. Triggers async analysis and polls for completion before navigating to the dashboard.
+Drag-and-drop upload of thread dump files and optional CPU usage metric files. Dump/usage files are paired by a normalized filename key (`utils/uploadValidation.ts#extractFileKey`) - known prefixes (`threaddump`, `threadusage`, `dump`, `usage`, `td`, `tu`, etc.) are stripped only when followed by a `_`/`-`/`.` boundary or end-of-string, so generic prefixes like `td` do not eat into unrelated names such as `today.log`. Triggers async analysis and polls for completion before navigating to the dashboard. Each selected file is gzip-compressed in the browser (`CompressionStream`) before upload, so the smaller wire body clears gateway request-size caps; the backend inflates each part (raw uploads still work where `CompressionStream` is unavailable).
 
 ### Dashboard (`/dashboard`)
 Summary cards (thread counts by state and risk, plus a health-score gauge with a penalty-breakdown tooltip), state distribution chart, key findings (rule engine issues mapped to dashboard-friendly titles, descriptions, and severities via `utils/ruleCategories.ts`), thread activity heatmap, and AI-generated insights rendered as formatted markdown.
@@ -80,6 +80,8 @@ Frontend-derived lock contention graph built from thread stack trace data. Shows
 
 **Auth gate** - `AppHandler` checks Asgardeo auth state before rendering the router. Unauthenticated users see `LoginScreen`; loading state shows `PreLoader`. Both backend calls in `api/analyze.ts` attach the Asgardeo access token as an `Authorization: Bearer <jwt>` header (via `getAccessToken` from `useAuthContext`), which the backend requires when `AUTH_ENABLED`.
 
+**Notifications and error reporting** - app-wide alerts go through `NotificationContext` (`useNotify()`), which renders a centered modal alert: a dark box, severity-coloured (error/warning/success/info), shown one at a time and kept open until the user dismisses it. When a job ends in `failed`, the upload page shows the backend's actual reason (the same text the server logs) via `utils/jobError.ts#describeJobError` instead of a generic message; unexpected internal errors keep only their reference id (the stack stays server-side).
+
 ## Stack
 
 | Library | Purpose |
@@ -107,7 +109,7 @@ frontend/
 │   └── WSO2-Pulse-Orange.webp              App logo
 └── src/
     ├── main.tsx                            React root that wraps App in AuthProvider
-    ├── App.tsx                             Provider composition (ColorMode → QueryClient → Analysis → AppHandler)
+    ├── App.tsx                             Provider composition (ColorMode → QueryClient → Analysis → Notification → AppHandler)
     ├── App.css / index.css                 Global styles
     ├── theme.ts                            MUI theme factory (themeSettings(mode))
     ├── app/
@@ -126,7 +128,8 @@ frontend/
     │   └── authConfig.ts                   Asgardeo client config
     ├── context/
     │   ├── AnalysisContext.tsx             Session state, in-memory React state (not persisted)
-    │   └── ColorModeContext.tsx            Light/dark theme context, persisted to localStorage
+    │   ├── ColorModeContext.tsx            Light/dark theme context, persisted to localStorage
+    │   └── NotificationContext.tsx         App-wide alerts: NotificationProvider + useNotify(), centered modal alert
     ├── hooks/
     │   ├── useAnalyzeThreads.ts            Upload mutation + 3s polling query
     │   ├── useExportReport.ts              Generate and download text report
@@ -172,7 +175,8 @@ frontend/
     │   ├── lockContentionAnalysis.ts       deriveLockOwnerCentricData, detectDeadlocks
     │   ├── ruleCategories.ts               Maps backend issue strings to titled, described, severity-tagged finding categories
     │   ├── reportFormatter.ts              Plain-text report from AnalysisResponse
-    │   └── uploadValidation.ts             validateFiles, extractFileKey (boundary-safe prefix strip), PairedFile type
+    │   ├── uploadValidation.ts             validateFiles, extractFileKey (boundary-safe prefix strip), PairedFile type
+    │   └── jobError.ts                     describeJobError(error): backend job error to user-facing alert message
     └── types/
         ├── api.ts                          JobInitResponse, JobStatusResponse, AnalysisResponse, etc.
         └── global.d.ts                     Window.configs augmentation

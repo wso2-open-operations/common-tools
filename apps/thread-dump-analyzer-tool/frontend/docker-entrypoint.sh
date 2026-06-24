@@ -21,11 +21,24 @@ set -e
 : "${API_URL:=http://localhost:8080}"
 : "${ASGARDEO_CLIENT_ID:=}"
 : "${ASGARDEO_BASE_URL:=}"
+
+# Escape backslashes, single quotes, then CR/LF so a hostile or malformed env value can't break out of the JS string literal.
+# $!{N;ba} guards N with the last-line check so single-line values still reach the s/// commands (a bare :a;N;$!ba quits at EOF first).
+escape_js() {
+    printf '%s' "$1" | sed -e ':a' -e '$!{N;ba' -e '}' \
+        -e 's/\\/\\\\/g' \
+        -e "s/'/\\\\'/g" \
+        -e 's/\r/\\r/g' \
+        -e 's/\n/\\n/g'
+}
+API_URL_ESC=$(escape_js "$API_URL")
+ASGARDEO_CLIENT_ID_ESC=$(escape_js "$ASGARDEO_CLIENT_ID")
+ASGARDEO_BASE_URL_ESC=$(escape_js "$ASGARDEO_BASE_URL")
 cat > /usr/share/nginx/html/config.js <<EOF
 window.configs = {
-    apiUrl: '${API_URL}',
-    ASGARDEO_CLIENT_ID: '${ASGARDEO_CLIENT_ID}',
-    ASGARDEO_BASE_URL: '${ASGARDEO_BASE_URL}'
+    apiUrl: '${API_URL_ESC}',
+    ASGARDEO_CLIENT_ID: '${ASGARDEO_CLIENT_ID_ESC}',
+    ASGARDEO_BASE_URL: '${ASGARDEO_BASE_URL_ESC}'
 };
 EOF
 

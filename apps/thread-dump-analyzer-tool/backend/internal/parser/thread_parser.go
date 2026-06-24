@@ -22,6 +22,7 @@ import (
 	"io"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -123,8 +124,8 @@ type GlobalStats struct {
 var (
 	//Captures Thread name and Thread ID
 	threadHeaderRE = regexp.MustCompile(`^"(.+?)"\s+.*tid=(\S+)`)
-	//Captures Native Thread ID in hex
-	nidRE = regexp.MustCompile(`nid=0[xX]([0-9a-fA-F]+)`)
+	//Captures Native Thread ID in hex (0x..) or decimal (JDK 21+)
+	nidRE = regexp.MustCompile(`nid=(0[xX][0-9a-fA-F]+|[0-9]+)`)
 	//Captures Thread State
 	stateRE = regexp.MustCompile(`\s*java\.lang\.Thread\.State:\s+(.+)`)
 	//Captures Stack Trace lines
@@ -197,7 +198,8 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 				}
 
 				if nidMatch := nidRE.FindStringSubmatch(rawLine); len(nidMatch) >= 2 {
-					if val, err := strconv.ParseInt(nidMatch[1], 16, 64); err == nil {
+					// parseTID handles hex (0x..) and decimal nid, matching the usage-file TID parser.
+					if val, ok := parseTID(nidMatch[1]); ok {
 						t.NativeID = val
 					}
 				}
@@ -289,52 +291,104 @@ func ParseThread(r io.Reader) ([]Thread, error) {
 
 /* Parsing Thread Usage */
 
-func ParseThreadUsage(r io.Reader) ([]ThreadUsage, error) {
+// usageColumns maps the fields we read to their column index; -1 means absent.
+type usageColumns struct {
+	pid  int
+	tid  int
+	cpu  int
+	time int
+}
+
+// Lowercased header synonyms covering ps/top column-name variants.
+var (
+	tidHeaders  = []string{"tid", "lwp", "spid"}
+	cpuHeaders  = []string{"%cpu", "pcpu", "cpu"}
+	timeHeaders = []string{"time", "time+"}
+	pidHeaders  = []string{"pid"}
+)
+
+// mapUsageColumns resolves column indices from a header row by synonym; first match per field wins.
+func mapUsageColumns(header []string) usageColumns {
+	cols := usageColumns{pid: -1, tid: -1, cpu: -1, time: -1}
+	for i, raw := range header {
+		name := strings.ToLower(raw)
+		switch {
+		case cols.tid < 0 && slices.Contains(tidHeaders, name):
+			cols.tid = i
+		case cols.cpu < 0 && slices.Contains(cpuHeaders, name):
+			cols.cpu = i
+		case cols.time < 0 && slices.Contains(timeHeaders, name):
+			cols.time = i
+		case cols.pid < 0 && slices.Contains(pidHeaders, name):
+			cols.pid = i
+		}
+	}
+	return cols
+}
+
+// ParseThreadUsage reads CPU usage rows, mapping columns by header synonyms when a header is present.
+// It returns non-fatal diagnostics (e.g. a header with no thread-id column) alongside the parsed rows.
+func ParseThreadUsage(r io.Reader) ([]ThreadUsage, []string, error) {
 	var usages []ThreadUsage
+	var diagnostics []string
 	scanner := bufio.NewScanner(r)
+
+	// Legacy fixed positions, overridden once a recognizable header is found.
+	cols := usageColumns{pid: 0, tid: 1, cpu: 2, time: 3}
+	headerSeen := false
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
 		columns := strings.Fields(line)
 
-		// 4 columns: PID, TID, %CPU, TIME
-		if len(columns) < 4 {
-			continue
-		}
-		if columns[0] == "PID" {
+		// A non-numeric first token is a header candidate or a top banner line.
+		if _, ok := parseTID(columns[0]); !ok {
+			if !headerSeen {
+				// Accept as the header only if it names columns we recognize.
+				if cand := mapUsageColumns(columns); cand.tid >= 0 || cand.cpu >= 0 {
+					cols = cand
+					headerSeen = true
+					if cand.tid < 0 {
+						diagnostics = append(diagnostics, fmt.Sprintf("usage header %v has no recognizable thread-id column (tid/lwp/spid); cannot correlate CPU data", columns))
+					}
+				}
+			}
 			continue
 		}
 
-		pidInt, ok := parseTID(columns[0])
-		if !ok {
-			continue
-		}
-		tidInt, ok := parseTID(columns[1])
-		if !ok {
+		// TID and %CPU are required; skip rows that lack either.
+		if cols.tid < 0 || cols.cpu < 0 || len(columns) <= cols.tid || len(columns) <= cols.cpu {
 			continue
 		}
 
-		cpuStr := strings.Trim(columns[2], " %")
-		cpuVal, err := strconv.ParseFloat(cpuStr, 64)
+		tidInt, ok := parseTID(columns[cols.tid])
+		if !ok {
+			continue
+		}
+		cpuVal, err := strconv.ParseFloat(strings.Trim(columns[cols.cpu], " %"), 64)
 		if err != nil {
 			continue
 		}
 
-		timeSeconds := parseTime(columns[3])
-		timeMs := timeSeconds * 1000
-
-		usages = append(usages, ThreadUsage{
-			PID:           pidInt,
-			TID:           tidInt,
-			CPUPercentage: cpuVal,
-			UserTime:      timeMs,
-		})
+		u := ThreadUsage{TID: tidInt, CPUPercentage: cpuVal}
+		if cols.pid >= 0 && len(columns) > cols.pid {
+			if pid, ok := parseTID(columns[cols.pid]); ok {
+				u.PID = pid
+			}
+		}
+		if cols.time >= 0 && len(columns) > cols.time {
+			u.UserTime = parseTime(columns[cols.time]) * 1000
+		}
+		usages = append(usages, u)
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, diagnostics, err
 	}
-	return usages, nil
+	return usages, diagnostics, nil
 }
 
 // Parses a TID/PID token, accepting hex (`0x...`) or decimal.
@@ -425,10 +479,11 @@ func ProcessAndCorrelate(dumpReader, usageReader io.Reader, dumpFileName string)
 	}
 
 	if usageReader != nil {
-		usages, err := ParseThreadUsage(usageReader)
+		usages, usageDiags, err := ParseThreadUsage(usageReader)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to parse thread usage: %w", err)
 		}
+		diagnostics = append(diagnostics, usageDiags...)
 
 		rawUsageCount := len(usages)
 		filtered, dominantPID, pidCount := FilterUsagesByDominantPID(usages)

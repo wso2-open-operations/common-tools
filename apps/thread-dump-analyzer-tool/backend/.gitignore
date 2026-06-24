@@ -36,3 +36,6 @@ bin/
 dist/
 /backend
 __debug_bin*
+
+# Session log files
+logs/

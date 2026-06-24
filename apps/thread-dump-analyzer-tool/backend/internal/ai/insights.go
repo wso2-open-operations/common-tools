@@ -33,6 +33,9 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+// maxInsightTokens caps the model's reply; sized so the three-section JSON for up to 40 threads is not truncated.
+const maxInsightTokens = 4096
+
 // AIInsights holds the three-section analysis produced by the AI model.
 type AIInsights struct {
 	ExecutiveSummary   string `json:"executive_summary"`
@@ -66,7 +69,7 @@ func GetInsights(parentCtx context.Context, threads []analyzer.AnalyzedThread, u
 
 	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
-		MaxTokens: 1024,
+		MaxTokens: maxInsightTokens,
 		System: []anthropic.TextBlockParam{
 			{Text: systemPrompt},
 		},
@@ -82,6 +85,12 @@ func GetInsights(parentCtx context.Context, threads []analyzer.AnalyzedThread, u
 		return nil, fmt.Errorf("empty response from Anthropic")
 	}
 
+	// A max_tokens stop means the JSON was cut off mid-string; fail cleanly instead of emitting a misleading parse error.
+	if resp.StopReason == anthropic.StopReasonMaxTokens {
+		slog.Warn("AI insights truncated at max tokens", "max_tokens", maxInsightTokens, "threads", len(threads))
+		return nil, fmt.Errorf("AI summary exceeded the response budget")
+	}
+
 	raw := strings.TrimSpace(resp.Content[0].Text)
 
 	// Strip markdown code fences if present (Anthropic models sometimes wrap JSON in ```json ... ```)
@@ -95,7 +104,13 @@ func GetInsights(parentCtx context.Context, threads []analyzer.AnalyzedThread, u
 
 	var insights AIInsights
 	if err := json.Unmarshal([]byte(raw), &insights); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON insights: %w (raw=%s)", err, raw)
+		// Log a bounded preview, not the full payload: raw can carry thread-derived content.
+		preview := raw
+		if len(preview) > 256 {
+			preview = preview[:256]
+		}
+		slog.Warn("AI insights JSON parse failed", "error", err, "preview", preview, "raw_len", len(raw))
+		return nil, fmt.Errorf("AI summary was not valid JSON")
 	}
 
 	slog.Info("AI insights generated",
@@ -171,12 +186,12 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 
 	for _, c := range candidates {
 		t, worst := c.thread, c.snapshot
-		fmt.Fprintf(&sb, "[%s] %q pool=%s state=%s", worst.RiskLevel, t.Name, t.ThreadPool, worst.State)
+		fmt.Fprintf(&sb, "[%s] %q pool=%s state=%s", worst.RiskLevel, scrub(t.Name), t.ThreadPool, worst.State)
 		if usageProvided && worst.CPUPercentage > 0 {
 			fmt.Fprintf(&sb, " cpu=%.1f%%", worst.CPUPercentage)
 		}
 		if len(worst.Issues) > 0 {
-			fmt.Fprintf(&sb, " issues=[%s]", strings.Join(quoteAll(worst.Issues), ","))
+			fmt.Fprintf(&sb, " issues=[%s]", strings.Join(quoteAll(scrubAll(worst.Issues)), ","))
 		}
 		// Top 3 stack frames only
 		frames := worst.StackTrace
@@ -184,7 +199,7 @@ func buildPrompt(threads []analyzer.AnalyzedThread, usageProvided bool) string {
 			frames = frames[:3]
 		}
 		if len(frames) > 0 {
-			fmt.Fprintf(&sb, " stack=[%s]", strings.Join(quoteAll(frames), " | "))
+			fmt.Fprintf(&sb, " stack=[%s]", strings.Join(quoteAll(scrubAll(frames)), " | "))
 		}
 		fmt.Fprintf(&sb, "\n")
 	}
