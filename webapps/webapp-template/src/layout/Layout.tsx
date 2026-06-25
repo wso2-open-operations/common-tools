@@ -91,7 +91,7 @@ export default function Layout() {
             sx={{
               flex: 1,
               height: "100%",
-              padding: theme.spacing(3),
+              padding: "18px",
             }}
           >
             <Suspense fallback={<PreLoader isLoading message="Loading page data" />}>

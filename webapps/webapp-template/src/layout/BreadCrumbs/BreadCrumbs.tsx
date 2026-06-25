@@ -13,108 +13,89 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-import { Box, Tooltip, Typography, useTheme } from "@mui/material";
-import Breadcrumbs from "@mui/material/Breadcrumbs";
+import { Box, Breadcrumbs, Tooltip, Typography, useTheme } from "@mui/material";
 import { Link, useLocation } from "react-router-dom";
 
-export default function BasicBreadcrumbs() {
-  const MAX_LENGTH = 5;
+const MAX_LENGTH = 10;
+const TRUNCATE_LENGTH = 4;
 
+export default function BasicBreadcrumbs() {
   const location = useLocation();
   const theme = useTheme();
 
   const { pathname } = location;
   const pathnames = pathname === "/" ? [] : pathname.split("/");
 
-  const renderBreadCrumbs = () => {
-    let routeTo = "";
+  const styles = {
+    breadcrumbItem: {
+      textDecoration: "none",
+      padding: theme.spacing(0.5),
+      borderRadius: "4px",
+      transition: "all 0.2s",
+      display: "flex",
+      alignItems: "center",
+      "&:hover": {
+        color: theme.palette.customText.primary.p2.active,
+      },
+    },
+  };
 
-    return (
-        <Breadcrumbs
-          separator="›"
-          aria-label="breadcrumb"
-          sx={{
-            "& .MuiBreadcrumbs-separator": {
-              mx: "8px",
-            },
-          }}
-        >
-          {pathnames.map((path, index) => {
-            const isLong = path.length > MAX_LENGTH;
-            const isLast = pathnames.length - 1 === index;
-            routeTo += `${path}/`;
+  const createLabel = (path: string, shouldTruncate: boolean) => (
+    <Typography variant="caption" sx={{ color: theme.palette.customText.primary.p3.active }}>
+      {shouldTruncate ? `${path.slice(0, TRUNCATE_LENGTH)}...` : path}
+    </Typography>
+  );
 
-            const label =
-              !isLast && isLong ? (
-                <Typography
-                  key={`${path}-short`}
-                  variant="caption"
-                  sx={{ color: theme.palette.customText.primary.p3.active }}
-                >
-                  {path.slice(0, 4)}...
-                </Typography>
-              ) : (
-                <Typography
-                  key={`${path}-full`}
-                  variant="caption"
-                  sx={{ color: theme.palette.customText.primary.p3.active }}
-                >
-                  {path}
-                </Typography>
-              );
+  const buildRouteTo = (index: number) => {
+    return "/" + pathnames.slice(1, index + 1).join("/");
+  };
 
-            return isLong && !isLast ? (
-              <Tooltip key={path} title={path} placement="bottom">
-                <Box
-                  component={Link}
-                  to={routeTo}
-                  sx={{
-                    textDecoration: "none",
-                    padding: theme.spacing(0.5),
-                    borderRadius: "4px",
-                    transition: "all 0.2s",
-                    display: "flex",
-                    alignItems: "center",
-                    "&:hover": {
-                      color: theme.palette.customText.primary.p2.active,
-                    },
-                  }}
-                >
-                  {label}
-                </Box>
-              </Tooltip>
-            ) : (
-              <Box
-                component={Link}
-                to={routeTo}
-                key={index}
-                sx={{
-                  textDecoration: "none",
-                  padding: theme.spacing(0.5),
-                  borderRadius: "4px",
-                  transition: "all 0.2s",
-                  display: "flex",
-                  alignItems: "center",
-                  "&:hover": {
-                    color: theme.palette.customText.primary.p2.active,
-                  },
-                }}
-              >
-                {label}
-              </Box>
-            );
-          })}
-        </Breadcrumbs>
+  const renderBreadcrumbItem = (path: string, index: number) => {
+    const isLast = index === pathnames.length - 1;
+    const isLong = path.length > MAX_LENGTH;
+    const shouldTruncate = !isLast && isLong;
+    const routeTo = buildRouteTo(index);
+
+    const label = createLabel(path, shouldTruncate);
+
+    const breadcrumbLink = (
+      <Box component={Link} to={routeTo} sx={styles.breadcrumbItem}>
+        {label}
+      </Box>
     );
+
+    if (isLast) {
+      return (
+        <Box key={`breadcrumb-${index}`} sx={styles.breadcrumbItem}>
+          {label}
+        </Box>
+      );
+    }
+
+    if (shouldTruncate) {
+      return (
+        <Tooltip key={`breadcrumb-${index}`} title={path} placement="bottom">
+          {breadcrumbLink}
+        </Tooltip>
+      );
+    }
+
+    return <Box key={`breadcrumb-${index}`}>{breadcrumbLink}</Box>;
   };
 
   return (
-    <Box
-      sx={{
-        ml: -0.5,
-      }}
-    >
-      {renderBreadCrumbs()}
+    <Box sx={{ ml: -0.5 }}>
+      <Breadcrumbs
+        separator="›"
+        aria-label="breadcrumb"
+        sx={{
+          "& .MuiBreadcrumbs-separator": {
+            mx: "8px",
+          },
+        }}
+      >
+        {pathnames.map(renderBreadcrumbItem)}
+      </Breadcrumbs>
     </Box>
   );
 }
