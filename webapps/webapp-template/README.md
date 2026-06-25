@@ -1,28 +1,57 @@
-# Authentication & Authorization in IAPM Web Template
+# Authentication, Authorization, Theme & Navigation in IAPM Web Template
 
-### TL;DR
+### TL;DR 
 
-We use **Asgardeo** (`asgardeo/auth-react`) for authentication and a small **state machine** to steer the UI through `loading → authenticating → authenticated/unauthenticated`. After a successful sign-in, we initialize an API client with the ID token, fetch user data, privileges, and app config into **Redux**, and then render either the app or a login screen. We also show an **idle-session warning** after 15 minutes of inactivity.
+We use **Asgardeo** (`asgardeo/auth-react`) for authentication and a small **state machine** to steer the UI through `loading → authenticating → authenticated/unauthenticated`.
+After successful sign-in we initialize the API client, fetch user data/privileges/app config into Redux, and render the app or login screen.
+We also show an idle-session warning after 15 minutes.
+
+**Major updates**:
+- Full **design-token-driven MUI v7 theme** (`theme.ts` + `design-tokens.json` from Figma) with light/dark modes.
+- **Single-active accordion sidebar** (only one top-level route expanded at a time) with collapsed tooltips, reusable footer controls, and divider.
+- React 19.1.2 + MUI 7.3.x throughout.
+- Routes cleaned: only **Home** (First View) + **Page Two**.
+- `PreLoader` now uses `LinearProgress`; `fetchAppConfig` uses async/await with better error handling.
 
 ## High-Level Architecture
 
 ```jsx
 <App>
-  └─ <AuthProvider config={asgardeoConfig}>   // from asgardeo/auth-react
-       └─ <AppAuthProvider>                   // our wrapper & logic
-            └─ <SecureApp fallback={<PreLoader/>}>  // guards the tree
-                 └─ renderContent()                 // state-driven UI:
-                      • "loading"         → <PreLoader/>
-                      • "authenticating"  → <PreLoader/>
-                      • "authenticated"   → {children} (with AuthContext)
-                      • "unauthenticated" → <LoginScreen/>
+  └─ <AuthProvider config={asgardeoConfig}>
+       └─ <AppAuthProvider>
+            └─ <ThemeProvider theme={themeSettings(mode)}>
+                 └─ <SecureApp fallback={<PreLoader/>}>
+                      └─ <Layout> (Header + Sidebar + Outlet)
+                           └─ renderContent() based on auth + appConfig state
 
 ```
 
 - **AuthProvider** (Asgardeo): SDK wrapper configured via a `config` object.
 - **AppAuthProvider**: Our context provider + auth flow coordination.
-- **SecureApp**: Asgardeo’s secure mount that protects the app tree.
-- **Redux**: Stores user info, decoded ID token, privileges, and app config.
+- **ThemeProvider**: MUI v7 theme built from design tokens.
+- **SecureApp**: Asgardeo's secure mount that protects the app tree.
+- **Redux**: Stores user info, decoded ID token, roles, and app config.
+- **Sidebar**: Role-filtered, single-active, collapsible navigation.
+
+## Theme & Design System (NEW)
+
+### Files
+
+- `src/theme.ts`
+- `src/styles/design-tokens.json` (958 lines – source of truth from Figma)
+
+### Key features
+
+`extractColors()` and `extractTypography()` pull exact values from JSON.
+Mode-aware `tokens(mode)` returns `neutral`, `primary`, `secondary`, `surface.*`, `fill.*`, `customNavigation`, `customText`, `customBorder`.
+Extended MUI Palette with all semantic groups.
+Typography uses exact Geist specs (`h1`–`h6`, `body1/2`, `caption`, `overline`).
+All UI components (Header, Sidebar, Breadcrumbs, Tabs, Buttons, etc.) now consume these tokens for pixel-perfect Figma parity.
+
+```tsx
+const theme = createTheme(themeSettings(colorMode.mode));
+```
+
 
 ## The Auth Context:
 
@@ -169,6 +198,31 @@ Now that requests are authenticated, we load the app’s core data, usually **in
 
 Each slice tracks its own **loading/success/error** state and updates Redux. If something fails, our **`AppHandler.tsx`** handles it in one place (show a friendly message, retry, or redirect). That keeps error UX consistent across the app and stops one-off hacks from creeping into components. More about AppHandler.
 
+
+#### AppConfig Slice (`src/slices/configSlice/config.ts`)
+
+```tsx
+export const fetchAppConfig = createAsyncThunk(
+  "appConfig/fetchAppConfig",
+  async (_, { dispatch, rejectWithValue }) => {
+    try {
+      const response = await APIService.getInstance().get(AppConfig.serviceUrls.appConfig);
+      return response.data as AppConfigInfo; // supportTeamEmails[]
+    } catch (error) {
+      // ... proper error handling with SnackMessage on 500
+    }
+  }
+);
+```
+
+Uses `State` enum (`idle | loading | success | failed`).
+
+#### Common Slice (`src/slices/commonSlice/common.ts`)
+
+- `enqueueSnackbarMessage({ message, type: VariantType })`
+- Helper `ShowSnackBarMessage` still available.
+
+
 ### Rendering: One Function, Four States
 
 ```tsx
@@ -196,7 +250,7 @@ const renderContent = () => {
 };
 ```
 
-- **`PreLoader`** keeps the UI responsive during SDK init and data fetches.
+- **`PreLoader`** now renders a clean centered `LinearProgress` + message (no more custom circular + logo wrapper). It keeps the UI responsive during SDK init and data fetches.
 - **Authenticated** → render the app with `AuthContext` available.
 - **Unauthenticated** → render `LoginScreen` (still providing context so you can call `appSignIn`).
 
@@ -221,14 +275,58 @@ const appSignIn = async () => {
 
 These helpers let any component trigger auth transitions via the context.
 
-### Authorization: Where It Happens
+### Authorization: Where It Happens (updated)
 
-Authorization is driven by **privileges** loaded into Redux via `loadPrivileges()`.
+Authorization is driven by **roles** (`auth.roles`) populated by `loadPrivileges()`.
+
+`getActiveRouteDetails(roles)` → filters top-level routes for Sidebar.
+`getActiveRoutesV2(routes, auth.roles)` → filters router children for App Handler.
 
 Routes and components read those privileges and only render what the user is allowed to see. In other words:
 
 - **Authentication** proves who you are (Asgardeo).
 - **Authorization** decides what you can access (our privilege model + conditional rendering).
+
+Current routes :
+
+- `/` → Home (First View)
+- `/page-two` → Page Two
+
+Demo tabs and Page 3 were removed.
+
+## Sidebar Navigation 
+
+### Files
+
+- `src/layout/sidebar/index.tsx`
+- `src/component/layout/SidebarNavItem.tsx`
+- `src/component/layout/LinkItem.tsx`
+- `src/component/layout/SidebarSubMenu.tsx` + `SubLink.tsx`
+
+### Features
+
+Collapsible (200 px open ↔ fit-content collapsed).
+Single-active accordion: only one top-level route expanded at a time (`isActive` toggles; click again collapses all).
+Tooltips on collapse (`neutral[1700]` background, white text, arrow).
+Sub-menus indented with left border when open.
+Footer uses reusable `renderControlButton` (theme toggle via `ColorModeContext`, sidebar toggle, divider, version – major version when collapsed).
+All styling via `theme.palette.customNavigation.*` and `surface.secondary.active`.
+
+### NavState
+
+```tsx
+{ active: number | null, hovered: number | null, expanded: number | null }
+```
+
+`handleClick(idx)` does `active = prev.active === idx ? null : idx`. First route is auto-active when `active === null`.
+
+### Rendering flow
+
+Sidebar → `useMemo(() => getActiveRouteDetails(roles), [roles])`
+Each non-`bottomNav` route → `<SidebarNavItem route={route} isActive={navState.active === null ? idx===0 : navState.active===idx} open={open} onClick={() => handleClick(idx)} />`
+`SidebarNavItem` wraps content in Tooltip → renders Link or button → `LinkItem` → conditional `SidebarSubMenu` outside the tooltip.
+`LinkItem`: icon + label (hidden when collapsed) + chevron only when `open && isActive`.
+
 
 ### Session Management (Idle Timeout)
 
@@ -511,7 +609,7 @@ if (existingToken) {
 
 ### What this file is responsible for
 
-- Shows a **loader** while the app is getting ready.
+- Shows a **loader** (`PreLoader` now uses `LinearProgress`) while the app is getting ready.
 - Shows a **maintenance** page if the app is in maintenance mode.
 - Shows an **error** screen if something failed during startup.
 - Otherwise, mounts the **router** with only the routes the current user is allowed to see.
@@ -634,3 +732,15 @@ const renderApp = () => {
   - `"failed"` → show the friendly error screen.
   - `"success"` → mount the **router** (app pages).
   - `"maintenance"` → show the maintenance page.
+
+## Dependencies (as of 23 Feb 2026)
+
+```json
+"react": "^19.1.2",
+"react-dom": "^19.1.2",
+"@mui/material": "^7.3.5",
+"@mui/lab": "^7.0.1-beta.20",
+"framer-motion": "^12.23.5",
+"lucide-react": "^0.525.0",
+...
+```
