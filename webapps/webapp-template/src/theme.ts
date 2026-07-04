@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 // MUI Import
-import { type PaletteMode } from "@mui/material";
+import { type PaletteMode, alpha } from "@mui/material";
 
 import designTokens from "./styles/design-tokens.json";
 
@@ -82,87 +82,126 @@ export const tokens = (mode: PaletteMode) => {
   return {
     ...(mode === "dark"
       ? {
-          // Neutral colors
+          // Colors - Dark mode
           neutral: colors.neutral,
           secondary: colors.secondary,
           primary: colors.primary,
 
-          // Text colors - Dark mode (from Figma design tokens)
+          // Text colors - Dark mode
           text: {
             primary: {
               p1: { active: colors.neutral.white, hover: "#ffffff" },
-              p2: { active: colors.neutral["400"], hover: "#ffffff" },
+              p2: { active: colors.neutral["300"], hover: "#ffffff" },
               p3: { active: colors.neutral["800"], hover: "#ffffff" },
               p4: { active: colors.neutral["1300"], hover: "#ffffff" },
             },
+            secondary: {
+              p1: { active: colors.secondary["900"], hover: "#FF6A0096", disabled: "#ff730096" },
+              p2: { active: colors.secondary["1000"], hover: "#FF6A0096", disabled: "#ff730096" },
+            },
             brand: {
-              p1: { active: colors.primary["1100"], hover: "#FF6A0096" },
+              p1: { active: colors.primary["1200"], hover: "#FF6A0096", disabled: "#ff730096" },
+              p2: { active: colors.primary.main, hover: "#FF6A0096", disabled: "#ff73005c" },
             },
           },
 
-          // Border colors - Dark mode (from Figma design tokens)
+          // Border colors - Dark mode
           border: {
             primary: {
-              active: colors.neutral.white,
+              active: colors.neutral["1400"],
               hover: colors.neutral.white,
               clicked: colors.neutral.white,
               disabled: colors.neutral.white,
             },
             secondary: {
-              active: colors.neutral.white,
-              hover: colors.neutral.white,
-              clicked: colors.neutral.white,
-              disabled: colors.neutral.white,
+              active: "#0099CC",
+              hover: "#2ECBFF",
+              clicked: "#06B1F4",
+              disabled: "#0099CC96",
             },
             territory: {
-              active: colors.neutral["1700"],
-              hover: colors.neutral["1500"],
+              active: colors.neutral["1600"],
+              hover: colors.neutral["1400"],
               clicked: colors.neutral.white,
-              disabled: colors.neutral.white,
+              disabled: alpha(colors.neutral["1600"], 0.35),
+            },
+            brand: {
+              active: colors.primary["1300"],
+              hover: "#FF730F",
+              clicked: "#F55A00",
+              disabled: "#F55A0096",
             },
           },
 
           // Navigation colors - Dark mode
           navigation: {
-            text: "#ffffff8f",
-            textClicked: "#ffffff",
-            hover: "#ffffffd9",
-            hoverBg: "#ffffff0a",
-            clickedBg: "#ffffff14",
+            text: colors.neutral["800"],
+            hover: colors.neutral["400"],
+            textClicked: colors.neutral.white,
+            hoverBg: colors.neutral["1800"],
+            clickedBg: colors.primary["1200"],
             border: colors.neutral["1700"],
           },
 
-          // Surface colors (from color tokens)
+          // Surface colors - Dark mode
           surface: {
             primary: {
               active: colors.neutral["1800"],
               hover: colors.neutral["1900"],
             },
             secondary: {
-              active: colors.secondary["2000"],
-              hover: colors.secondary["1700"],
-            },
-            territory: {
               active: "#171717",
+            },
+            navbar: {
+              active: colors.neutral["1900"],
+              hover: colors.secondary["1700"],
             },
           },
 
-          // Fill colors (from color tokens)
+          // Fill colors - Dark mode
           fill: {
             primary: {
-              active: colors.primary["1700"],
-              hover: colors.primary["1600"],
-              clicked: colors.primary["1800"],
+              active: colors.primary["1600"],
+              hover: colors.primary["1500"],
+              clicked: colors.primary["1700"],
               disabled: "#3D190196",
             },
+            primary_light: {
+              active: colors.primary["1800"],
+              hover: colors.primary["1500"],
+            },
+            primary_dark: {
+              active: colors.primary["1400"],
+              hover: colors.primary["1500"],
+            },
             secondary: {
-              active: colors.secondary["1400"],
-              hover: colors.secondary["1300"],
-              clicked: colors.secondary["1500"],
+              active: colors.secondary["1000"],
+              hover: colors.secondary["1100"],
+              clicked: colors.secondary["1200"],
               disabled: "#0A475C96",
             },
-            territory: {
-              active: colors.secondary["1900"],
+            secondary_light: {
+              active: colors.secondary["1400"],
+              hover: "#fff",
+            },
+            neutral_light: {
+              active: colors.secondary["1700"],
+              hover: "#fff",
+            },
+            neutral_dark: {
+              active: colors.secondary["1700"],
+              hover: "#fff",
+            },
+            xmas: {
+              active: "#B8D3E0d7",
+            },
+          },
+
+          // Shadow colors - Dark mode
+          shadow: {
+            primary: {
+              active: "#000000CC",
+              hover: colors.neutral["1900"],
             },
           },
         }
@@ -172,57 +211,68 @@ export const tokens = (mode: PaletteMode) => {
           primary: colors.primary,
           secondary: colors.secondary,
 
-          // Text colors - Light mode (from Figma design tokens)
+          // Text colors - Light mode
           text: {
             primary: {
-              p1: { active: colors.neutral.black, hover: "#ffffff" },
-              p2: { active: colors.neutral["1600"], hover: "#ffffff" },
-              p3: { active: colors.neutral["1200"], hover: "#ffffff" },
-              p4: { active: colors.neutral["700"], hover: "#ffffff" },
+              p1: { active: colors.neutral.black, hover: "#FFFFFF" },
+              p2: { active: colors.neutral["1600"], hover: "#FFFFFF" },
+              p3: { active: colors.neutral["1200"], hover: "#FFFFFF" },
+              p4: { active: colors.neutral["700"], hover: "#FFFFFF" },
+            },
+            secondary: {
+              p1: { active: colors.secondary["800"], hover: "#FFFFFF", disabled: "#FFFFFF" },
+              p2: { active: colors.secondary.main, hover: "#FFFFFF", disabled: "#FFFFFF" },
             },
             brand: {
-              p1: { active: colors.primary["brand"], hover: "#ffffff", disabled: "#ff730096" },
+              p1: { active: colors.primary["1100"], hover: "#FFFFFF", disabled: "#ff730096" },
+              p2: { active: colors.neutral.white, hover: "#FF6A0096", disabled: "#ffffff96" },
             },
           },
 
           // Border colors - Light mode
           border: {
             primary: {
-              active: colors.neutral.black,
+              active: colors.neutral["700"],
               hover: colors.neutral.white,
               clicked: colors.neutral.white,
               disabled: colors.neutral.white,
             },
             secondary: {
-              active: colors.neutral.white,
-              hover: colors.neutral.white,
-              clicked: colors.neutral.white,
-              disabled: colors.neutral.white,
+              active: "#00BFFF",
+              hover: "#2ECBFF",
+              clicked: "#06B1F4",
+              disabled: "#00BFFF96",
             },
             territory: {
               active: colors.neutral["200"],
               hover: colors.neutral["400"],
               clicked: colors.neutral.white,
-              disabled: colors.neutral.white,
+              disabled: alpha(colors.neutral["200"], 0.35),
+            },
+            brand: {
+              active: colors.primary.main,
+              hover: "#FF730F",
+              clicked: "#F55A00",
+              disabled: "#F55A0096",
             },
           },
 
-          // Surface colors (from color tokens)
+          // Surface colors - Light mode
           surface: {
             primary: {
               active: colors.neutral.light_white,
               hover: colors.neutral.white,
             },
             secondary: {
-              active: colors.secondary["1500"],
-              hover: "#FFF",
-            },
-            territory: {
               active: colors.neutral.white,
+            },
+            navbar: {
+              active: colors.neutral["1900"],
+              hover: "#FFFFFF",
             },
           },
 
-          // Fill colors (from color tokens)
+          // Fill colors - Light mode
           fill: {
             primary: {
               active: colors.primary.main,
@@ -230,29 +280,64 @@ export const tokens = (mode: PaletteMode) => {
               clicked: colors.primary["1100"],
               disabled: "#FF730096",
             },
+            primary_light: {
+              active: colors.primary["100"],
+              hover: colors.primary["1500"],
+            },
+            primary_dark: {
+              active: colors.primary["1200"],
+              hover: colors.primary["1500"],
+            },
             secondary: {
               active: colors.secondary.main,
               hover: colors.secondary["600"],
               clicked: colors.secondary["800"],
               disabled: "#00CEFF96",
             },
-            territory: {
-              active: colors.secondary["1600"],
+            secondary_light: {
+              active: colors.secondary["200"],
+              hover: "#FFFFFF",
+            },
+            neutral_light: {
+              active: colors.neutral["100"],
+              hover: "#FFFFFF",
+            },
+            neutral_dark: {
+              active: colors.neutral["1700"],
+              hover: "#FFFFFF",
+            },
+            xmas: {
+              active: "#A6C8D9",
             },
           },
 
           // Navigation colors - Light mode
           navigation: {
-            text: "#ffffffbd",
-            textClicked: "#ffffff",
-            hover: "#ffffffd9",
-            hoverBg: "#ffffff0a",
-            clickedBg: colors.secondary["1600"],
-            border: "#2F454C",
+            text: colors.neutral["800"],
+            hover: colors.neutral["400"],
+            textClicked: colors.neutral.white,
+            hoverBg: colors.neutral["1800"],
+            clickedBg: colors.primary["1200"],
+            border: colors.neutral["1700"],
+          },
+
+          // Shadow colors - Light mode
+          shadow: {
+            primary: {
+              active: "#00000014",
+              hover: colors.neutral["1900"],
+            },
           },
         }),
   };
 };
+
+// Extend MUI Button variant types
+declare module "@mui/material/Button" {
+  interface ButtonPropsVariantOverrides {
+    submit: true;
+  }
+}
 
 // Extend MUI theme types
 declare module "@mui/material/styles" {
@@ -291,6 +376,12 @@ declare module "@mui/material/styles" {
         clicked: string;
         disabled: string;
       };
+      brand: {
+        active: string;
+        hover: string;
+        clicked: string;
+        disabled: string;
+      };
     };
     customNavigation: {
       text: string;
@@ -303,13 +394,21 @@ declare module "@mui/material/styles" {
     };
     surface: {
       primary: Record<string, string>;
+      navbar: Record<string, string>;
       secondary: Record<string, string>;
-      territory: Record<string, string>;
     };
     fill: {
       primary: Record<string, string>;
+      primary_light: Record<string, string>;
+      primary_dark: Record<string, string>;
       secondary: Record<string, string>;
-      territory: Record<string, string>;
+      secondary_light: Record<string, string>;
+      neutral_light: Record<string, string>;
+      neutral_dark: Record<string, string>;
+      xmas: Record<string, string>;
+    };
+    shadow: {
+      primary: Record<string, string>;
     };
     customText: {
       primary: {
@@ -317,6 +416,10 @@ declare module "@mui/material/styles" {
         p2: { active: string; hover: string };
         p3: { active: string; hover: string };
         p4: { active: string; hover: string };
+      };
+      secondary: {
+        p1: { active: string; hover: string; disabled?: string };
+        p2: { active: string; hover: string; disabled?: string };
       };
       brand: {
         p1: { active: string; hover: string; disabled?: string };
@@ -347,6 +450,12 @@ declare module "@mui/material/styles" {
         clicked: string;
         disabled: string;
       };
+      brand?: {
+        active: string;
+        hover: string;
+        clicked: string;
+        disabled: string;
+      };
     };
     customNavigation?: {
       text?: string;
@@ -360,13 +469,21 @@ declare module "@mui/material/styles" {
     };
     surface?: {
       primary?: Record<string, string>;
+      navbar?: Record<string, string>;
       secondary?: Record<string, string>;
-      territory?: Record<string, string>;
     };
     fill?: {
       primary?: Record<string, string>;
+      primary_light?: Record<string, string>;
+      primary_dark?: Record<string, string>;
       secondary?: Record<string, string>;
-      territory?: Record<string, string>;
+      secondary_light?: Record<string, string>;
+      neutral_light?: Record<string, string>;
+      neutral_dark?: Record<string, string>;
+      xmas?: Record<string, string>;
+    };
+    shadow?: {
+      primary?: Record<string, string>;
     };
     customText?: {
       primary?: {
@@ -375,8 +492,13 @@ declare module "@mui/material/styles" {
         p3?: { active: string; hover: string };
         p4?: { active: string; hover: string };
       };
+      secondary?: {
+        p1?: { active: string; hover: string; disabled?: string };
+        p2?: { active: string; hover: string; disabled?: string };
+      };
       brand?: {
         p1?: { active: string; hover: string; disabled?: string };
+        p2?: { active: string; hover: string; disabled?: string };
       };
     };
   }
@@ -403,9 +525,9 @@ export const themeSettings = (mode: PaletteMode) => {
         contrastText: "#ffffff",
       },
       error: {
-        main: "#fe4336",
-        light: "#ff6b5e",
-        dark: "#c41c0f",
+        main: "#F23B0D",
+        light: "#FF704D",
+        dark: "#BD1C0F",
       },
       warning: {
         main: "#ff9800",
@@ -422,7 +544,6 @@ export const themeSettings = (mode: PaletteMode) => {
         light: "#81c784",
         dark: "#388e3c",
       },
-      // Custom palette extensions - preserve all color shades
       neutral: colors.neutral,
       primaryShades: colors.primary,
       secondaryShades: colors.secondary,
@@ -431,6 +552,7 @@ export const themeSettings = (mode: PaletteMode) => {
       surface: colors.surface,
       fill: colors.fill,
       customText: colors.text,
+      shadow: colors.shadow,
     },
     typography: {
       fontSize: 14,
@@ -499,23 +621,24 @@ export const themeSettings = (mode: PaletteMode) => {
       MuiButton: {
         styleOverrides: {
           root: {
-            textTransform: "none" as const,
+            textTransform: "none",
             borderRadius: 8,
             fontWeight: 500,
-            letterSpacing: "0.5px",
           },
           contained: {
-            backgroundColor: colors.primary.main,
-            color: colors.neutral.white,
+            backgroundColor: colors.fill.primary.clicked,
+            color: colors.text.brand.p2.active,
+            boxShadow: "none",
             "&:hover": {
-              backgroundColor: colors.primary["800"],
+              backgroundColor: colors.fill.primary.hover,
+              boxShadow: "none",
             },
             "&:active": {
-              backgroundColor: colors.primary["1000"],
+              backgroundColor: colors.fill.primary.active,
             },
             "&.Mui-disabled": {
               backgroundColor: colors.fill.primary.disabled,
-              color: colors.text.brand.p1.disabled,
+              color: colors.text.brand.p2.disabled,
             },
           },
           outlined: {
@@ -531,6 +654,132 @@ export const themeSettings = (mode: PaletteMode) => {
             "&:hover": {
               backgroundColor: colors.surface.primary.hover,
             },
+          },
+        },
+        variants: [
+          {
+            props: { variant: "submit" as const },
+            style: {
+              padding: "8px 16px",
+              backgroundColor: colors.fill.primary.active,
+              boxShadow: "none",
+              width: "fit-content",
+              "&:hover": {
+                backgroundColor: colors.fill.primary.hover,
+                boxShadow: "none",
+              },
+              "&.Mui-disabled": {
+                backgroundColor: colors.fill.primary.disabled,
+                color: colors.text.brand.p1.disabled,
+              },
+            },
+          },
+        ],
+      },
+      MuiTextField: {
+        styleOverrides: {
+          root: {
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 8,
+              fontSize: "14px",
+              fontWeight: 400,
+              "& .MuiOutlinedInput-input": {
+                color: colors.text.primary.p3.active,
+              },
+              "& fieldset": {
+                borderColor: colors.border.territory.active,
+                borderWidth: "1px",
+              },
+              "&:hover fieldset": {
+                borderColor: colors.border.territory.hover,
+              },
+              "&.Mui-focused fieldset": {
+                borderColor: colors.border.secondary.active,
+                borderWidth: "2px",
+              },
+              "&.Mui-error fieldset": {
+                borderColor: "#F23B0D",
+              },
+              "&.Mui-disabled fieldset": {
+                borderColor: colors.border.territory.disabled,
+              },
+            },
+            "& .MuiInputLabel-root": {
+              color: colors.text.primary.p2.active,
+              fontSize: "14px",
+              fontWeight: 400,
+              "&.Mui-focused": {
+                color: colors.border.brand.active,
+              },
+              "&.Mui-error": {
+                color: "#F23B0D",
+              },
+            },
+            "& .MuiFormHelperText-root": {
+              fontSize: "12px",
+              fontWeight: 400,
+              marginLeft: "2px",
+              marginTop: "4px",
+              "&.Mui-error": {
+                color: "#F23B0D",
+              },
+            },
+          },
+        },
+      },
+      MuiSwitch: {
+        styleOverrides: {
+          root: {
+            width: 58,
+            height: 38,
+            padding: 0.5,
+            "& .MuiSwitch-switchBase": {
+              padding: 0,
+              margin: "7px",
+              transitionDuration: "300ms",
+              color: alpha(colors.fill.secondary.active, 0.59),
+              "&.Mui-checked": {
+                transform: "translateX(20px)",
+                color: colors.fill.secondary.active,
+                "& + .MuiSwitch-track": {
+                  backgroundColor: colors.fill.secondary_light.active,
+                },
+              },
+              "&.Mui-disabled": {
+                color: alpha(colors.fill.secondary.active, 0.35),
+                "& + .MuiSwitch-track": {
+                  backgroundColor: colors.fill.secondary.disabled,
+                },
+              },
+            },
+            "& .MuiSwitch-thumb": {
+              width: 24,
+              height: 24,
+            },
+            "& .MuiSwitch-track": {
+              borderRadius: 38 / 2,
+              backgroundColor: alpha(colors.fill.secondary_light.active, 0.59),
+              opacity: 1,
+            },
+          },
+        },
+      },
+      MuiTooltip: {
+        defaultProps: {
+          arrow: true,
+          placement: "right",
+        },
+        styleOverrides: {
+          tooltip: {
+            backgroundColor: colors.neutral["1700"],
+            color: colors.neutral.white,
+            padding: "6px 8px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.16), 0px 0px 2px rgba(0, 0, 0, 0.08)",
+          },
+          arrow: {
+            color: colors.neutral["1700"],
           },
         },
       },
@@ -551,5 +800,4 @@ export const themeSettings = (mode: PaletteMode) => {
   };
 };
 
-// Export for convenience
 export default themeSettings;
