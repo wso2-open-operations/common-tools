@@ -1,0 +1,82 @@
+openapi: 3.0.3
+info:
+  title: Waste Management Backend
+  description: Read-only API fronting a private Google Sheet of daily food-waste entries.
+  version: 1.0.0
+
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      operationId: getHealth
+      responses:
+        "200":
+          description: The backend process is up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/waste:
+    get:
+      summary: Get daily food-waste rows
+      operationId: getWaste
+      responses:
+        "200":
+          description: Waste rows read from the Google Sheet, sorted by date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WasteResponse"
+        "502":
+          description: The Google Sheets fetch failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: up
+
+    WasteRow:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2026-01-01"
+        breakfast:
+          type: number
+          example: 4.4
+        lunch:
+          type: number
+          example: 23.2
+        total:
+          type: number
+          example: 27.6
+        quarter:
+          type: string
+          example: Q1
+
+    WasteResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/WasteRow"
+        cachedAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string

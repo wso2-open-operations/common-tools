@@ -1,0 +1,401 @@
+/* Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+.app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.75rem 2.25rem;
+  overflow: hidden;
+}
+
+.app--center {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error-message {
+  color: var(--status-critical);
+  font-size: 1.25rem;
+}
+
+.app-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.stale-banner {
+  margin: 0;
+  padding: 0.55rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--warning-wash);
+  color: var(--warning-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.wso2-logo {
+  height: 2.2rem;
+  width: auto;
+  color: #000000;
+  flex: none;
+}
+
+.app-header__clock {
+  font-size: 1.3rem !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+  height: auto !important;
+  padding: 0.5rem 0.9rem !important;
+  box-shadow: var(--card-shadow);
+}
+
+.app-header__clock .MuiChip-label {
+  padding: 0 0.3rem;
+}
+
+/* Body: sidebar (today's numbers) + main column (weekly/monthly/annual) */
+
+.dashboard-body {
+  display: grid;
+  grid-template-columns: minmax(240px, 23%) 1fr;
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+.today-panel {
+  border-radius: 1.1rem !important;
+  padding: 2rem 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+  height: 100%;
+}
+
+.today-panel__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  flex: none;
+}
+
+/* Rows sit right under the header divider at their natural spacing, rather
+   than being centered in (or stretched across) the remaining card height. */
+.today-panel__rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.4rem;
+}
+
+.today-panel__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  padding: 0.85rem 0;
+}
+
+/* Fixed, never-shrinking width so the label (icon + "Breakfast"/"Lunch" +
+   its per-person-avg line) always renders in full - the value column takes
+   whatever space is left and wraps its own content instead of squeezing
+   the label into ellipsis. */
+.today-panel__row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: none;
+}
+
+.today-panel__row-avg {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-panel__row-avg-number {
+  color: var(--text-primary);
+}
+
+/* Right-aligned, stacked so a wide "kg / N people" doesn't need to fit on
+   one line - it wraps onto its own row under the "value unit" line instead. */
+.today-panel__row-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.today-panel__row-value-main {
+  display: flex;
+  align-items: baseline;
+}
+
+.today-panel__row-number {
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-panel__row-unit {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding-left: 0.10rem;
+  white-space: nowrap;
+}
+
+.today-panel__row-icon {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.55rem;
+  flex: none;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.today-panel__row-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.dashboard-main {
+  display: grid;
+  grid-template-rows: minmax(0, 1.4fr) minmax(0, 1.2fr);
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+.sparkline {
+  width: 3.4rem;
+  height: 1.3rem;
+  flex: none;
+}
+
+.main-chart {
+  min-height: 0;
+  display: flex;
+}
+
+.main-chart .chart-card {
+  flex: 1 1 auto;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  min-height: 0;
+}
+
+.chart-card {
+  border-radius: 1.1rem !important;
+  padding: 1.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chart-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chart-card__title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.chart-card__title-group > div {
+  min-width: 0;
+}
+
+.chart-card__icon {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.55rem;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.chart-card__icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.chart-card__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.legend {
+  display: flex;
+  gap: 0.4rem;
+  flex: none;
+}
+
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: var(--accent-wash);
+  border-radius: 999px;
+  padding: 0.3rem 0.6rem 0.3rem 0.5rem;
+}
+
+.legend__swatch {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend__swatch--breakfast {
+  background: var(--series-breakfast);
+}
+
+.legend__swatch--lunch {
+  background: var(--series-lunch);
+}
+
+.chart-svg-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.chart-svg {
+  display: block;
+}
+
+.chart-gridline {
+  stroke: var(--gridline);
+  stroke-width: 1;
+}
+
+.chart-baseline {
+  stroke: var(--baseline);
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chart-value-label {
+  fill: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.trend-line-breakfast,
+.trend-line-lunch {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend-line-breakfast {
+  stroke: var(--series-breakfast);
+}
+
+.trend-line-lunch {
+  stroke: var(--series-lunch);
+}
+
+.trend-area-breakfast {
+  fill: var(--series-breakfast);
+  opacity: 0.12;
+  stroke: none;
+}
+
+.trend-area-lunch {
+  fill: var(--series-lunch);
+  opacity: 0.12;
+  stroke: none;
+}
+
+.trend-dot-breakfast,
+.trend-dot-lunch {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.trend-dot-breakfast {
+  fill: var(--series-breakfast);
+}
+
+.trend-dot-lunch {
+  fill: var(--series-lunch);
+}
+
+.trend-dot--end {
+  stroke-width: 2.5;
+}
+
+@media (max-width: 900px) {
+  .dashboard-body {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
+}

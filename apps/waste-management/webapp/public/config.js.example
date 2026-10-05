@@ -1,0 +1,8 @@
+window.config = {
+  // Backend base URL. Locally this is the Go backend on :8080; in Choreo
+  // this is the deployed backend component's public URL. Copy this file to
+  // config.js (gitignored) and edit it - or have your deployment target
+  // generate config.js from this template so the same built bundle can be
+  // promoted across environments without a rebuild.
+  WASTE_DASHBOARD_BACKEND_BASE_URL: "http://localhost:8080",
+};

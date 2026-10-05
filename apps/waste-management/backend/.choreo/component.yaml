@@ -1,0 +1,12 @@
+schemaVersion: 1.2
+
+endpoints:
+  - name: waste-management-backend
+    displayName: Waste Management Backend
+    service:
+      basePath: /
+      port: 8080
+    type: REST
+    networkVisibilities:
+      - Public
+    schemaFilePath: openapi.yaml
